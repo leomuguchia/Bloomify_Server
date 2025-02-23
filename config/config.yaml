@@ -1,0 +1,6 @@
+APP_PORT: "8080"
+DATABASE_URL: "sqlite://bloom.db"
+ENV: "development"
+JWT_SECRET: "supersecretkey"
+LOG_LEVEL: "debug"
+MAX_REQUESTS_PER_MIN: 200
