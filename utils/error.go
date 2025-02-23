@@ -14,7 +14,7 @@ type ErrorResponse struct {
 }
 
 // HandleErrors is a middleware to catch panics and return structured errors
-func HandleErrors() gin.HandlerFunc {
+func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {

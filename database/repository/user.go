@@ -71,3 +71,8 @@ func (repo *GormUserRepo) Delete(id uint) error {
 	}
 	return nil
 }
+
+// NewUserRepository returns a new instance of UserRepository implemented by GormUserRepo.
+func NewUserRepository() UserRepository {
+	return &GormUserRepo{}
+}

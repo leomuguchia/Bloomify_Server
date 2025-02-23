@@ -55,3 +55,8 @@ func (repo *GormProviderRepo) Update(provider *models.Provider) error {
 func (repo *GormProviderRepo) Delete(id string) error {
 	return database.DB.Delete(&models.Provider{}, "id = ?", id).Error
 }
+
+// In bloomify/database/repository/provider.go
+func NewGormProviderRepo() ProviderRepository {
+	return &GormProviderRepo{}
+}

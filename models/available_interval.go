@@ -6,3 +6,6 @@ type AvailableInterval struct {
 	End   int    `json:"end"`   // Minutes from midnight
 	Label string `json:"label"` // e.g., "9:00 AM - 10:30 AM"
 }
+
+// TimeSlot is an alias for AvailableInterval.
+type TimeSlot = AvailableInterval

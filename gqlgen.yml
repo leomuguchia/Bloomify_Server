@@ -1,0 +1,17 @@
+models:
+  Booking:
+    model: "bloomify/models.Booking"
+  BookingResponse:
+    model: "bloomify/models.BookingResponse"
+  BookingSession:
+    model: "bloomify/models.BookingSession"
+  Provider:
+    model: "bloomify/models.Provider"
+  AvailableInterval:
+    model: "bloomify/models.AvailableInterval"
+  ServicePlan:
+    model: "bloomify/models.ServicePlan"
+  ServiceType:
+    model: "bloomify/models.ServiceType"
+  User:
+    model: "bloomify/models.User"

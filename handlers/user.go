@@ -2,26 +2,52 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
+	"bloomify/database/repository"
 	"bloomify/models"
+	userService "bloomify/services/user" // alias to avoid conflict with our variable name
+	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// Global instance of the user service.
+var UserService userService.Service = &userService.DefaultService{
+	UserRepo: repository.NewUserRepository(), // Make sure NewUserRepository() is implemented.
+	Logger:   utils.GetLogger(),              // Ensure GetLogger() returns a *zap.Logger.
+}
 
 // GetProfileHandler returns the authenticated user's profile.
 func GetProfileHandler(c *gin.Context) {
 	logger := getLogger(c)
 
 	// Assume AuthMiddleware has set "userID" in context.
-	userID, exists := c.Get("userID")
+	uid, exists := c.Get("userID")
 	if !exists {
 		logger.Error("User ID not found in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	profile, err := user.GetProfile(userID.(string))
+	// Convert userID from string to uint.
+	userIDStr, ok := uid.(string)
+	if !ok {
+		logger.Error("User ID in context is not a string")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+
+	uid64, err := strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil {
+		logger.Error("Failed to convert user ID to uint", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	userID := uint(uid64)
+
+	profile, err := UserService.GetProfile(userID)
 	if err != nil {
 		logger.Error("Failed to get user profile", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve profile"})
@@ -35,12 +61,28 @@ func GetProfileHandler(c *gin.Context) {
 func UpdateProfileHandler(c *gin.Context) {
 	logger := getLogger(c)
 
-	userID, exists := c.Get("userID")
+	uid, exists := c.Get("userID")
 	if !exists {
 		logger.Error("User ID not found in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
+
+	// Convert userID from string to uint.
+	userIDStr, ok := uid.(string)
+	if !ok {
+		logger.Error("User ID in context is not a string")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+
+	uid64, err := strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil {
+		logger.Error("Failed to convert user ID", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	userID := uint(uid64)
 
 	var updateReq models.User
 	if err := c.ShouldBindJSON(&updateReq); err != nil {
@@ -49,7 +91,7 @@ func UpdateProfileHandler(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := user.UpdateProfile(userID.(string), updateReq)
+	updatedUser, err := UserService.UpdateProfile(userID, updateReq)
 	if err != nil {
 		logger.Error("Failed to update profile", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})

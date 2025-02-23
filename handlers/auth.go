@@ -50,6 +50,8 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
+	// im hoping everything works, but cant test until i finish the remainign code. we have done authentication, database abstraction, unified booking engine...now lets go to
+
 	accessToken, refreshToken, err := authService.LoginUser(req.Email, req.Password)
 	if err != nil {
 		logger.Error("Login failed", zap.Error(err))
