@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"bloomify/services"
+	services "bloomify/services/user"
 	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"

@@ -73,7 +73,6 @@ func RegisterRoutes(r *gin.Engine) {
 	RegisterAuthRoutes(r)
 	RegisterUserRoutes(r)
 	RegisterProviderRoutes(r)
-	RegisterBookingRoutes(r)
 	RegisterAIRoutes(r)
 	RegisterHealthRoute(r)
 }

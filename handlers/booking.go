@@ -1,62 +1,33 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"time"
+
+	"bloomify/models"
+	"bloomify/services/booking"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-
-	"bloomify/database/repository"
-	"bloomify/models"
-	"bloomify/services"
-	"bloomify/utils"
 )
 
-var MatchingService services.MatchingService = &services.DefaultMatchingService{
-	// Initialize fields as needed, e.g.:
-	ProviderRepo: repository.NewGormProviderRepo(),
-	CacheClient:  utils.GetCacheClient(),
+// BookingHandler holds the booking session service that orchestrates the booking process.
+type BookingHandler struct {
+	// BookingSvc is the unified booking session service.
+	BookingSvc booking.BookingSessionService
 }
-var BookingService services.BookingService = &services.DefaultBookingService{}
-var CacheClient = utils.GetCacheClient()
 
-// StartBookingSession creates a new booking session.
-func StartBookingSession(c *gin.Context) {
-	var input struct {
-		ServicePlan models.ServicePlan `json:"servicePlan"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input", "details": err.Error()})
+// InitiateSession handles the initiation of a booking session.
+// It reads a ServicePlan from the request body, calls BookingSvc.InitiateSession,
+// and returns a JSON response containing the sessionID and matched providers.
+func (h *BookingHandler) InitiateSession(c *gin.Context) {
+	var plan models.ServicePlan
+	if err := c.ShouldBindJSON(&plan); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service plan", "details": err.Error()})
 		return
 	}
 
-	// Run matching logic to get providers.
-	matchedProviders, err := MatchingService.MatchProviders(input.ServicePlan)
+	sessionID, matchedProviders, err := h.BookingSvc.InitiateSession(plan)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to match providers: %v", err)})
-		return
-	}
-
-	// Create a new booking session.
-	session := models.BookingSession{
-		ServicePlan:      input.ServicePlan,
-		MatchedProviders: matchedProviders,
-	}
-	sessionID := uuid.New().String()
-	sessionData, err := json.Marshal(session)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal booking session", "details": err.Error()})
-		return
-	}
-
-	// Cache the session (e.g., for 10 minutes).
-	ctx := context.Background()
-	if err := CacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cache booking session", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initiate booking session", "details": err.Error()})
 		return
 	}
 
@@ -66,115 +37,51 @@ func StartBookingSession(c *gin.Context) {
 	})
 }
 
-// UpdateBookingSession updates the booking session with provider selection and recalculates availability.
-func UpdateBookingSession(c *gin.Context) {
+// UpdateSession handles updating an existing booking session when the user selects a provider.
+// It extracts the sessionID from the URL and the selected providerID from the request body,
+// calls BookingSvc.UpdateSession, and returns the updated session details (sessionID, providerID, availability).
+func (h *BookingHandler) UpdateSession(c *gin.Context) {
 	sessionID := c.Param("sessionID")
-	var input struct {
-		BookingRequest models.BookingRequestInput `json:"bookingRequest"`
+	var req struct {
+		ProviderID string `json:"provider_id" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input", "details": err.Error()})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
 		return
 	}
 
-	ctx := context.Background()
-	sessionData, err := CacheClient.Get(ctx, sessionID).Result()
+	updatedSession, err := h.BookingSvc.UpdateSession(sessionID, req.ProviderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "booking session not found or expired"})
-		return
-	}
-
-	var session models.BookingSession
-	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse booking session", "details": err.Error()})
-		return
-	}
-
-	// Override provider selection.
-	session.SelectedProvider = input.BookingRequest.ProviderID
-
-	// Build a request for availability check.
-	availReq := services.BookingRequest{
-		ProviderID:  session.SelectedProvider,
-		UserID:      0, // Not needed for checking availability.
-		Date:        input.BookingRequest.Date,
-		StartMinute: 0, // Not used for availability calculation.
-		Duration:    input.BookingRequest.Duration,
-		Units:       input.BookingRequest.Units,
-	}
-	availIntervals, err := BookingService.CheckAvailability(availReq)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to compute availability: %v", err)})
-		return
-	}
-	session.Availability = availIntervals
-
-	updatedData, err := json.Marshal(session)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal updated session", "details": err.Error()})
-		return
-	}
-	if err := CacheClient.Set(ctx, sessionID, updatedData, 10*time.Minute).Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update booking session", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update booking session", "details": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"sessionID":    sessionID,
-		"availability": availIntervals,
-		"providers":    session.MatchedProviders,
+		"providerID":   updatedSession.SelectedProvider,
+		"availability": updatedSession.Availability,
 	})
 }
 
-// ConfirmBooking finalizes the booking.
-func ConfirmBooking(c *gin.Context) {
-	var input struct {
-		SessionID      string                     `json:"sessionID"`
-		BookingRequest models.BookingRequestInput `json:"bookingRequest"`
-		ConfirmedSlot  models.AvailableInterval   `json:"confirmedSlot"`
-		UserID         uint                       `json:"userID"`
+// ConfirmBooking handles the finalization of a booking.
+// It reads the sessionID, confirmed availability slot, and additional booking request details from the request body,
+// calls BookingSvc.ConfirmBooking, and returns the finalized booking record.
+func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
+	var req struct {
+		SessionID      string                `json:"session_id" binding:"required"`
+		ConfirmedSlot  models.AvailableSlot  `json:"confirmed_slot" binding:"required"`
+		BookingRequest models.BookingRequest `json:"booking_request" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input", "details": err.Error()})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
 		return
 	}
 
-	ctx := context.Background()
-	sessionData, err := CacheClient.Get(ctx, input.SessionID).Result()
+	booking, err := h.BookingSvc.ConfirmBooking(req.SessionID, req.ConfirmedSlot, req.BookingRequest)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "booking session not found or expired"})
-		return
-	}
-	var session models.BookingSession
-	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse booking session", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to confirm booking", "details": err.Error()})
 		return
 	}
 
-	if session.SelectedProvider == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "provider not selected; cannot confirm booking"})
-		return
-	}
-
-	// Build the final booking request.
-	finalReq := services.BookingRequest{
-		ProviderID:  session.SelectedProvider,
-		UserID:      input.UserID,
-		Date:        input.BookingRequest.Date,
-		StartMinute: input.ConfirmedSlot.Start,
-		Duration:    input.BookingRequest.Duration,
-		Units:       input.BookingRequest.Units,
-	}
-	confirmedBooking, err := BookingService.BookSlot(finalReq)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("booking confirmation failed: %v", err)})
-		return
-	}
-
-	// Clear the session from cache.
-	CacheClient.Del(ctx, input.SessionID)
-
-	c.JSON(http.StatusOK, gin.H{
-		"booking": confirmedBooking,
-	})
+	c.JSON(http.StatusOK, booking)
 }

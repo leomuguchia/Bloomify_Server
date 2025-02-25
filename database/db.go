@@ -1,49 +1,32 @@
 package database
 
 import (
+	"context"
 	"log"
+	"time"
 
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"bloomify/utils"
 
-	"github.com/spf13/viper"
-
-	"bloomify/models"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// DB is the global database connection instance.
-var DB *gorm.DB
+// MongoClient is the global MongoDB client instance.
+var MongoClient *mongo.Client
 
-// InitDB initializes the database connection and performs migrations.
+// InitDB initializes the MongoDB connection.
 func InitDB() {
-	// Load database file from config; default to "backend.db".
-	dbFile := viper.GetString("DB_FILE")
-	if dbFile == "" {
-		dbFile = "backend.db"
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	var err error
-	DB, err = gorm.Open(sqlite.Open(dbFile), &gorm.Config{})
+	clientOptions := options.Client().ApplyURI(utils.AppConfig.DatabaseURL) // e.g., "mongodb://localhost:27017"
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("failed to connect to MongoDB: %v", err)
 	}
-	log.Println("Database connection established.")
-
-	// Run migrations.
-	runMigrations()
-}
-
-// runMigrations migrates the schema.
-func runMigrations() {
-	err := DB.AutoMigrate(
-		&models.User{},
-		&models.Provider{},
-		&models.Blocked{},
-		&models.Booking{},
-		// &models.ServiceType{}, // Optional
-	)
-	if err != nil {
-		log.Fatalf("Database migration failed: %v", err)
+	if err := client.Ping(ctx, nil); err != nil {
+		log.Fatalf("failed to ping MongoDB: %v", err)
 	}
-	log.Println("Database migrated successfully.")
+	MongoClient = client
+	log.Println("Connected to MongoDB successfully!")
 }

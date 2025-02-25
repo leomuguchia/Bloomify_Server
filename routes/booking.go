@@ -6,12 +6,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterBookingRoutes registers all endpoints for the booking engine.
-func RegisterBookingRoutes(r *gin.Engine) {
-	booking := r.Group("/api/booking")
+// RegisterBookingRoutes sets up the endpoints for the unified booking engine.
+// It expects a BookingHandler instance that implements the actual logic.
+func RegisterBookingRoutes(r *gin.Engine, bookingHandler *handlers.BookingHandler) {
+	bookingGroup := r.Group("/api/booking")
 	{
-		booking.POST("/session", handlers.StartBookingSession)            // Phase 1: Start session
-		booking.PUT("/session/:sessionID", handlers.UpdateBookingSession) // Phase 2: Update session
-		booking.POST("/confirm", handlers.ConfirmBooking)                 // Phase 3: Confirm booking
+		// Initiate a booking session.
+		// POST /api/booking/session
+		bookingGroup.POST("/session", bookingHandler.InitiateSession)
+
+		// Update a booking session with a selected provider.
+		// PUT /api/booking/session/:sessionID
+		// Returns sessionID, providerID, and provider availability.
+		bookingGroup.PUT("/session/:sessionID", bookingHandler.UpdateSession)
+
+		// Confirm a booking.
+		// POST /api/booking/confirm
+		bookingGroup.POST("/confirm", bookingHandler.ConfirmBooking)
 	}
 }

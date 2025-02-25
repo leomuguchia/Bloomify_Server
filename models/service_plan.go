@@ -4,9 +4,9 @@ package models
 type ServicePlan struct {
 	Service    string  `json:"service"`     // e.g., "Laundry", "Cleaning"
 	BookingFor string  `json:"booking_for"` // e.g., "Myself", "Family"
-	Urgency    string  `json:"urgency"`     // "Now" or "Later"
+	Priority   bool    `json:"priority"`    // True if the request is urgent/priority
 	Location   string  `json:"location"`    // e.g., "New York"
 	Latitude   float64 `json:"latitude"`    // Requester's latitude
 	Longitude  float64 `json:"longitude"`   // Requester's longitude
-	Duration   int     `json:"duration"`    // in minutes
+	Date       string  `json:"date"`        // Date in "YYYY-MM-DD" format
 }

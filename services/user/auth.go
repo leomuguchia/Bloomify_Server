@@ -1,4 +1,4 @@
-package services
+package user
 
 import (
 	"errors"
@@ -104,29 +104,6 @@ func (s *DefaultAuthService) RefreshToken(refreshToken string) (string, string, 
 		return "", "", fmt.Errorf("failed to generate new refresh token: %w", err)
 	}
 	return accessToken, newRefreshToken, nil
-}
-
-// generateToken creates a JWT token with the given duration.
-func generateToken(userID uint, duration time.Duration) (string, error) {
-	jwtSecret := utils.AppConfig.JWTSecret
-	if jwtSecret == "" {
-		return "", errors.New("JWT secret not configured")
-	}
-
-	claims := CustomClaims{
-		UserID: userID,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(duration).Unix(),
-			IssuedAt:  time.Now().Unix(),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(jwtSecret))
-	if err != nil {
-		return "", err
-	}
-	return tokenString, nil
 }
 
 // parseToken verifies and parses a JWT token.

@@ -1,24 +1,19 @@
-// models/booking.go
 package models
 
-import (
-	"time"
+import "time"
 
-	"gorm.io/gorm"
-)
-
-// Booking represents a booking record.
+// Booking represents a confirmed booking record.
 type Booking struct {
-	ID          uint           `gorm:"primaryKey" json:"id"`
-	ProviderID  string         `json:"provider_id"`
-	UserID      uint           `json:"user_id"`
-	Date        string         `json:"date"`         // YYYY-MM-DD
-	StartMinute int            `json:"start_minute"` // Minutes from midnight
-	Duration    int            `json:"duration"`     // Duration in minutes
-	Units       int            `json:"units"`        // Number of capacity units booked
-	TotalPrice  float64        `json:"total_price"`  // Calculated total price
-	Status      string         `json:"status"`       // "Confirmed", "Pending", "Cancelled"
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	ID         string    `bson:"id" json:"id"`                                 // Unique booking identifier (e.g., UUID)
+	ProviderID string    `bson:"provider_id" json:"provider_id"`               // Provider who was booked
+	UserID     string    `bson:"user_id" json:"user_id"`                       // User who made the booking
+	Date       string    `bson:"date" json:"date"`                             // Booking date in "YYYY-MM-DD" format
+	Units      int       `bson:"units" json:"units"`                           // Number of capacity units booked (e.g., 1, 2, etc.)
+	UnitType   string    `bson:"unit_type" json:"unit_type"`                   // Measurement unit (e.g., "child", "kg", "hour")
+	TotalPrice float64   `bson:"total_price" json:"total_price"`               // Calculated total price
+	Status     string    `bson:"status" json:"status"`                         // e.g., "Confirmed", "Pending"
+	CreatedAt  time.Time `bson:"created_at" json:"created_at"`                 // Timestamp when booking was created
+	Start      int       `bson:"start" json:"start"`                           // Booking start time (minutes from midnight)
+	End        int       `bson:"end" json:"end"`                               // Booking end time (minutes from midnight)
+	Priority   bool      `bson:"priority,omitempty" json:"priority,omitempty"` // Indicates if the booking is under the urgency (priority) bucket
 }
