@@ -9,79 +9,80 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// BookingHandler holds the booking session service that orchestrates the booking process.
+// BookingHandler handles HTTP requests for booking operations.
 type BookingHandler struct {
-	// BookingSvc is the unified booking session service.
 	BookingSvc booking.BookingSessionService
 }
 
-// InitiateSession handles the initiation of a booking session.
-// It reads a ServicePlan from the request body, calls BookingSvc.InitiateSession,
-// and returns a JSON response containing the sessionID and matched providers.
+// NewBookingHandler returns a new BookingHandler instance.
+func NewBookingHandler(svc booking.BookingSessionService) *BookingHandler {
+	return &BookingHandler{BookingSvc: svc}
+}
+
+// InitiateSession handles POST /api/booking/session.
+// It expects a JSON payload corresponding to models.ServicePlan.
 func (h *BookingHandler) InitiateSession(c *gin.Context) {
 	var plan models.ServicePlan
 	if err := c.ShouldBindJSON(&plan); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid service plan", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
 		return
 	}
 
-	sessionID, matchedProviders, err := h.BookingSvc.InitiateSession(plan)
+	sessionID, providers, err := h.BookingSvc.InitiateSession(plan)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initiate booking session", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate booking session", "details": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"sessionID": sessionID,
-		"providers": matchedProviders,
+		"providers": providers,
 	})
 }
 
-// UpdateSession handles updating an existing booking session when the user selects a provider.
-// It extracts the sessionID from the URL and the selected providerID from the request body,
-// calls BookingSvc.UpdateSession, and returns the updated session details (sessionID, providerID, availability).
+// UpdateSession handles PUT /api/booking/session/:sessionID.
+// It expects a JSON payload with a selected provider ID.
 func (h *BookingHandler) UpdateSession(c *gin.Context) {
 	sessionID := c.Param("sessionID")
+
 	var req struct {
-		ProviderID string `json:"provider_id" binding:"required"`
+		SelectedProviderID string `json:"selectedProviderID" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
 		return
 	}
 
-	updatedSession, err := h.BookingSvc.UpdateSession(sessionID, req.ProviderID)
+	session, err := h.BookingSvc.UpdateSession(sessionID, req.SelectedProviderID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update booking session", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update booking session", "details": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"sessionID":    sessionID,
-		"providerID":   updatedSession.SelectedProvider,
-		"availability": updatedSession.Availability,
+		"sessionID":        session.SessionID,
+		"selectedProvider": session.SelectedProvider,
+		"availability":     session.Availability,
 	})
 }
 
-// ConfirmBooking handles the finalization of a booking.
-// It reads the sessionID, confirmed availability slot, and additional booking request details from the request body,
-// calls BookingSvc.ConfirmBooking, and returns the finalized booking record.
+// ConfirmBooking handles POST /api/booking/confirm.
+// It expects a JSON payload with both a sessionID and a confirmedSlot.
 func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 	var req struct {
-		SessionID      string                `json:"session_id" binding:"required"`
-		ConfirmedSlot  models.AvailableSlot  `json:"confirmed_slot" binding:"required"`
-		BookingRequest models.BookingRequest `json:"booking_request" binding:"required"`
+		SessionID     string               `json:"sessionID" binding:"required"`
+		ConfirmedSlot models.AvailableSlot `json:"confirmedSlot" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
 		return
 	}
 
-	booking, err := h.BookingSvc.ConfirmBooking(req.SessionID, req.ConfirmedSlot, req.BookingRequest)
+	bookingResult, err := h.BookingSvc.ConfirmBooking(req.SessionID, req.ConfirmedSlot)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to confirm booking", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to confirm booking", "details": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, booking)
+	c.JSON(http.StatusOK, bookingResult)
 }

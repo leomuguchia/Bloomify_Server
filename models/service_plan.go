@@ -9,4 +9,6 @@ type ServicePlan struct {
 	Latitude   float64 `json:"latitude"`    // Requester's latitude
 	Longitude  float64 `json:"longitude"`   // Requester's longitude
 	Date       string  `json:"date"`        // Date in "YYYY-MM-DD" format
+	Units      int     `json:"units"`       // Units booked in in integer
+	UnitType   string  `json:"unitType"`    // Units measured in eg "kgs", "kids", etc
 }

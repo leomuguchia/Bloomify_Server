@@ -102,40 +102,51 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	return &session, nil
 }
 
-// ConfirmBooking finalizes the booking by retrieving the session, constructing a Booking
-// record using the confirmed available slot, creating the booking via BookingSvc,
-// and then deleting the session.
-func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error) {
+// ConfirmBooking finalizes the booking by retrieving the session from Redis,
+// converting it into a confirmation session, delegating confirmation to the confirmation module,
+// and then cleaning up the session.
+func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string) (*models.Booking, error) {
 	ctx := context.Background()
 
+	// Retrieve session from Redis.
 	sessionData, err := s.CacheClient.Get(ctx, sessionID).Result()
 	if err != nil {
 		return nil, fmt.Errorf("booking session not found or expired: %w", err)
 	}
-	var session models.BookingSession
+	var session models.BookingConfirmationSession
 	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
-	if session.SelectedProvider == "" {
-		return nil, fmt.Errorf("no provider selected in booking session")
+	// Convert the booking session to a confirmation session.
+	confirmSess := models.BookingConfirmationSession{
+		SelectedProvider: session.SelectedProvider,
+		UserID:           session.UserID,
+		ServicePlan:      session.ServicePlan, // Must match our BookingServicePlan structure.
+		Availability:     session.Availability,
+		PaymentMethod:    "inApp", // We enforce in-app payment.
 	}
 
-	finalBooking := models.Booking{
-		ProviderID: session.SelectedProvider,
-		Date:       session.ServicePlan.Date,
-		TimeSlot:   session.Availability[0], // Assumes client selected the first available slot.
-		Units:      session.ServicePlan.Quantity,
-		Status:     "Confirmed",
-		CreatedAt:  time.Now(),
-	}
-
-	booking, err := s.BookingSvc.BookSlot(finalBooking)
+	// Delegate confirmation to the confirmation module.
+	confirmationResp, err := s.BookingSvc.ConfirmSession(confirmSess)
 	if err != nil {
-		return nil, fmt.Errorf("failed to finalize booking: %w", err)
+		return nil, fmt.Errorf("failed to confirm booking: %w", err)
 	}
 
+	// Cleanup: Delete the session from Redis.
 	s.CacheClient.Del(ctx, sessionID)
+
+	// Convert the confirmation response into a Booking object (if needed).
+	booking := &models.Booking{
+		ID:            confirmationResp.BookingID,
+		ProviderID:    confirmationResp.ProviderID,
+		Date:          confirmationResp.Date,
+		Start:         confirmationResp.Start,
+		End:           confirmationResp.End,
+		PaymentMethod: confirmationResp.PaymentMethod,
+		CreatedAt:     confirmationResp.CreatedAt,
+		// Populate additional fields as necessary.
+	}
 
 	return booking, nil
 }

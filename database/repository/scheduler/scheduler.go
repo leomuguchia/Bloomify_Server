@@ -18,8 +18,12 @@ type SchedulerRepository interface {
 	SumOverlappingBookingsForPriority(providerID, date string, start, end int) (int, error)
 	// CreateBooking persists a new booking record.
 	CreateBooking(booking *models.Booking) error
+	// CancelBooking removes a booking record from the database.
+	CancelBooking(bookingID string) error
 	// CreateBlockedInterval persists a new blocked interval record.
 	CreateBlockedInterval(blocked *models.Blocked) error
 	// UpdateTimeSlotAggregates updates the denormalized aggregates on a provider's timeslot.
+	// The parameters include the provider ID, the TimeSlot document (ts), the date, the number of units to update,
+	// a flag indicating whether the update is for a priority booking, and the expected version for optimistic locking.
 	UpdateTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error
 }
