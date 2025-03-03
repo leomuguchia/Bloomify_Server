@@ -32,11 +32,18 @@ func RegisterUserRoutes(r *gin.Engine) {
 func RegisterProviderRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	{
-		api.GET("/providers", handlers.GetProvidersHandler)
-		api.GET("/providers/:id", handlers.GetProviderHandler)
-		api.POST("/providers", handlers.CreateProviderHandler)
+		// Retrieve provider details by ID.
+		api.GET("/providers/:id", handlers.GetProviderByIDHandler)
+		// Retrieve provider details by email.
+		api.GET("/providers/email/:email", handlers.GetProviderByEmailHandler)
+		// Register a new provider.
+		api.POST("/providers", handlers.RegisterProviderHandler)
+		// Update provider details.
 		api.PUT("/providers/:id", handlers.UpdateProviderHandler)
+		// Delete a provider.
 		api.DELETE("/providers/:id", handlers.DeleteProviderHandler)
+		// Authenticate a provider.
+		api.POST("/providers/authenticate", handlers.AuthenticateProviderHandler)
 	}
 }
 
@@ -55,6 +62,23 @@ func RegisterHealthRoute(r *gin.Engine) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+}
+
+// RegisterBookingRoutes sets up the endpoints for the unified booking engine.
+func RegisterBookingRoutes(r *gin.Engine, bookingHandler *handlers.BookingHandler) {
+	bookingGroup := r.Group("/api/booking")
+	{
+		bookingGroup.POST("/session", bookingHandler.InitiateSession)
+
+		// Update a booking session with a selected provider.
+		// PUT /api/booking/session/:sessionID
+		// Returns sessionID, providerID, and provider availability.
+		bookingGroup.PUT("/session/:sessionID", bookingHandler.UpdateSession)
+
+		// Confirm a booking.
+		// POST /api/booking/confirm
+		bookingGroup.POST("/confirm", bookingHandler.ConfirmBooking)
+	}
 }
 
 // RegisterRoutes centralizes registration of all endpoints and middleware.

@@ -17,4 +17,5 @@ type Booking struct {
 	End           int       `bson:"end" json:"end"`                               // Booking end time (minutes from midnight)
 	Priority      bool      `bson:"priority,omitempty" json:"priority,omitempty"` // Indicates if the booking is under the urgency (priority) bucket
 	PaymentMethod string    `bson:"payment_method" json:"payment_method"`         // Payment method used (e.g., "inApp")
+	PaymentStatus string    `bson:"payment_status" json:"payment_status"`         // e.g., "pending", "paid", "cancelled"
 }

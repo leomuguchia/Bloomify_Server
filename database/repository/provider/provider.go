@@ -1,6 +1,10 @@
 package providerRepo
 
-import "bloomify/models"
+import (
+	"bloomify/models"
+
+	"go.mongodb.org/mongo-driver/bson"
+)
 
 // ProviderSearchCriteria defines criteria for an advanced provider search.
 type ProviderSearchCriteria struct {
@@ -33,6 +37,16 @@ type ProviderRepository interface {
 	Update(provider *models.Provider) error
 	// Delete removes a provider record by its ID.
 	Delete(id string) error
+	// GetByEmail retrieves a provider by its email address.
+	GetByEmail(email string) (*models.Provider, error)
 	// AdvancedSearch performs an advanced search based on various criteria.
 	AdvancedSearch(criteria ProviderSearchCriteria) ([]models.Provider, error)
+	// GetByIDWithProjection retrieves a provider by its unique ID with a projection.
+	GetByIDWithProjection(id string, projection bson.M) (*models.Provider, error)
+	// GetByEmailWithProjection retrieves a provider by its email with a projection.
+	GetByEmailWithProjection(email string, projection bson.M) (*models.Provider, error)
+	// GetAllWithProjection retrieves all providers with an optional projection.
+	GetAllWithProjection(projection bson.M) ([]models.Provider, error)
+	// GetByServiceTypeWithProjection retrieves providers by service type with a projection.
+	GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error)
 }

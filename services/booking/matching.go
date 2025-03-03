@@ -48,7 +48,7 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		Location:      plan.Location,
 		Latitude:      plan.Latitude,
 		Longitude:     plan.Longitude,
-		MaxDistanceKm: 50, // Maximum effective distance.
+		MaxDistanceKm: 5, // Maximum effective distance.
 	}
 	// Perform advanced search to get candidate providers.
 	providers, err := s.ProviderRepo.AdvancedSearch(criteria)

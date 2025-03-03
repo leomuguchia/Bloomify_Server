@@ -20,16 +20,26 @@ type Provider struct {
 	ID                string             `bson:"id" json:"id"`
 	Name              string             `bson:"name" json:"name"`
 	Email             string             `bson:"email" json:"email"`
+	Password          string             `bson:"-" json:"password,omitempty"` // Transient field; not persisted.
+	PasswordHash      string             `bson:"password_hash" json:"-"`
 	PhoneNumber       string             `bson:"phone_number" json:"phone_number"`
-	TimeSlots         []TimeSlot         `bson:"time_slots" json:"time_slots"`           // Pre-defined booking windows
-	ServiceType       string             `bson:"service_type" json:"service_type"`       // e.g., "Cleaning", "Laundry", etc.
-	Location          string             `bson:"location" json:"location"`                     // Human-readable location (e.g., city)
-	Latitude          float64            `bson:"latitude" json:"latitude"`                     // Geographic latitude
-	Longitude         float64            `bson:"longitude" json:"longitude"`                   // Geographic longitude
+	TimeSlots         []TimeSlot         `bson:"time_slots" json:"time_slots"`     // Pre-defined booking windows
+	ServiceType       string             `bson:"service_type" json:"service_type"` // e.g., "Cleaning", "Laundry", etc.
+	Location          string             `bson:"location" json:"location"`         // Human-readable location
+	Latitude          float64            `bson:"latitude" json:"latitude"`
+	Longitude         float64            `bson:"longitude" json:"longitude"`
 	Rating            float64            `bson:"rating" json:"rating"`                         // Average rating (0.0 to 5.0)
 	CompletedBookings int                `bson:"completed_bookings" json:"completed_bookings"` // Count of completed bookings
-	Verified          bool               `bson:"verified" json:"verified"`                     // Indicates if the provider is verified
-	CreatedAt         time.Time          `bson:"created_at" json:"created_at"`                 // When the provider joined the platform
-	Status            string             `bson:"status" json:"status"`                         // e.g., "active", "online", etc.
-	HistoricalRecords []HistoricalRecord `bson:"historical_records" json:"historical_records"` // Tracks performance over time
+	Verified          bool               `bson:"verified" json:"verified"`
+	CreatedAt         time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt         time.Time          `bson:"updated_at" json:"updated_at"`
+	Status            string             `bson:"status" json:"status"`
+	HistoricalRecords []HistoricalRecord `bson:"historical_records" json:"historical_records"`
+
+	// PaymentOptions defines which payment methods the provider accepts.
+	// For example, a provider may allow ["cash"] for post-payment or ["stripe"] for pre-payment.
+	AcceptedPaymentMethods []string `bson:"accepted_payment_methods" json:"accepted_payment_methods"`
+
+	// Derived field: if true, the provider requires pre-payment (e.g., via stripe or card)
+	PrePaymentRequired bool `bson:"pre_payment_required" json:"pre_payment_required"`
 }

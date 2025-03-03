@@ -26,4 +26,7 @@ type SchedulerRepository interface {
 	// The parameters include the provider ID, the TimeSlot document (ts), the date, the number of units to update,
 	// a flag indicating whether the update is for a priority booking, and the expected version for optimistic locking.
 	UpdateTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error
+	// RollbackTimeSlotAggregates decrements the denormalized aggregates for a provider's timeslot.
+	// This is used when a booking is cancelled (for example, due to payment failure).
+	RollbackTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error
 }

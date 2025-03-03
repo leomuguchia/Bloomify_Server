@@ -9,6 +9,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // MongoSchedulerRepo implements SchedulerRepository using MongoDB.
@@ -233,5 +234,52 @@ func (repo *MongoSchedulerRepo) CancelBooking(bookingID string) error {
 		fmt.Printf("warning: failed to clear blocked intervals for booking %s: %v\n", bookingID, err)
 	}
 
+	return nil
+}
+
+// RollbackTimeSlotAggregates decrements the stored aggregate values for a TimeSlot.
+// This is used when a booking is cancelled due to payment failure.
+func (repo *MongoSchedulerRepo) RollbackTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// We assume that the provider document stores the TimeSlots in an array "time_slots".
+	// We use an array filter to target the specific slot.
+	filter := bson.M{"id": providerID}
+	arrayFilters := options.Update().SetArrayFilters(options.ArrayFilters{
+		Filters: []interface{}{
+			bson.M{
+				"elem.start":   ts.Start,
+				"elem.end":     ts.End,
+				"elem.date":    date,
+				"elem.version": expectedVersion,
+			},
+		},
+	})
+
+	var update bson.M
+	if isPriority {
+		update = bson.M{
+			"$inc": bson.M{
+				"time_slots.$[elem].booked_units_priority": -units,
+				"time_slots.$[elem].version":               1,
+			},
+		}
+	} else {
+		update = bson.M{
+			"$inc": bson.M{
+				"time_slots.$[elem].booked_units_standard": -units,
+				"time_slots.$[elem].version":               1,
+			},
+		}
+	}
+
+	res, err := repo.providerColl.UpdateOne(ctx, filter, update, arrayFilters)
+	if err != nil {
+		return fmt.Errorf("rollback update error: %w", err)
+	}
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("rollback failed: no matching document found or version mismatch")
+	}
 	return nil
 }

@@ -20,7 +20,8 @@ type SchedulingEngine interface {
 
 // DefaultSchedulingEngine is our production‑ready implementation.
 type DefaultSchedulingEngine struct {
-	Repo schedulerRepo.SchedulerRepository
+	Repo           schedulerRepo.SchedulerRepository
+	PaymentHandler PaymentProcessor // In-app payment processor
 }
 
 // GetAvailableTimeSlots computes available time slots for the provider over a 7‑day window.
@@ -137,22 +138,19 @@ func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provide
 	return availableSlots, nil
 }
 
-// BookSlot finalizes a booking for a provider using the selected available slot.
-// It validates the booking's time window, calculates the total price, creates the booking,
-// and then updates the denormalized aggregates on the corresponding timeslot using optimistic concurrency.
 func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, date string, slot models.AvailableSlot, booking models.Booking) error {
-	// Create a context with timeout.
 	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Validate that the booking's time window falls within the selected slot.
+	// 1. Validate that the booking's time window falls within the selected slot.
 	if booking.Start < slot.Start || booking.End > slot.End {
 		return fmt.Errorf("booking time [%d, %d] is not within slot [%d, %d]", booking.Start, booking.End, slot.Start, slot.End)
 	}
 
+	// 2. Locate the matching TimeSlot template, ensuring that the date matches.
 	var ts *models.TimeSlot
-	// Find the matching timeslot template; ensure that the date matches.
 	for _, candidate := range provider.TimeSlots {
+		// Assume candidate.Date is set when recurring slots are instantiated.
 		if candidate.Start == slot.Start && candidate.End == slot.End && candidate.Date == date {
 			ts = &candidate
 			break
@@ -162,15 +160,14 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, date strin
 		return fmt.Errorf("timeslot configuration not found for slot [%d-%d] on date %s", slot.Start, slot.End, date)
 	}
 
+	// 3. Calculate total price and perform capacity validation based on the slot model.
 	var totalPrice float64
-	// Process pricing and capacity validation based on the slot model.
 	switch ts.SlotModel {
 	case "urgency":
 		if ts.Urgency == nil {
 			return fmt.Errorf("urgency slot data missing")
 		}
 		normalCapacity := ts.Capacity - ts.Urgency.ReservedPriority
-
 		if booking.Priority {
 			usagePriority, err := se.Repo.SumOverlappingBookingsForPriority(provider.ID, date, ts.Start, ts.End)
 			if err != nil {
@@ -218,41 +215,38 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, date strin
 		totalPrice = CalculateFlatratePrice(*ts.Flatrate, booking.Units)
 	}
 
-	// Finalize the booking record.
+	// 4. Finalize the booking record.
 	booking.ProviderID = provider.ID
 	booking.Date = date
 	booking.CreatedAt = time.Now()
 	booking.TotalPrice = totalPrice
 
+	// 5. Persist the booking record to reserve the slot immediately.
 	if err := se.Repo.CreateBooking(&booking); err != nil {
 		return fmt.Errorf("error creating booking: %w", err)
 	}
 
-	// Update the denormalized aggregates on the timeslot using optimistic concurrency.
-	// We use ts.Version as the expected version.
+	// 6. Update the denormalized aggregates on the TimeSlot using optimistic concurrency.
 	var updateErr error
 	if ts.SlotModel == "urgency" {
-		// For urgency, update based on booking.Priority.
 		if booking.Priority {
 			updateErr = se.Repo.UpdateTimeSlotAggregates(provider.ID, *ts, date, booking.Units, true, ts.Version)
 		} else {
 			updateErr = se.Repo.UpdateTimeSlotAggregates(provider.ID, *ts, date, booking.Units, false, ts.Version)
 		}
 	} else {
-		// For earlybird or flatrate, treat as standard.
 		updateErr = se.Repo.UpdateTimeSlotAggregates(provider.ID, *ts, date, booking.Units, false, ts.Version)
 	}
 	if updateErr != nil {
 		return fmt.Errorf("failed to update timeslot aggregates: %w", updateErr)
 	}
 
-	// Post-booking: Check if the slot should be blocked.
+	// 7. Block the slot if capacity is reached.
 	var blockSlot bool
 	switch ts.SlotModel {
 	case "urgency":
 		usageStandard, _ := se.Repo.SumOverlappingBookingsForStandard(provider.ID, date, ts.Start, ts.End)
 		usagePriority, _ := se.Repo.SumOverlappingBookingsForPriority(provider.ID, date, ts.Start, ts.End)
-		// Block the slot only if the entire capacity is reached.
 		if usageStandard >= (ts.Capacity-ts.Urgency.ReservedPriority) && usagePriority >= ts.Urgency.ReservedPriority {
 			blockSlot = true
 		}
@@ -276,21 +270,52 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, date strin
 		}
 	}
 
-	// Additionally, if the slot's end time (today’s absolute time) has passed, block it as expired.
-	currentTime := time.Now()
-	slotEndTime := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), ts.End/60, ts.End%60, 0, 0, currentTime.Location())
-	if currentTime.After(slotEndTime) {
-		block := models.Blocked{
-			ProviderID:  provider.ID,
-			Date:        date,
-			Start:       ts.Start,
-			End:         ts.End,
-			Reason:      "slot time expired",
-			ServiceType: provider.ServiceType,
+	// 8. Payment follow-up:
+	// Payment follow-up: For pre-payment providers, wait up to 5 minutes for payment confirmation.
+	if provider.PrePaymentRequired {
+		invoiceCh := make(chan *models.Invoice)
+		errCh := make(chan error)
+		go func(b models.Booking) {
+			invoice, payErr := se.PaymentHandler.ProcessPayment(&b)
+			if payErr != nil {
+				errCh <- payErr
+				return
+			}
+			invoiceCh <- invoice
+		}(booking)
+
+		select {
+		case invoice := <-invoiceCh:
+			if invoice.Status != "paid" {
+				// Payment failed: rollback aggregates and cancel booking.
+				_ = se.Repo.CancelBooking(booking.ID)
+				rollbackErr := se.Repo.RollbackTimeSlotAggregates(provider.ID, *ts, date, booking.Units, booking.Priority, ts.Version)
+				if rollbackErr != nil {
+					fmt.Printf("warning: failed to rollback aggregates for booking %s: %v\n", booking.ID, rollbackErr)
+				}
+				return fmt.Errorf("payment not confirmed: invoice status %s", invoice.Status)
+			}
+			// Payment succeeded: continue normally.
+		case err := <-errCh:
+			_ = se.Repo.CancelBooking(booking.ID)
+			rollbackErr := se.Repo.RollbackTimeSlotAggregates(provider.ID, *ts, date, booking.Units, booking.Priority, ts.Version)
+			if rollbackErr != nil {
+				fmt.Printf("warning: failed to rollback aggregates for booking %s: %v\n", booking.ID, rollbackErr)
+			}
+			return fmt.Errorf("payment processing error: %w", err)
+		case <-time.After(5 * time.Minute):
+			// Payment timeout: rollback aggregates and cancel booking.
+			_ = se.Repo.CancelBooking(booking.ID)
+			rollbackErr := se.Repo.RollbackTimeSlotAggregates(provider.ID, *ts, date, booking.Units, booking.Priority, ts.Version)
+			if rollbackErr != nil {
+				fmt.Printf("warning: failed to rollback aggregates for booking %s: %v\n", booking.ID, rollbackErr)
+			}
+			return fmt.Errorf("payment processing timed out; booking cancelled")
 		}
-		if err := se.Repo.CreateBlockedInterval(&block); err != nil {
-			fmt.Printf("warning: failed to create time-expired block: %v\n", err)
-		}
+	} else {
+		// Cash-on-service: bypass payment processing.
+		booking.PaymentMethod = "cash-on-service"
+		booking.PaymentStatus = "pending"
 	}
 
 	return nil

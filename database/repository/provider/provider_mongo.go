@@ -20,30 +20,102 @@ type MongoProviderRepo struct {
 
 // NewMongoProviderRepo creates a new instance of ProviderRepository using MongoDB.
 func NewMongoProviderRepo() ProviderRepository {
-	// Use the "bloomify" database and the "providers" collection.
 	coll := database.MongoClient.Database("bloomify").Collection("providers")
-	return &MongoProviderRepo{coll: coll}
+	repo := &MongoProviderRepo{coll: coll}
+
+	if err := repo.ensureIndexes(); err != nil {
+		fmt.Printf("failed to create indexes: %v\n", err)
+	}
+	return repo
 }
 
-func (r *MongoProviderRepo) GetByID(id string) (*models.Provider, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// newContext creates a context with the given timeout.
+func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), timeout)
+}
+
+// ensureIndexes creates indexes for fields that are frequently used in queries.
+func (r *MongoProviderRepo) ensureIndexes() error {
+	ctx, cancel := newContext(10 * time.Second)
 	defer cancel()
+
+	indexModels := []mongo.IndexModel{
+		{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true)},
+		{Keys: bson.D{{Key: "service_type", Value: 1}}},
+		{Keys: bson.D{{Key: "location", Value: 1}}},
+		{Keys: bson.D{{Key: "rating", Value: -1}}},
+		{Keys: bson.D{{Key: "completed_bookings", Value: -1}}},
+		{Keys: bson.D{{Key: "location_geo", Value: "2dsphere"}}},
+		{Keys: bson.D{{Key: "status", Value: 1}}},
+		{Keys: bson.D{{Key: "latitude", Value: 1}}},
+		{Keys: bson.D{{Key: "longitude", Value: 1}}},
+	}
+
+	_, err := r.coll.Indexes().CreateMany(ctx, indexModels)
+	if err != nil {
+		return fmt.Errorf("failed to create indexes: %w", err)
+	}
+	return nil
+}
+
+// --- Projection-based Helper Methods ---
+
+// GetByIDWithProjection retrieves a provider by its unique ID using a projection.
+// Pass nil for projection if you want the full document.
+func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) (*models.Provider, error) {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	opts := options.FindOne()
+	if projection != nil {
+		opts.SetProjection(projection)
+	}
+
 	var provider models.Provider
-	filter := bson.M{"id": id}
-	if err := r.coll.FindOne(ctx, filter).Decode(&provider); err != nil {
+	if err := r.coll.FindOne(ctx, bson.M{"id": id}, opts).Decode(&provider); err != nil {
 		return nil, fmt.Errorf("failed to fetch provider with id %s: %w", id, err)
 	}
 	return &provider, nil
 }
 
-func (r *MongoProviderRepo) GetAll() ([]models.Provider, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// GetByEmailWithProjection retrieves a provider by its email using a projection.
+// Pass nil for projection if you want the full document.
+func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bson.M) (*models.Provider, error) {
+	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
-	cursor, err := r.coll.Find(ctx, bson.M{})
+
+	opts := options.FindOne()
+	if projection != nil {
+		opts.SetProjection(projection)
+	}
+
+	var provider models.Provider
+	if err := r.coll.FindOne(ctx, bson.M{"email": email}, opts).Decode(&provider); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to fetch provider with email %s: %w", email, err)
+	}
+	return &provider, nil
+}
+
+// GetAllWithProjection retrieves all providers with an optional projection.
+func (r *MongoProviderRepo) GetAllWithProjection(projection bson.M) ([]models.Provider, error) {
+	ctx, cancel := newContext(10 * time.Second)
+	defer cancel()
+
+	opts := options.Find()
+	if projection != nil {
+		opts.SetProjection(projection)
+	}
+
+	cursor, err := r.coll.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
 	}
 	defer cursor.Close(ctx)
+
 	var providers []models.Provider
 	for cursor.Next(ctx) {
 		var p models.Provider
@@ -55,17 +127,23 @@ func (r *MongoProviderRepo) GetAll() ([]models.Provider, error) {
 	return providers, nil
 }
 
-func (r *MongoProviderRepo) GetByServiceType(service string) ([]models.Provider, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// GetByServiceTypeWithProjection retrieves providers matching the given service type with a projection.
+func (r *MongoProviderRepo) GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error) {
+	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
-	filter := bson.M{
-		"service_type": bson.M{"$regex": service, "$options": "i"},
+
+	filter := bson.M{"service_type": bson.M{"$regex": service, "$options": "i"}}
+	opts := options.Find()
+	if projection != nil {
+		opts.SetProjection(projection)
 	}
-	cursor, err := r.coll.Find(ctx, filter)
+
+	cursor, err := r.coll.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find providers for service %s: %w", service, err)
 	}
 	defer cursor.Close(ctx)
+
 	var providers []models.Provider
 	for cursor.Next(ctx) {
 		var p models.Provider
@@ -77,9 +155,33 @@ func (r *MongoProviderRepo) GetByServiceType(service string) ([]models.Provider,
 	return providers, nil
 }
 
+// --- Exported Methods that Satisfy the ProviderRepository Interface ---
+
+// GetByID retrieves a provider by its unique ID (full document).
+func (r *MongoProviderRepo) GetByID(id string) (*models.Provider, error) {
+	return r.GetByIDWithProjection(id, nil)
+}
+
+// GetAll retrieves all providers (full documents).
+func (r *MongoProviderRepo) GetAll() ([]models.Provider, error) {
+	return r.GetAllWithProjection(nil)
+}
+
+// GetByServiceType returns providers that offer a specific service (full documents).
+func (r *MongoProviderRepo) GetByServiceType(service string) ([]models.Provider, error) {
+	return r.GetByServiceTypeWithProjection(service, nil)
+}
+
+// GetByEmail retrieves a provider by its email address (full document).
+func (r *MongoProviderRepo) GetByEmail(email string) (*models.Provider, error) {
+	return r.GetByEmailWithProjection(email, nil)
+}
+
+// Create inserts a new provider document.
 func (r *MongoProviderRepo) Create(provider *models.Provider) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
+
 	_, err := r.coll.InsertOne(ctx, provider)
 	if err != nil {
 		return fmt.Errorf("failed to create provider: %w", err)
@@ -87,9 +189,11 @@ func (r *MongoProviderRepo) Create(provider *models.Provider) error {
 	return nil
 }
 
+// Update modifies an existing provider document.
 func (r *MongoProviderRepo) Update(provider *models.Provider) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
+
 	filter := bson.M{"id": provider.ID}
 	update := bson.M{"$set": provider}
 	result, err := r.coll.UpdateOne(ctx, filter, update)
@@ -102,9 +206,11 @@ func (r *MongoProviderRepo) Update(provider *models.Provider) error {
 	return nil
 }
 
+// Delete removes a provider document.
 func (r *MongoProviderRepo) Delete(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
+
 	filter := bson.M{"id": id}
 	result, err := r.coll.DeleteOne(ctx, filter)
 	if err != nil {
@@ -114,73 +220,4 @@ func (r *MongoProviderRepo) Delete(id string) error {
 		return fmt.Errorf("provider with id %s not found", id)
 	}
 	return nil
-}
-
-// AdvancedSearch performs an advanced search based on the provided criteria.
-// It returns at most 20 providers. Only providers with status "active" or "online"
-// and non-zero latitude/longitude are returned.
-func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]models.Provider, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Build the filter document based on criteria.
-	filter := bson.M{}
-	if criteria.ServiceType != "" {
-		filter["service_type"] = bson.M{"$regex": criteria.ServiceType, "$options": "i"}
-	}
-	if criteria.Location != "" {
-		filter["location"] = bson.M{"$regex": criteria.Location, "$options": "i"}
-	}
-	if criteria.MinRating > 0 {
-		filter["rating"] = bson.M{"$gte": criteria.MinRating}
-	}
-	if criteria.MinCompletedBookings > 0 {
-		filter["completed_bookings"] = bson.M{"$gte": criteria.MinCompletedBookings}
-	}
-	// For geospatial search, assume documents have a GeoJSON field "location_geo"
-	if criteria.MaxDistanceKm > 0 {
-		maxDistanceMeters := criteria.MaxDistanceKm * 1000
-		filter["location_geo"] = bson.M{
-			"$nearSphere": bson.M{
-				"$geometry": bson.M{
-					"type":        "Point",
-					"coordinates": []float64{criteria.Longitude, criteria.Latitude},
-				},
-				"$maxDistance": maxDistanceMeters,
-			},
-		}
-	}
-	// Ensure provider is active/online and has a valid location.
-	filter["status"] = bson.M{"$in": []string{"active", "online"}}
-	filter["latitude"] = bson.M{"$ne": 0}
-	filter["longitude"] = bson.M{"$ne": 0}
-
-	// Set options: sort by rating (descending) and limit to 20 results.
-	opts := options.Find().
-		SetSort(bson.D{{Key: "rating", Value: -1}}).
-		SetLimit(20)
-
-	cursor, err := r.coll.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("advanced search query failed: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var providers []models.Provider
-	for cursor.Next(ctx) {
-		var p models.Provider
-		if err := cursor.Decode(&p); err != nil {
-			return nil, fmt.Errorf("failed to decode provider: %w", err)
-		}
-		providers = append(providers, p)
-	}
-	if err := cursor.Err(); err != nil {
-		return nil, fmt.Errorf("cursor error: %w", err)
-	}
-
-	if len(providers) == 0 {
-		return nil, fmt.Errorf("no providers found matching criteria")
-	}
-
-	return providers, nil
 }
