@@ -1,8 +1,8 @@
 package routes
 
 import (
+	providerRepo "bloomify/database/repository/provider"
 	"bloomify/handlers"
-	"bloomify/middleware"
 	"net/http"
 	"time"
 
@@ -10,50 +10,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterAuthRoutes registers authentication endpoints.
-func RegisterAuthRoutes(r *gin.Engine) {
-	api := r.Group("/api")
-	{
-		api.POST("/auth/register", handlers.RegisterHandler)
-		api.POST("/auth/login", handlers.LoginHandler)
-	}
-}
-
 // RegisterUserRoutes registers user endpoints.
-func RegisterUserRoutes(r *gin.Engine) {
+func RegisterUserRoutes(r *gin.Engine, provRepo providerRepo.ProviderRepository, hb *handlers.HandlerBundle) {
 	api := r.Group("/api")
 	{
-		api.GET("/users/me", middleware.AuthMiddleware(), handlers.GetProfileHandler)
-		api.PUT("/users/me", middleware.AuthMiddleware(), handlers.UpdateProfileHandler)
+		api.POST("/users", hb.RegisterUserHandler)
+		api.POST("/users/login", hb.AuthenticateUserHandler)
+		api.GET("/users/:id", hb.GetUserByIDHandler)
+		api.GET("/users/email/:email", hb.GetUserByEmailHandler)
+		api.PUT("/users/:id", hb.UpdateUserHandler)
+		api.DELETE("/users/:id", hb.DeleteUserHandler)
 	}
 }
 
 // RegisterProviderRoutes registers provider management endpoints.
-func RegisterProviderRoutes(r *gin.Engine) {
+func RegisterProviderRoutes(r *gin.Engine, provRepo providerRepo.ProviderRepository, hb *handlers.HandlerBundle) {
 	api := r.Group("/api")
 	{
-		// Retrieve provider details by ID.
-		api.GET("/providers/:id", handlers.GetProviderByIDHandler)
-		// Retrieve provider details by email.
-		api.GET("/providers/email/:email", handlers.GetProviderByEmailHandler)
-		// Register a new provider.
-		api.POST("/providers", handlers.RegisterProviderHandler)
-		// Update provider details.
-		api.PUT("/providers/:id", handlers.UpdateProviderHandler)
-		// Delete a provider.
-		api.DELETE("/providers/:id", handlers.DeleteProviderHandler)
-		// Authenticate a provider.
-		api.POST("/providers/authenticate", handlers.AuthenticateProviderHandler)
+		api.GET("/providers/:id", hb.GetProviderByIDHandler)
+		api.GET("/providers/email/:email", hb.GetProviderByEmailHandler)
+		api.POST("/providers", hb.RegisterProviderHandler)
+		api.PUT("/providers/:id", hb.UpdateProviderHandler)
+		api.DELETE("/providers/:id", hb.DeleteProviderHandler)
+		api.POST("/providers/login", hb.AuthenticateProviderHandler)
+		// KYP verification endpoint.
+		api.POST("/kyp/verify", hb.KYPVerificationHandler)
 	}
 }
 
 // RegisterAIRoutes registers AI endpoints.
-func RegisterAIRoutes(r *gin.Engine) {
+func RegisterAIRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api")
 	{
-		api.POST("/ai/recommend", handlers.AIRecommendHandler)
-		api.POST("/ai/suggest", handlers.AISuggestHandler)
-		api.POST("/ai/auto-book", handlers.AutoBookHandler)
+		api.POST("/ai/recommend", hb.AIRecommendHandler)
+		api.POST("/ai/suggest", hb.AISuggestHandler)
+		api.POST("/ai/auto-book", hb.AutoBookHandler)
 	}
 }
 
@@ -64,25 +55,18 @@ func RegisterHealthRoute(r *gin.Engine) {
 	})
 }
 
-// RegisterBookingRoutes sets up the endpoints for the unified booking engine.
-func RegisterBookingRoutes(r *gin.Engine, bookingHandler *handlers.BookingHandler) {
+// RegisterBookingRoutes sets up the endpoints for the booking engine.
+func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	bookingGroup := r.Group("/api/booking")
 	{
-		bookingGroup.POST("/session", bookingHandler.InitiateSession)
-
-		// Update a booking session with a selected provider.
-		// PUT /api/booking/session/:sessionID
-		// Returns sessionID, providerID, and provider availability.
-		bookingGroup.PUT("/session/:sessionID", bookingHandler.UpdateSession)
-
-		// Confirm a booking.
-		// POST /api/booking/confirm
-		bookingGroup.POST("/confirm", bookingHandler.ConfirmBooking)
+		bookingGroup.POST("/session", hb.InitiateSession)
+		bookingGroup.PUT("/session/:sessionID", hb.UpdateSession)
+		bookingGroup.POST("/confirm", hb.ConfirmBooking)
 	}
 }
 
 // RegisterRoutes centralizes registration of all endpoints and middleware.
-func RegisterRoutes(r *gin.Engine) {
+func RegisterRoutes(r *gin.Engine, provRepo providerRepo.ProviderRepository, hb *handlers.HandlerBundle) {
 	// Setup global middleware (e.g., CORS) here.
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
@@ -93,10 +77,9 @@ func RegisterRoutes(r *gin.Engine) {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Call all the route registration functions.
-	RegisterAuthRoutes(r)
-	RegisterUserRoutes(r)
-	RegisterProviderRoutes(r)
-	RegisterAIRoutes(r)
+	RegisterUserRoutes(r, provRepo, hb)
+	RegisterProviderRoutes(r, provRepo, hb)
+	RegisterAIRoutes(r, hb)
 	RegisterHealthRoute(r)
+	RegisterBookingRoutes(r, hb)
 }

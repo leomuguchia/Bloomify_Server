@@ -16,7 +16,7 @@ var NewMongoProviderRepo = providerRepo.NewMongoProviderRepo
 // Re-export the UserRepository interface and constructor.
 type UserRepository = userRepo.UserRepository
 
-var NewMongoUserRepository = userRepo.NewMongoUserRepository
+var NewMongoUserRepository = userRepo.NewMongoUserRepo
 
 // Re-export the SchedulerRepository interface and constructor.
 type SchedulerRepository = schedulerRepo.SchedulerRepository

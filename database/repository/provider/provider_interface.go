@@ -49,4 +49,6 @@ type ProviderRepository interface {
 	GetAllWithProjection(projection bson.M) ([]models.Provider, error)
 	// GetByServiceTypeWithProjection retrieves providers by service type with a projection.
 	GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error)
+	// GetByTokenHash retrieves a provider whose token_hash matches the provided hash.
+	GetByTokenHash(tokenHash string) (*models.Provider, error)
 }

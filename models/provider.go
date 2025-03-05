@@ -17,29 +17,48 @@ type HistoricalRecord struct {
 
 // Provider represents a service provider.
 type Provider struct {
-	ID                string             `bson:"id" json:"id"`
-	Name              string             `bson:"name" json:"name"`
-	Email             string             `bson:"email" json:"email"`
-	Password          string             `bson:"-" json:"password,omitempty"` // Transient field; not persisted.
-	PasswordHash      string             `bson:"password_hash" json:"-"`
-	PhoneNumber       string             `bson:"phone_number" json:"phone_number"`
-	TimeSlots         []TimeSlot         `bson:"time_slots" json:"time_slots"`     // Pre-defined booking windows
-	ServiceType       string             `bson:"service_type" json:"service_type"` // e.g., "Cleaning", "Laundry", etc.
-	Location          string             `bson:"location" json:"location"`         // Human-readable location
-	Latitude          float64            `bson:"latitude" json:"latitude"`
-	Longitude         float64            `bson:"longitude" json:"longitude"`
-	Rating            float64            `bson:"rating" json:"rating"`                         // Average rating (0.0 to 5.0)
+	ID string `bson:"id" json:"id"`
+
+	// Identification & Contact
+	ProviderName string `bson:"provider_name" json:"provider_name"` // Public business/provider name
+	LegalName    string `bson:"legal_name" json:"legal_name"`       // Legal name as per government ID
+	Email        string `bson:"email" json:"email"`
+	PhoneNumber  string `bson:"phone_number" json:"phone_number"`
+
+	// Authentication
+	Password     string `bson:"-" json:"password,omitempty"` // Transient field for registration
+	PasswordHash string `bson:"password_hash" json:"-"`
+	TokenHash    string `bson:"token_hash" json:"-"`
+
+	// Service & Location
+	ServiceType string  `bson:"service_type" json:"service_type"` // e.g., "Cleaning", "Laundry"
+	Location    string  `bson:"location" json:"location"`         // Street address
+	Latitude    float64 `bson:"latitude" json:"latitude"`         // Map coordinate
+	Longitude   float64 `bson:"longitude" json:"longitude"`       // Map coordinate
+
+	// Verification (KYP)
+	KYPDocument         string `bson:"kyp_document" json:"kyp_document"`                   // URL or reference to government ID scan
+	VerificationStatus  string `bson:"verification_status" json:"verification_status"`     // e.g., pending, verified, rejected
+	VerificationLevel   string `bson:"verification_level" json:"verification_level"`       // e.g., basic, advanced
+	KYPVerificationCode string `bson:"kyp_verification_code" json:"kyp_verification_code"` // Cryptographic code returned by external KYP service
+
+	// Optional Advanced Verification
+	InsuranceDocs []string `bson:"insurance_docs,omitempty" json:"insurance_docs,omitempty"` // Insurance and certification docs
+	TaxPIN        string   `bson:"tax_pin,omitempty" json:"tax_pin,omitempty"`               // Business tax ID
+
+	// Activity & Ratings
+	Rating            float64            `bson:"rating" json:"rating"`                         // Average rating
 	CompletedBookings int                `bson:"completed_bookings" json:"completed_bookings"` // Count of completed bookings
-	Verified          bool               `bson:"verified" json:"verified"`
-	CreatedAt         time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt         time.Time          `bson:"updated_at" json:"updated_at"`
-	Status            string             `bson:"status" json:"status"`
 	HistoricalRecords []HistoricalRecord `bson:"historical_records" json:"historical_records"`
+	TimeSlots         []TimeSlot         `bson:"time_slots" json:"time_slots"` // Pre-defined booking windows
 
-	// PaymentOptions defines which payment methods the provider accepts.
-	// For example, a provider may allow ["cash"] for post-payment or ["stripe"] for pre-payment.
+	// Payment & Pre-Payment
 	AcceptedPaymentMethods []string `bson:"accepted_payment_methods" json:"accepted_payment_methods"`
+	PrePaymentRequired     bool     `bson:"pre_payment_required" json:"pre_payment_required"`
 
-	// Derived field: if true, the provider requires pre-payment (e.g., via stripe or card)
-	PrePaymentRequired bool `bson:"pre_payment_required" json:"pre_payment_required"`
+	// Metadata
+	Verified  bool      `bson:"verified" json:"verified"` // Indicates if the provider is fully verified on the platform
+	Status    string    `bson:"status" json:"status"`     // e.g., active, suspended, pending
+	CreatedAt time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
 }

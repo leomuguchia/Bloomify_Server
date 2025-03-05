@@ -5,6 +5,7 @@ import (
 
 	"bloomify/models"
 	"bloomify/services/provider"
+	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -22,7 +23,7 @@ func SetProviderService(ps provider.ProviderService) {
 // It registers a new provider by validating input, hashing the password,
 // and persisting the provider.
 func RegisterProviderHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 
 	var reqProvider models.Provider
 	if err := c.ShouldBindJSON(&reqProvider); err != nil {
@@ -44,7 +45,7 @@ func RegisterProviderHandler(c *gin.Context) {
 // GetProviderByIDHandler handles GET /providers/:id.
 // It retrieves a provider by its ID.
 func GetProviderByIDHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 	id := c.Param("id")
 	prov, err := providerService.GetProviderByID(id)
 	if err != nil {
@@ -58,7 +59,7 @@ func GetProviderByIDHandler(c *gin.Context) {
 // GetProviderByEmailHandler handles GET /providers/email/:email.
 // It retrieves a provider by its email.
 func GetProviderByEmailHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 	email := c.Param("email")
 	prov, err := providerService.GetProviderByEmail(email)
 	if err != nil {
@@ -72,7 +73,7 @@ func GetProviderByEmailHandler(c *gin.Context) {
 // UpdateProviderHandler handles PUT /providers/:id.
 // It updates an existing provider's allowed fields.
 func UpdateProviderHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 	id := c.Param("id")
 
 	var reqProvider models.Provider
@@ -97,7 +98,7 @@ func UpdateProviderHandler(c *gin.Context) {
 // DeleteProviderHandler handles DELETE /providers/:id.
 // It deletes the provider with the given ID.
 func DeleteProviderHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 	id := c.Param("id")
 	if err := providerService.DeleteProvider(id); err != nil {
 		logger.Error("Failed to delete provider", zap.String("id", id), zap.Error(err))
@@ -110,7 +111,7 @@ func DeleteProviderHandler(c *gin.Context) {
 // AuthenticateProviderHandler handles POST /providers/authenticate.
 // It verifies the provider's email and password.
 func AuthenticateProviderHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required"`

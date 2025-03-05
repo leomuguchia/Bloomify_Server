@@ -86,3 +86,46 @@ func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 
 	c.JSON(http.StatusOK, bookingResult)
 }
+
+// --- Global Booking Handler Setup ---
+//
+// To allow direct access to booking endpoints as
+//     InitiateSession: handlers.InitiateSession,
+//     UpdateSession:   handlers.UpdateSession,
+//     ConfirmBooking:  handlers.ConfirmBooking,
+// we add a package-level variable and setter.
+
+var globalBookingHandler *BookingHandler
+
+// SetBookingHandler assigns the global booking handler.
+// This must be called during application initialization.
+func SetBookingHandler(h *BookingHandler) {
+	globalBookingHandler = h
+}
+
+// InitiateSession is a package-level function that delegates to the global booking handler.
+func InitiateSession(c *gin.Context) {
+	if globalBookingHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
+		return
+	}
+	globalBookingHandler.InitiateSession(c)
+}
+
+// UpdateSession is a package-level function that delegates to the global booking handler.
+func UpdateSession(c *gin.Context) {
+	if globalBookingHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
+		return
+	}
+	globalBookingHandler.UpdateSession(c)
+}
+
+// ConfirmBooking is a package-level function that delegates to the global booking handler.
+func ConfirmBooking(c *gin.Context) {
+	if globalBookingHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
+		return
+	}
+	globalBookingHandler.ConfirmBooking(c)
+}

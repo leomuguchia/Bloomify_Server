@@ -61,6 +61,27 @@ func (r *MongoProviderRepo) ensureIndexes() error {
 
 // --- Projection-based Helper Methods ---
 
+// GetByTokenHash retrieves a provider by its token_hash using a projection.
+func (r *MongoProviderRepo) GetByTokenHash(tokenHash string) (*models.Provider, error) {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	opts := options.FindOne().SetProjection(bson.M{"token_hash": 1, "id": 1})
+	var result struct {
+		ID        string `bson:"id"`
+		TokenHash string `bson:"token_hash"`
+	}
+	if err := r.coll.FindOne(ctx, bson.M{"token_hash": tokenHash}, opts).Decode(&result); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil // No provider found for this token
+		}
+		return nil, fmt.Errorf("failed to retrieve provider by token hash: %w", err)
+	}
+
+	// If needed, you can fetch the full provider record here using result.ID.
+	return r.GetByID(result.ID)
+}
+
 // GetByIDWithProjection retrieves a provider by its unique ID using a projection.
 // Pass nil for projection if you want the full document.
 func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) (*models.Provider, error) {

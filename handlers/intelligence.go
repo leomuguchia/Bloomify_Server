@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"time"
 
 	"bloomify/models"
+	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -44,21 +47,31 @@ type AutoBookRequest struct {
 }
 
 // getAIServiceURL retrieves the AI service URL from configuration.
-// It uses viper directly to retrieve "AI_SERVICE_URL".
 // If not defined, it falls back to a default URL based on the provided endpoint.
 func getAIServiceURL(defaultEndpoint string) string {
 	aiURL := viper.GetString("AI_SERVICE_URL")
 	if aiURL == "" {
 		return fmt.Sprintf("http://ai-service:8000/%s", defaultEndpoint)
 	}
-	// For demonstration, if aiURL is set, we replace its last path segment with the defaultEndpoint.
-	// A robust solution would use the "net/url" package.
 	return replaceEndpoint(aiURL, defaultEndpoint)
 }
 
+// replaceEndpoint adjusts the given AI service URL to use a different endpoint.
+func replaceEndpoint(baseURL, newEndpoint string) string {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Sprintf("http://ai-service:8000/%s", newEndpoint)
+	}
+	u.Path = path.Join("/", newEndpoint)
+	return u.String()
+}
+
+// Define a package-level HTTP client for AI service calls.
+var aiHTTPClient = &http.Client{Timeout: 5 * time.Second}
+
 // AIRecommendHandler handles recommendation requests by forwarding them to the AI microservice.
 func AIRecommendHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 
 	var req AIRecommendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,9 +101,7 @@ func AIRecommendHandler(c *gin.Context) {
 	}
 
 	aiURL := getAIServiceURL("recommend")
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(aiURL, "application/json", bytes.NewBuffer(payload))
+	resp, err := aiHTTPClient.Post(aiURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		logger.Error("Failed to call AI service", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reach AI service: " + err.Error()})
@@ -122,7 +133,7 @@ func AIRecommendHandler(c *gin.Context) {
 
 // AISuggestHandler handles requests for time-slot suggestions.
 func AISuggestHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 
 	var req AISuggestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -139,9 +150,7 @@ func AISuggestHandler(c *gin.Context) {
 	}
 
 	aiURL := getAIServiceURL("suggest")
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(aiURL, "application/json", bytes.NewBuffer(payload))
+	resp, err := aiHTTPClient.Post(aiURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		logger.Error("Failed to call AI suggest service", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reach AI service: " + err.Error()})
@@ -173,7 +182,7 @@ func AISuggestHandler(c *gin.Context) {
 
 // AutoBookHandler processes auto-book requests by forwarding them to the AI microservice.
 func AutoBookHandler(c *gin.Context) {
-	logger := getLogger(c)
+	logger := utils.GetLogger()
 
 	var req AutoBookRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -190,9 +199,7 @@ func AutoBookHandler(c *gin.Context) {
 	}
 
 	aiURL := getAIServiceURL("auto-book")
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(aiURL, "application/json", bytes.NewBuffer(payload))
+	resp, err := aiHTTPClient.Post(aiURL, "application/json", bytes.NewBuffer(payload))
 	if err != nil {
 		logger.Error("Failed to call AI auto-book service", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reach AI service: " + err.Error()})
@@ -220,11 +227,4 @@ func AutoBookHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, bookingResp)
-}
-
-// replaceEndpoint adjusts the given AI service URL to use a different endpoint.
-// This is a simple implementation; in production, use proper URL parsing.
-func replaceEndpoint(baseURL, newEndpoint string) string {
-	// For example, if baseURL is "http://ai-service:8000/recommend", return "http://ai-service:8000/auto-book" or "suggest".
-	return fmt.Sprintf("http://ai-service:8000/%s", newEndpoint)
 }
