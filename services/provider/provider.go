@@ -9,32 +9,24 @@ import (
 	"bloomify/models"
 	"bloomify/utils"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// AuthResponse contains only the provider's ID and the JWT token.
-type AuthResponse struct {
-	ID    string `json:"id"`
-	Token string `json:"token"`
-}
-
-// ProviderService defines business logic for provider operations.
+// ProviderService defines the interface for provider-related operations.
+// Note: The AuthenticateProvider and RegisterProvider methods now return a projection
+// of models.Provider (with only ID and Token fields set) to serve as an auth response.
 type ProviderService interface {
-	// RegisterProvider validates the provider's registration details (which must already be KYP-verified),
-	// creates a new provider record, generates a token, stores its hash, and returns the new provider's ID and token.
-	RegisterProvider(provider models.Provider) (*AuthResponse, error)
-	// UpdateProvider updates an existing provider's profile.
-	UpdateProvider(provider models.Provider) (*models.Provider, error)
-	// GetProviderByID retrieves a provider (safe view) by its unique ID.
-	GetProviderByID(providerID string) (*models.Provider, error)
-	// GetProviderByEmail retrieves a provider (safe view) by its email.
-	GetProviderByEmail(email string) (*models.Provider, error)
-	// DeleteProvider removes a provider record.
-	DeleteProvider(providerID string) error
-	// AuthenticateProvider verifies credentials and returns ID and token.
-	AuthenticateProvider(email, password string) (*AuthResponse, error)
+	RegisterProvider(provider models.Provider) (*models.Provider, error)
+	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
+	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)
+	UpdateProvider(c *gin.Context, provider models.Provider) (*models.Provider, error)
+	DeleteProvider(id string) error
+	AuthenticateProvider(email, password string) (*models.Provider, error)
+	AdvanceVerifyProvider(c *gin.Context, id string, advReq AdvanceVerifyRequest) (*models.Provider, error)
+	RevokeProviderAuthToken(id string) error
 }
 
 // DefaultProviderService is the production implementation.
@@ -42,15 +34,13 @@ type DefaultProviderService struct {
 	Repo providerRepo.ProviderRepository
 }
 
-// RegisterProvider validates that all required fields are present and that the provider has already
-// been verified via KYP (as indicated by the presence of a valid KYP verification code).
-// It then creates the provider record, generates a JWT token, and returns the ID and token.
-func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*AuthResponse, error) {
+// RegisterProvider validates registration details, creates a new provider record,
+// generates a JWT token, stores its hash, and returns a projection containing the provider's ID and token.
+func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*models.Provider, error) {
 	// Validate required basic fields.
 	if provider.Email == "" || provider.Password == "" {
 		return nil, fmt.Errorf("provider email and password are required")
 	}
-	// Validate required registration fields.
 	if provider.ProviderName == "" {
 		return nil, fmt.Errorf("provider name is required")
 	}
@@ -70,9 +60,34 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Au
 	if provider.KYPVerificationCode == "" {
 		return nil, fmt.Errorf("KYP verification code is missing; please complete the verification process")
 	}
-	// You may further validate the format of the verification code here.
 
-	// Check for an existing provider (using a minimal projection).
+	// Mark the provider as KYP verified.
+	provider.VerificationStatus = "verified"
+	// Determine advanced verification:
+	// advanced_verified is true only if extra details (TaxPIN or InsuranceDocs) are provided.
+	if provider.TaxPIN != "" || len(provider.InsuranceDocs) > 0 {
+		provider.AdvancedVerified = true
+		provider.VerificationLevel = "advanced"
+	} else {
+		provider.AdvancedVerified = false
+		provider.VerificationLevel = "basic"
+	}
+
+	// Hash the provided password.
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(provider.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+	provider.PasswordHash = string(hashedPassword)
+	provider.Password = ""
+
+	// Generate a new unique ID and set timestamps.
+	provider.ID = uuid.New().String()
+	now := time.Now()
+	provider.CreatedAt = now
+	provider.UpdatedAt = now
+
+	// Check for an existing provider (using minimal projection).
 	existing, err := s.Repo.GetByEmailWithProjection(provider.Email, bson.M{"id": 1})
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing provider: %w", err)
@@ -81,31 +96,12 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Au
 		return nil, fmt.Errorf("provider with email %s already exists", provider.Email)
 	}
 
-	// Mark the provider as verified using external KYP data.
-	provider.VerificationStatus = "verified"
-	provider.VerificationLevel = "basic"
-	provider.Verified = true
-
-	// Hash the provided password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(provider.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
-	}
-	provider.PasswordHash = string(hashedPassword)
-	provider.Password = "" // Clear plain-text password.
-
-	// Generate a new unique ID and set timestamps.
-	provider.ID = uuid.New().String()
-	now := time.Now()
-	provider.CreatedAt = now
-	provider.UpdatedAt = now
-
 	// Persist the new provider.
 	if err := s.Repo.Create(&provider); err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
-	// Generate a JWT token for the new provider.
+	// Generate a JWT token.
 	token, err := utils.GenerateToken(provider.ID, provider.Email, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
@@ -117,14 +113,16 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Au
 		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
 	}
 
-	// Return only the provider ID and token.
-	return &AuthResponse{ID: provider.ID, Token: token}, nil
+	// Return a projection containing only the provider's ID and token.
+	return &models.Provider{
+		ID:    provider.ID,
+		Token: token,
+	}, nil
 }
 
-// AuthenticateProvider verifies the provider's credentials.
-// If valid, it generates a new JWT token, stores its hash, and returns an AuthResponse.
-func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*AuthResponse, error) {
-	// Retrieve provider using minimal projection (ID, email, and password_hash).
+// AuthenticateProvider verifies credentials, generates a new token,
+// updates the token hash, and returns a projection containing the provider's ID and token.
+func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*models.Provider, error) {
 	projection := bson.M{"password_hash": 1, "id": 1, "email": 1}
 	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
 	if err != nil {
@@ -133,36 +131,51 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*
 	if provider == nil {
 		return nil, fmt.Errorf("provider with email %s not found", email)
 	}
-
-	// Verify the provided password.
 	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
-
-	// Generate a new JWT token.
 	token, err := utils.GenerateToken(provider.ID, provider.Email, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
 	}
-
-	// Update the provider record with the new token hash.
+	// Overwrite the token hash with the new token.
 	provider.TokenHash = utils.HashToken(token)
 	if err := s.Repo.Update(provider); err != nil {
 		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
 	}
-
-	// Return only the provider's ID and the plain token.
-	return &AuthResponse{ID: provider.ID, Token: token}, nil
+	// Return a projection containing only the provider's ID and token.
+	return &models.Provider{
+		ID:    provider.ID,
+		Token: token,
+	}, nil
 }
 
-// UpdateProvider merges allowed updates and returns the updated provider record (safe view).
-func (s *DefaultProviderService) UpdateProvider(provider models.Provider) (*models.Provider, error) {
+// RevokeProviderAuthToken revokes the provider's auth token by clearing the token hash.
+func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) error {
+	// Retrieve the provider record.
+	provider, err := s.Repo.GetByIDWithProjection(providerID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve provider: %w", err)
+	}
+	if provider == nil {
+		return fmt.Errorf("provider not found")
+	}
+	// Clear the token hash.
+	provider.TokenHash = ""
+	provider.UpdatedAt = time.Now()
+	if err := s.Repo.Update(provider); err != nil {
+		return fmt.Errorf("failed to revoke provider auth token: %w", err)
+	}
+	return nil
+}
+
+// UpdateProvider merges allowed updates and returns the updated provider record (full access view).
+func (s *DefaultProviderService) UpdateProvider(c *gin.Context, provider models.Provider) (*models.Provider, error) {
 	existing, err := s.Repo.GetByIDWithProjection(provider.ID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
 
-	// Merge allowed updates.
 	if provider.ProviderName != "" {
 		existing.ProviderName = provider.ProviderName
 	}
@@ -180,31 +193,11 @@ func (s *DefaultProviderService) UpdateProvider(provider models.Provider) (*mode
 	}
 	existing.UpdatedAt = time.Now()
 
-	// Persist the updates.
 	if err := s.Repo.Update(existing); err != nil {
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
-	return s.GetProviderByID(provider.ID)
-}
-
-// GetProviderByID returns a provider by its ID using a projection to exclude sensitive fields.
-func (s *DefaultProviderService) GetProviderByID(providerID string) (*models.Provider, error) {
-	projection := bson.M{"password_hash": 0, "token_hash": 0}
-	provider, err := s.Repo.GetByIDWithProjection(providerID, projection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get provider: %w", err)
-	}
-	return provider, nil
-}
-
-// GetProviderByEmail returns a provider by email using a projection to exclude sensitive fields.
-func (s *DefaultProviderService) GetProviderByEmail(email string) (*models.Provider, error) {
-	projection := bson.M{"password_hash": 0, "token_hash": 0}
-	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get provider by email: %w", err)
-	}
-	return provider, nil
+	// Now call GetProviderByID with the context and provider ID, requesting full access view.
+	return s.GetProviderByID(c, provider.ID)
 }
 
 // DeleteProvider removes a provider record by its ID.

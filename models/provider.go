@@ -15,50 +15,50 @@ type HistoricalRecord struct {
 	CustomerFeedback string    `bson:"customer_feedback" json:"customer_feedback"` // Customer feedback
 }
 
-// Provider represents a service provider.
 type Provider struct {
-	ID string `bson:"id" json:"id"`
+	ID string `bson:"id" json:"id,omitempty"`
 
 	// Identification & Contact
-	ProviderName string `bson:"provider_name" json:"provider_name"` // Public business/provider name
-	LegalName    string `bson:"legal_name" json:"legal_name"`       // Legal name as per government ID
-	Email        string `bson:"email" json:"email"`
-	PhoneNumber  string `bson:"phone_number" json:"phone_number"`
+	ProviderName string `bson:"provider_name" json:"provider_name,omitempty"`
+	LegalName    string `bson:"legal_name" json:"legal_name,omitempty"`
+	Email        string `bson:"email" json:"email,omitempty"`
+	PhoneNumber  string `bson:"phone_number" json:"phone_number,omitempty"`
 
 	// Authentication
-	Password     string `bson:"-" json:"password,omitempty"` // Transient field for registration
+	Password     string `bson:"-" json:"password,omitempty"`
 	PasswordHash string `bson:"password_hash" json:"-"`
+	Token        string `bson:"-" json:"token,omitempty"`
 	TokenHash    string `bson:"token_hash" json:"-"`
 
 	// Service & Location
-	ServiceType string  `bson:"service_type" json:"service_type"` // e.g., "Cleaning", "Laundry"
-	Location    string  `bson:"location" json:"location"`         // Street address
-	Latitude    float64 `bson:"latitude" json:"latitude"`         // Map coordinate
-	Longitude   float64 `bson:"longitude" json:"longitude"`       // Map coordinate
+	ServiceType string  `bson:"service_type" json:"service_type,omitempty"`
+	Location    string  `bson:"location" json:"location,omitempty"`
+	Latitude    float64 `bson:"latitude" json:"latitude,omitempty"`
+	Longitude   float64 `bson:"longitude" json:"longitude,omitempty"`
 
 	// Verification (KYP)
-	KYPDocument         string `bson:"kyp_document" json:"kyp_document"`                   // URL or reference to government ID scan
-	VerificationStatus  string `bson:"verification_status" json:"verification_status"`     // e.g., pending, verified, rejected
-	VerificationLevel   string `bson:"verification_level" json:"verification_level"`       // e.g., basic, advanced
-	KYPVerificationCode string `bson:"kyp_verification_code" json:"kyp_verification_code"` // Cryptographic code returned by external KYP service
+	KYPDocument         string `bson:"kyp_document" json:"kyp_document,omitempty"`
+	VerificationStatus  string `bson:"verification_status" json:"verification_status,omitempty"`
+	VerificationLevel   string `bson:"verification_level" json:"verification_level,omitempty"`
+	KYPVerificationCode string `bson:"kyp_verification_code" json:"kyp_verification_code,omitempty"`
 
 	// Optional Advanced Verification
-	InsuranceDocs []string `bson:"insurance_docs,omitempty" json:"insurance_docs,omitempty"` // Insurance and certification docs
-	TaxPIN        string   `bson:"tax_pin,omitempty" json:"tax_pin,omitempty"`               // Business tax ID
+	InsuranceDocs []string `bson:"insurance_docs,omitempty" json:"insurance_docs,omitempty"`
+	TaxPIN        string   `bson:"tax_pin,omitempty" json:"tax_pin,omitempty"`
 
 	// Activity & Ratings
-	Rating            float64            `bson:"rating" json:"rating"`                         // Average rating
-	CompletedBookings int                `bson:"completed_bookings" json:"completed_bookings"` // Count of completed bookings
-	HistoricalRecords []HistoricalRecord `bson:"historical_records" json:"historical_records"`
-	TimeSlots         []TimeSlot         `bson:"time_slots" json:"time_slots"` // Pre-defined booking windows
+	Rating            float64            `bson:"rating" json:"rating,omitempty"`
+	CompletedBookings int                `bson:"completed_bookings" json:"completed_bookings,omitempty"`
+	HistoricalRecords []HistoricalRecord `bson:"historical_records" json:"historical_records,omitempty"`
+	TimeSlots         []TimeSlot         `bson:"time_slots" json:"time_slots,omitempty"`
 
 	// Payment & Pre-Payment
-	AcceptedPaymentMethods []string `bson:"accepted_payment_methods" json:"accepted_payment_methods"`
-	PrePaymentRequired     bool     `bson:"pre_payment_required" json:"pre_payment_required"`
+	AcceptedPaymentMethods []string `bson:"accepted_payment_methods" json:"accepted_payment_methods,omitempty"`
+	PrePaymentRequired     bool     `bson:"pre_payment_required" json:"pre_payment_required,omitempty"`
 
 	// Metadata
-	Verified  bool      `bson:"verified" json:"verified"` // Indicates if the provider is fully verified on the platform
-	Status    string    `bson:"status" json:"status"`     // e.g., active, suspended, pending
-	CreatedAt time.Time `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time `bson:"updated_at" json:"updated_at"`
+	AdvancedVerified bool      `bson:"verified" json:"advanced_verified,omitempty"`
+	Status           string    `bson:"status" json:"status,omitempty"`
+	CreatedAt        time.Time `bson:"created_at" json:"created_at,omitempty"`
+	UpdatedAt        time.Time `bson:"updated_at" json:"updated_at,omitempty"`
 }

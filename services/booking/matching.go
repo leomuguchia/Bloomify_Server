@@ -107,7 +107,7 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		locScore := computeLocationScore(distanceKm)
 		// Verified bonus.
 		var verifiedScore float64
-		if p.Verified {
+		if p.AdvancedVerified {
 			verifiedScore = VerifiedBonus
 		}
 		// Completed bookings score.

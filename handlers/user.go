@@ -1,3 +1,4 @@
+// File: bloomify/handlers/user.go
 package handlers
 
 import (
@@ -125,4 +126,17 @@ func DeleteUserHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
+}
+
+// RevokeUserAuthTokenHandler handles DELETE /users/revoke/:id.
+// It revokes the user's auth token by clearing the token hash.
+func RevokeUserAuthTokenHandler(c *gin.Context) {
+	logger := utils.GetLogger()
+	id := c.Param("id")
+	if err := userService.RevokeUserAuthToken(id); err != nil {
+		logger.Error("Failed to revoke user auth token", zap.String("id", id), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke auth token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Auth token revoked"})
 }

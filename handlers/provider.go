@@ -1,3 +1,4 @@
+// File: bloomify/handlers/provider.go
 package handlers
 
 import (
@@ -46,7 +47,7 @@ func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 func (h *ProviderHandler) GetProviderByIDHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	id := c.Param("id")
-	prov, err := h.Service.GetProviderByID(id)
+	prov, err := h.Service.GetProviderByID(c, id)
 	if err != nil {
 		logger.Error("Provider not found", zap.String("id", id), zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": "Provider not found"})
@@ -59,7 +60,7 @@ func (h *ProviderHandler) GetProviderByIDHandler(c *gin.Context) {
 func (h *ProviderHandler) GetProviderByEmailHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	email := c.Param("email")
-	prov, err := h.Service.GetProviderByEmail(email)
+	prov, err := h.Service.GetProviderByEmail(c, email)
 	if err != nil {
 		logger.Error("Provider not found by email", zap.String("email", email), zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": "Provider not found"})
@@ -83,7 +84,7 @@ func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
 	// Ensure the provider ID in the URL is used.
 	reqProvider.ID = id
 
-	updatedProvider, err := h.Service.UpdateProvider(reqProvider)
+	updatedProvider, err := h.Service.UpdateProvider(c, reqProvider)
 	if err != nil {
 		logger.Error("Failed to update provider", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update provider"})
@@ -125,4 +126,37 @@ func (h *ProviderHandler) AuthenticateProviderHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, prov)
+}
+
+// AdvanceVerifyProviderHandler handles PUT /providers/advance-verify/:id.
+func (h *ProviderHandler) AdvanceVerifyProviderHandler(c *gin.Context) {
+	logger := utils.GetLogger()
+	providerID := c.Param("id")
+
+	var advReq provider.AdvanceVerifyRequest
+	if err := c.ShouldBindJSON(&advReq); err != nil {
+		logger.Error("Invalid advanced verification request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	updatedProvider, err := h.Service.AdvanceVerifyProvider(c, providerID, advReq)
+	if err != nil {
+		logger.Error("Failed to advanced verify provider", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to advanced verify provider"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedProvider)
+}
+
+func (h *ProviderHandler) RevokeProviderAuthTokenHandler(c *gin.Context) {
+	logger := utils.GetLogger()
+	providerID := c.Param("id")
+	if err := h.Service.RevokeProviderAuthToken(providerID); err != nil {
+		logger.Error("Failed to revoke provider auth token", zap.String("id", providerID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke auth token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Auth token revoked"})
 }

@@ -1,3 +1,4 @@
+// File: bloomify/service/user/user.go
 package user
 
 import (
@@ -34,6 +35,8 @@ type UserService interface {
 	GetUserByEmail(email string) (*models.User, error)
 	// DeleteUser removes a user record.
 	DeleteUser(userID string) error
+	// RevokeUserAuthToken revokes the user's authentication token (for logout).
+	RevokeUserAuthToken(userID string) error
 }
 
 // DefaultUserService is the production implementation.
@@ -92,7 +95,7 @@ func (s *DefaultUserService) RegisterUser(user models.User) (*AuthResponse, erro
 		return nil, fmt.Errorf("failed to update user with token hash: %w", err)
 	}
 
-	// Return only the user ID and token.
+	// Return only the user's ID and token.
 	return &AuthResponse{ID: user.ID, Token: token}, nil
 }
 
@@ -120,7 +123,7 @@ func (s *DefaultUserService) AuthenticateUser(email, password string) (*AuthResp
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
 	}
 
-	// Update the user record with the new token hash.
+	// Overwrite the token hash with the new token.
 	user.TokenHash = utils.HashToken(token)
 	if err := s.Repo.Update(user); err != nil {
 		return nil, fmt.Errorf("failed to update user with token hash: %w", err)
@@ -128,6 +131,25 @@ func (s *DefaultUserService) AuthenticateUser(email, password string) (*AuthResp
 
 	// Return only the user's ID and token.
 	return &AuthResponse{ID: user.ID, Token: token}, nil
+}
+
+// RevokeUserAuthToken revokes the user's auth token by clearing the token hash.
+func (s *DefaultUserService) RevokeUserAuthToken(userID string) error {
+	// Retrieve the user record.
+	user, err := s.Repo.GetByIDWithProjection(userID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+	// Clear the token hash.
+	user.TokenHash = ""
+	user.UpdatedAt = time.Now()
+	if err := s.Repo.Update(user); err != nil {
+		return fmt.Errorf("failed to revoke user auth token: %w", err)
+	}
+	return nil
 }
 
 // UpdateUser merges allowed updates and returns the updated user (safe view).

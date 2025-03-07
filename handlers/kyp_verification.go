@@ -26,7 +26,7 @@ type KYPHTTPResp struct {
 
 // KYPVerificationHandler handles HTTP POST requests for KYP verification.
 func KYPVerificationHandler(c *gin.Context) {
-	logger := zap.L() // Using a global logger; alternatively, get your logger from your utils package
+	logger := zap.L()
 
 	// Bind the JSON payload to our request struct.
 	var reqPayload KYPHTTPReq

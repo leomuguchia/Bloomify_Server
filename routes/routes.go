@@ -23,6 +23,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.GET("/email/:email", hb.GetUserByEmailHandler)
 		api.PUT("/update/:id", hb.UpdateUserHandler)
 		api.DELETE("/delete/:id", hb.DeleteUserHandler)
+		api.DELETE("/revoke/:id", hb.RevokeUserAuthTokenHandler)
 	}
 }
 
@@ -30,16 +31,23 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api/providers")
 	{
+		// Public provider endpoints (registration, login, KYP)
 		api.POST("/register", hb.RegisterProviderHandler)
 		api.POST("/login", hb.AuthenticateProviderHandler)
 		api.POST("/kyp/verify", hb.KYPVerificationHandler)
 
-		// Protected routes (Require Authentication)
-		api.Use(middleware.JWTAuthProviderMiddleware(hb.ProviderRepo))
-		api.GET("/id/:id", hb.GetProviderByIDHandler)
-		api.GET("/email/:email", hb.GetProviderByEmailHandler)
-		api.PUT("/update/:id", hb.UpdateProviderHandler)
-		api.DELETE("/delete/:id", hb.DeleteProviderHandler)
+		// GET endpoints with optional authentication (if token valid, full details; otherwise, only public fields)
+		public := api.Group("")
+		public.GET("/id/:id", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByIDHandler)
+		public.GET("/email/:email", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByEmailHandler)
+
+		// Endpoints that modify provider data require strict authentication.
+		protected := api.Group("")
+		protected.Use(middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, false))
+		protected.PUT("/update/:id", hb.UpdateProviderHandler)
+		protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
+		protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
+		protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
 	}
 }
 
