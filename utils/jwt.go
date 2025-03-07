@@ -50,3 +50,24 @@ func ValidateToken(tokenString string) (*jwt.Token, error) {
 		return secretKey, nil
 	})
 }
+
+// ExtractProviderIDFromToken extracts the ID (subject) from a valid JWT token string.
+// It returns the extracted ID or an error if validation fails.
+func ExtractIDFromToken(tokenString string) (string, error) {
+	token, err := ValidateToken(tokenString)
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return "", errors.New("invalid token")
+	}
+
+	sub, ok := claims["sub"].(string)
+	if !ok || sub == "" {
+		return "", errors.New("token does not contain a valid 'sub' claim")
+	}
+
+	return sub, nil
+}

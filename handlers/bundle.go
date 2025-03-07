@@ -1,9 +1,16 @@
 package handlers
 
-import "github.com/gin-gonic/gin"
+import (
+	providerRepoPkg "bloomify/database/repository/provider"
+	userRepoPkg "bloomify/database/repository/user"
+
+	"github.com/gin-gonic/gin"
+)
 
 // HandlerBundle groups all your endpoint handlers into one struct.
 type HandlerBundle struct {
+	ProviderRepo providerRepoPkg.ProviderRepository
+	UserRepo     userRepoPkg.UserRepository
 
 	// Provider endpoints
 	GetProviderByIDHandler      gin.HandlerFunc
@@ -19,7 +26,7 @@ type HandlerBundle struct {
 	UpdateSession   gin.HandlerFunc
 	ConfirmBooking  gin.HandlerFunc
 
-	// AI endpoints (individual functions, as you don't have a dedicated AI handler)
+	// AI endpoints
 	AIRecommendHandler gin.HandlerFunc
 	AISuggestHandler   gin.HandlerFunc
 	AutoBookHandler    gin.HandlerFunc

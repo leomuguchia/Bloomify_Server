@@ -3,6 +3,8 @@ package utils
 import (
 	"log"
 
+	"bloomify/config"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -14,7 +16,7 @@ var Logger *zap.Logger
 func InitializeLogger() {
 	var cfg zap.Config
 
-	if IsProduction() {
+	if config.IsProduction() {
 		cfg = zap.NewProductionConfig()
 		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	} else {

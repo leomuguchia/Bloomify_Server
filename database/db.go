@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"bloomify/utils"
+	"bloomify/config"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,7 +19,7 @@ func InitDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientOptions := options.Client().ApplyURI(utils.AppConfig.DatabaseURL)
+	clientOptions := options.Client().ApplyURI(config.AppConfig.DatabaseURL)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatalf("failed to connect to MongoDB: %v", err)

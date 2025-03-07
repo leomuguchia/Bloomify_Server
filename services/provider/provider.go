@@ -121,6 +121,40 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Au
 	return &AuthResponse{ID: provider.ID, Token: token}, nil
 }
 
+// AuthenticateProvider verifies the provider's credentials.
+// If valid, it generates a new JWT token, stores its hash, and returns an AuthResponse.
+func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*AuthResponse, error) {
+	// Retrieve provider using minimal projection (ID, email, and password_hash).
+	projection := bson.M{"password_hash": 1, "id": 1, "email": 1}
+	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch provider for authentication: %w", err)
+	}
+	if provider == nil {
+		return nil, fmt.Errorf("provider with email %s not found", email)
+	}
+
+	// Verify the provided password.
+	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Generate a new JWT token.
+	token, err := utils.GenerateToken(provider.ID, provider.Email, 24*time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate auth token: %w", err)
+	}
+
+	// Update the provider record with the new token hash.
+	provider.TokenHash = utils.HashToken(token)
+	if err := s.Repo.Update(provider); err != nil {
+		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
+	}
+
+	// Return only the provider's ID and the plain token.
+	return &AuthResponse{ID: provider.ID, Token: token}, nil
+}
+
 // UpdateProvider merges allowed updates and returns the updated provider record (safe view).
 func (s *DefaultProviderService) UpdateProvider(provider models.Provider) (*models.Provider, error) {
 	existing, err := s.Repo.GetByIDWithProjection(provider.ID, nil)
@@ -179,38 +213,4 @@ func (s *DefaultProviderService) DeleteProvider(providerID string) error {
 		return fmt.Errorf("failed to delete provider with id %s: %w", providerID, err)
 	}
 	return nil
-}
-
-// AuthenticateProvider verifies the provider's credentials.
-// If valid, it generates a new JWT token, stores its hash, and returns an AuthResponse.
-func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*AuthResponse, error) {
-	// Retrieve provider using minimal projection (ID, email, and password_hash).
-	projection := bson.M{"password_hash": 1, "id": 1, "email": 1}
-	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch provider for authentication: %w", err)
-	}
-	if provider == nil {
-		return nil, fmt.Errorf("provider with email %s not found", email)
-	}
-
-	// Verify the provided password.
-	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
-		return nil, fmt.Errorf("invalid credentials")
-	}
-
-	// Generate a new JWT token.
-	token, err := utils.GenerateToken(provider.ID, provider.Email, 24*time.Hour)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate auth token: %w", err)
-	}
-
-	// Update the provider record with the new token hash.
-	provider.TokenHash = utils.HashToken(token)
-	if err := s.Repo.Update(provider); err != nil {
-		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
-	}
-
-	// Return only the provider's ID and the plain token.
-	return &AuthResponse{ID: provider.ID, Token: token}, nil
 }
