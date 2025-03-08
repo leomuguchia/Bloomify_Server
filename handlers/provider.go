@@ -69,30 +69,6 @@ func (h *ProviderHandler) GetProviderByEmailHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, prov)
 }
 
-// UpdateProviderHandler handles PUT /providers/:id.
-func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
-	logger := utils.GetLogger()
-	id := c.Param("id")
-
-	var reqProvider models.Provider
-	if err := c.ShouldBindJSON(&reqProvider); err != nil {
-		logger.Error("Invalid update request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
-		return
-	}
-
-	// Ensure the provider ID in the URL is used.
-	reqProvider.ID = id
-
-	updatedProvider, err := h.Service.UpdateProvider(c, reqProvider)
-	if err != nil {
-		logger.Error("Failed to update provider", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update provider"})
-		return
-	}
-	c.JSON(http.StatusOK, updatedProvider)
-}
-
 // DeleteProviderHandler handles DELETE /providers/:id.
 func (h *ProviderHandler) DeleteProviderHandler(c *gin.Context) {
 	logger := utils.GetLogger()
@@ -150,6 +126,7 @@ func (h *ProviderHandler) AdvanceVerifyProviderHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedProvider)
 }
 
+// RevokeProviderAuthTokenHandler handles DELETE /providers/revoke/:id.
 func (h *ProviderHandler) RevokeProviderAuthTokenHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	providerID := c.Param("id")
@@ -159,4 +136,29 @@ func (h *ProviderHandler) RevokeProviderAuthTokenHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Auth token revoked"})
+}
+
+func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
+	id := c.Param("id")
+
+	var updates map[string]interface{}
+	if err := c.BindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	// Remove the id field if provided in the payload.
+	delete(updates, "id")
+
+	updatedProvider, err := h.Service.UpdateProvider(c, id, updates)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update provider: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "Provider updated successfully",
+		"data":    updatedProvider,
+	})
 }

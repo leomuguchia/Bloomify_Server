@@ -6,6 +6,7 @@ import "time"
 type Booking struct {
 	ID            string    `bson:"id" json:"id"`                                 // Unique booking identifier (e.g., UUID)
 	ProviderID    string    `bson:"provider_id" json:"provider_id"`               // Provider who was booked
+	ProviderName  string    `bson:"provider_name"`                                // Provider who was booked
 	UserID        string    `bson:"user_id" json:"user_id"`                       // User who made the booking
 	Date          string    `bson:"date" json:"date"`                             // Booking date in "YYYY-MM-DD" format
 	Units         int       `bson:"units" json:"units"`                           // Number of capacity units booked (e.g., 1, 2, etc.)

@@ -1,4 +1,3 @@
-// File: middleware/ratelimit.go
 package middleware
 
 import (
@@ -28,8 +27,8 @@ func (s *rateLimiterStore) getLimiter(ip string) *rate.Limiter {
 
 	limiter, exists := s.limiters[ip]
 	if !exists {
-		// Configure rate: 5 requests per minute with burst capacity of 10.
-		limiter = rate.NewLimiter(rate.Every(time.Minute/5), 10)
+		// Configure rate: 20 requests per minute with burst capacity of 5.
+		limiter = rate.NewLimiter(rate.Every(time.Minute/50), 5)
 		s.limiters[ip] = limiter
 	}
 	return limiter
@@ -40,14 +39,12 @@ func RateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := zap.L()
 		ip := getClientIP(c)
-
 		limiter := limiterStore.getLimiter(ip)
 		if !limiter.Allow() {
 			logger.Warn("Rate limit exceeded", zap.String("ip", ip))
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "Rate limit exceeded. Try again later."})
 			return
 		}
-
 		c.Next()
 	}
 }

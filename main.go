@@ -12,10 +12,12 @@ import (
 	"bloomify/config"
 	"bloomify/database"
 	providerRepo "bloomify/database/repository/provider"
+	schedulerRepo "bloomify/database/repository/scheduler"
 	userRepoPkg "bloomify/database/repository/user"
 	"bloomify/handlers"
 	"bloomify/middleware"
 	"bloomify/routes"
+	"bloomify/services/booking"
 	"bloomify/services/provider"
 	"bloomify/services/user"
 	"bloomify/utils"
@@ -41,10 +43,11 @@ func main() {
 	router.Use(middleware.RateLimitMiddleware())
 	router.Use(middleware.GeolocationMiddleware())
 
-	// Setup repositories, services, and handlers.
+	// Setup repositories.
 	provRepo := providerRepo.NewMongoProviderRepo()
 	userRepo := userRepoPkg.NewMongoUserRepo()
 
+	// Setup services.
 	userService := &user.DefaultUserService{
 		Repo: userRepo,
 	}
@@ -55,6 +58,24 @@ func main() {
 	}
 	providerHandler := handlers.NewProviderHandler(providerService)
 
+	matchingServiceInstance := &booking.DefaultMatchingService{
+		ProviderRepo: provRepo,
+	}
+
+	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
+		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
+		PaymentHandler: nil,
+	}
+	// Initialize the booking service using the matching service and scheduling engine.
+	bookingService := &booking.DefaultBookingSessionService{
+		MatchingSvc:     matchingServiceInstance,
+		SchedulerEngine: schedulingEngineInstance,
+	}
+	// Create and set the booking handler.
+	bookingHandler := handlers.NewBookingHandler(bookingService)
+	handlers.SetBookingHandler(bookingHandler)
+
+	// Create handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
 		ProviderRepo:                   provRepo,
 		UserRepo:                       userRepo,
@@ -66,10 +87,11 @@ func main() {
 		AuthenticateProviderHandler:    providerHandler.AuthenticateProviderHandler,
 		KYPVerificationHandler:         handlers.KYPVerificationHandler,
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
-		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler, // New
-		InitiateSession:                handlers.InitiateSession,
-		UpdateSession:                  handlers.UpdateSession,
-		ConfirmBooking:                 handlers.ConfirmBooking,
+		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
+		InitiateSession:                bookingHandler.InitiateSession,
+		UpdateSession:                  bookingHandler.UpdateSession,
+		ConfirmBooking:                 bookingHandler.ConfirmBooking,
+		CancelSession:                  bookingHandler.CancelSession,
 		AIRecommendHandler:             handlers.AIRecommendHandler,
 		AISuggestHandler:               handlers.AISuggestHandler,
 		AutoBookHandler:                handlers.AutoBookHandler,
@@ -79,8 +101,10 @@ func main() {
 		GetUserByEmailHandler:          handlers.GetUserByEmailHandler,
 		UpdateUserHandler:              handlers.UpdateUserHandler,
 		DeleteUserHandler:              handlers.DeleteUserHandler,
+		RevokeUserAuthTokenHandler:     handlers.RevokeUserAuthTokenHandler,
 	}
 
+	// Register all routes.
 	routes.RegisterRoutes(router, handlerBundle)
 
 	port := config.AppConfig.AppPort

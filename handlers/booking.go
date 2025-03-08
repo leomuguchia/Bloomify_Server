@@ -87,14 +87,22 @@ func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 	c.JSON(http.StatusOK, bookingResult)
 }
 
-// --- Global Booking Handler Setup ---
-//
-// To allow direct access to booking endpoints as
-//     InitiateSession: handlers.InitiateSession,
-//     UpdateSession:   handlers.UpdateSession,
-//     ConfirmBooking:  handlers.ConfirmBooking,
-// we add a package-level variable and setter.
+// CancelSession handles DELETE /api/booking/session/:sessionID.
+func (h *BookingHandler) CancelSession(c *gin.Context) {
+	sessionID := c.Param("sessionID")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionID is required"})
+		return
+	}
+	if err := h.BookingSvc.CancelSession(sessionID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking session", "details": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "booking session cancelled"})
+}
 
+// --- Global Booking Handler Setup ---
+// To allow direct access to booking endpoints via package-level functions.
 var globalBookingHandler *BookingHandler
 
 // SetBookingHandler assigns the global booking handler.
@@ -128,4 +136,13 @@ func ConfirmBooking(c *gin.Context) {
 		return
 	}
 	globalBookingHandler.ConfirmBooking(c)
+}
+
+// CancelSession is a package-level function that delegates to the global booking handler.
+func CancelSession(c *gin.Context) {
+	if globalBookingHandler == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
+		return
+	}
+	globalBookingHandler.CancelSession(c)
 }

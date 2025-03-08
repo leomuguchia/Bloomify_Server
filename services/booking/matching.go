@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 
 	"bloomify/database/repository"
 	"bloomify/models"
@@ -32,7 +33,6 @@ type DefaultMatchingService struct {
 // MatchProviders focuses solely on finding and ranking providers based on the service plan.
 func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]models.Provider, error) {
 	ctx := context.Background()
-	// Call our matching logic to get ranked providers.
 	rankedProviders, err := s.matchProviders(plan, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to match providers: %w", err)
@@ -40,9 +40,8 @@ func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]mode
 	return extractProviders(rankedProviders), nil
 }
 
-// matchProviders contains the core matching logic to rank providers.
+// matchProviders contains the core matching logic to rank providers concurrently.
 func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx context.Context) ([]RankedProvider, error) {
-	// Build advanced search criteria.
 	criteria := repository.ProviderSearchCriteria{
 		ServiceType:   plan.Service,
 		Location:      plan.Location,
@@ -50,7 +49,6 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		Longitude:     plan.Longitude,
 		MaxDistanceKm: 5, // Maximum effective distance.
 	}
-	// Perform advanced search to get candidate providers.
 	providers, err := s.ProviderRepo.AdvancedSearch(criteria)
 	if err != nil {
 		return nil, fmt.Errorf("advanced search failed: %w", err)
@@ -59,7 +57,6 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		return nil, fmt.Errorf("no providers found for service '%s'", plan.Service)
 	}
 
-	// Define scoring constants.
 	const (
 		MaxLocationPoints = 45.0 // Proximity weight.
 		VerifiedBonus     = 20.0 // Fixed bonus if verified.
@@ -67,16 +64,13 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		MaxRatingPts      = 15.0 // Maximum points for rating.
 	)
 
-	// Helper: compute location score (linear: 0 km -> 45 points, 50 km -> 0 points).
 	computeLocationScore := func(distanceKm float64) float64 {
-		if distanceKm >= 50 {
+		if distanceKm >= 5 {
 			return 0
 		}
-		return MaxLocationPoints * (1 - distanceKm/50)
+		return MaxLocationPoints * (1 - distanceKm/5)
 	}
 
-	// Helper: compute completed bookings score.
-	// We'll cap the benefit; assume 100 or more bookings yields max points.
 	computeCompletedScore := func(completed int) float64 {
 		if completed >= 100 {
 			return MaxCompletedPts
@@ -84,7 +78,6 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		return (float64(completed) / 100) * MaxCompletedPts
 	}
 
-	// Helper: compute rating score.
 	computeRatingScore := func(rating float64) float64 {
 		if rating > 5 {
 			rating = 5
@@ -92,6 +85,7 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		return (rating / 5) * MaxRatingPts
 	}
 
+	// We'll use a channel to collect computed score data.
 	type scoreData struct {
 		Provider       models.Provider
 		TotalScore     float64
@@ -100,44 +94,66 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		CompletedScore float64
 		RatingScore    float64
 	}
-	var scores []scoreData
+
+	resultsCh := make(chan scoreData, len(providers))
+	var wg sync.WaitGroup
+
+	// Spawn a goroutine per provider.
 	for _, p := range providers {
-		// Compute distance using haversine.
-		distanceKm := haversine(plan.Latitude, plan.Longitude, p.Latitude, p.Longitude)
-		locScore := computeLocationScore(distanceKm)
-		// Verified bonus.
-		var verifiedScore float64
-		if p.AdvancedVerified {
-			verifiedScore = VerifiedBonus
-		}
-		// Completed bookings score.
-		compScore := computeCompletedScore(p.CompletedBookings)
-		// Rating score.
-		ratingScore := computeRatingScore(p.Rating)
-		totalScore := locScore + verifiedScore + compScore + ratingScore
-		scores = append(scores, scoreData{
-			Provider:       p,
-			TotalScore:     totalScore,
-			LocationScore:  locScore,
-			VerifiedScore:  verifiedScore,
-			CompletedScore: compScore,
-			RatingScore:    ratingScore,
-		})
+		wg.Add(1)
+		go func(p models.Provider) {
+			defer wg.Done()
+			// Extract coordinates from LocationGeo. GeoJSON stores them as [longitude, latitude].
+			var provLat, provLon float64
+			if len(p.LocationGeo.Coordinates) >= 2 {
+				provLat = p.LocationGeo.Coordinates[1]
+				provLon = p.LocationGeo.Coordinates[0]
+			}
+			// Compute distance using the haversine formula.
+			distanceKm := haversine(plan.Latitude, plan.Longitude, provLat, provLon)
+			locScore := computeLocationScore(distanceKm)
+			var verifiedScore float64
+			if p.AdvancedVerified {
+				verifiedScore = VerifiedBonus
+			}
+			compScore := computeCompletedScore(p.CompletedBookings)
+			ratingScore := computeRatingScore(p.Rating)
+			totalScore := locScore + verifiedScore + compScore + ratingScore
+
+			resultsCh <- scoreData{
+				Provider:       p,
+				TotalScore:     totalScore,
+				LocationScore:  locScore,
+				VerifiedScore:  verifiedScore,
+				CompletedScore: compScore,
+				RatingScore:    ratingScore,
+			}
+		}(p)
 	}
 
-	// Sort candidates by total score in descending order.
+	wg.Wait()
+	close(resultsCh)
+
+	var scores []scoreData
+	for s := range resultsCh {
+		scores = append(scores, s)
+	}
+
 	sort.Slice(scores, func(i, j int) bool {
 		return scores[i].TotalScore > scores[j].TotalScore
 	})
 
-	// Ensure the top candidate is marked as preferred.
 	var ranked []RankedProvider
 	for i, sd := range scores {
 		ranked = append(ranked, RankedProvider{
 			Provider:   sd.Provider,
 			RankPoints: sd.TotalScore,
-			Preferred:  i == 0, // The top candidate.
+			Preferred:  i == 0,
 		})
+	}
+
+	if len(ranked) > 20 {
+		ranked = ranked[:20]
 	}
 
 	return ranked, nil
@@ -145,13 +161,13 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 
 // haversine calculates the great-circle distance (in km) between two geographic coordinates.
 func haversine(lat1, lon1, lat2, lon2 float64) float64 {
-	const R = 6371 // Earth's radius in kilometers.
+	const R = 6371
 	dLat := (lat2 - lat1) * (math.Pi / 180)
 	dLon := (lon2 - lon1) * (math.Pi / 180)
 	lat1Rad := lat1 * (math.Pi / 180)
 	lat2Rad := lat2 * (math.Pi / 180)
-	a := (math.Sin(dLat/2) * math.Sin(dLat/2)) +
-		(math.Cos(lat1Rad) * math.Cos(lat2Rad) * math.Sin(dLon/2) * math.Sin(dLon/2))
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 	return R * c
 }

@@ -44,12 +44,9 @@ func (r *MongoProviderRepo) ensureIndexes() error {
 		{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true)},
 		{Keys: bson.D{{Key: "service_type", Value: 1}}},
 		{Keys: bson.D{{Key: "location", Value: 1}}},
-		{Keys: bson.D{{Key: "rating", Value: -1}}},
-		{Keys: bson.D{{Key: "completed_bookings", Value: -1}}},
+		// Create a 2dsphere index on the location_geo field for geospatial queries.
 		{Keys: bson.D{{Key: "location_geo", Value: "2dsphere"}}},
 		{Keys: bson.D{{Key: "status", Value: 1}}},
-		{Keys: bson.D{{Key: "latitude", Value: 1}}},
-		{Keys: bson.D{{Key: "longitude", Value: 1}}},
 	}
 
 	_, err := r.coll.Indexes().CreateMany(ctx, indexModels)

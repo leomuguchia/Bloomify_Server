@@ -1,3 +1,4 @@
+// File: booking/booking_session_service.go
 package booking
 
 import (
@@ -7,8 +8,8 @@ import (
 	"time"
 
 	"bloomify/models"
+	"bloomify/utils"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -17,14 +18,13 @@ type BookingSessionService interface {
 	InitiateSession(plan models.ServicePlan) (string, []models.Provider, error)
 	UpdateSession(sessionID string, selectedProviderID string) (*models.BookingSession, error)
 	ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error)
+	CancelSession(sessionID string) error // For explicit session cancellation.
 }
 
 // DefaultBookingSessionService is our production implementation.
 type DefaultBookingSessionService struct {
-	MatchingSvc     MatchingService     // Matches providers based on the service plan.
-	SchedulerEngine SchedulingEngine    // Computes available time slots.
-	BookingSvc      BookingConfirmation // Finalizes booking creation.
-	CacheClient     *redis.Client       // Redis client for session storage.
+	MatchingSvc     MatchingService  // Matches providers based on the service plan.
+	SchedulerEngine SchedulingEngine // Computes available time slots and books a slot.
 }
 
 // InitiateSession creates a new booking session, assigns it a unique SessionID,
@@ -33,6 +33,7 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) 
 	ctx := context.Background()
 	sessionID := uuid.New().String()
 
+	// Call the matching service to retrieve ranked providers.
 	matchedProviders, err := s.MatchingSvc.MatchProviders(plan)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to match providers: %w", err)
@@ -48,7 +49,9 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) 
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal booking session: %w", err)
 	}
-	if err := s.CacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil {
+
+	cacheClient := utils.GetBookingCacheClient()
+	if err := cacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil {
 		return "", nil, fmt.Errorf("failed to store booking session: %w", err)
 	}
 
@@ -59,8 +62,9 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) 
 // computes available time slots using the scheduler engine, and saves the updated session.
 func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedProviderID string) (*models.BookingSession, error) {
 	ctx := context.Background()
+	cacheClient := utils.GetBookingCacheClient()
 
-	sessionData, err := s.CacheClient.Get(ctx, sessionID).Result()
+	sessionData, err := cacheClient.Get(ctx, sessionID).Result()
 	if err != nil {
 		return nil, fmt.Errorf("booking session not found or expired: %w", err)
 	}
@@ -69,6 +73,7 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
+	// Verify that the selected provider is among the matched providers.
 	var selectedProvider models.Provider
 	found := false
 	for _, p := range session.MatchedProviders {
@@ -85,6 +90,7 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	session.SelectedProvider = selectedProviderID
 	session.Availability = nil
 
+	// Compute available timeslots for the chosen provider using the scheduler.
 	slots, err := s.SchedulerEngine.GetAvailableTimeSlots(selectedProvider, session.ServicePlan.Date)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute availability: %w", err)
@@ -95,7 +101,7 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal updated booking session: %w", err)
 	}
-	if err := s.CacheClient.Set(ctx, sessionID, updatedData, 10*time.Minute).Err(); err != nil {
+	if err := cacheClient.Set(ctx, sessionID, updatedData, 10*time.Minute).Err(); err != nil {
 		return nil, fmt.Errorf("failed to update booking session in cache: %w", err)
 	}
 
@@ -103,50 +109,66 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 }
 
 // ConfirmBooking finalizes the booking by retrieving the session from Redis,
-// converting it into a confirmation session, delegating confirmation to the confirmation module,
-// and then cleaning up the session.
-func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string) (*models.Booking, error) {
+// and then calling the scheduler's BookSlot method to reserve the confirmed slot.
+func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error) {
 	ctx := context.Background()
+	cacheClient := utils.GetBookingCacheClient()
 
-	// Retrieve session from Redis.
-	sessionData, err := s.CacheClient.Get(ctx, sessionID).Result()
+	// Retrieve the booking session.
+	sessionData, err := cacheClient.Get(ctx, sessionID).Result()
 	if err != nil {
 		return nil, fmt.Errorf("booking session not found or expired: %w", err)
 	}
-	var session models.BookingConfirmationSession
+	var session models.BookingSession
 	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
-	// Convert the booking session to a confirmation session.
-	confirmSess := models.BookingConfirmationSession{
-		SelectedProvider: session.SelectedProvider,
-		UserID:           session.UserID,
-		ServicePlan:      session.ServicePlan, // Must match our BookingServicePlan structure.
-		Availability:     session.Availability,
-		PaymentMethod:    "inApp", // We enforce in-app payment.
+	// Locate the selected provider from the matched providers.
+	var selectedProvider models.Provider
+	found := false
+	for _, p := range session.MatchedProviders {
+		if p.ID == session.SelectedProvider {
+			selectedProvider = p
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("selected provider not found in booking session")
 	}
 
-	// Delegate confirmation to the confirmation module.
-	confirmationResp, err := s.BookingSvc.ConfirmSession(confirmSess)
-	if err != nil {
-		return nil, fmt.Errorf("failed to confirm booking: %w", err)
+	// Create a provisional booking record.
+	bookingRecord := models.Booking{
+		ProviderID:   selectedProvider.ID,
+		ProviderName: selectedProvider.ProviderName,
+		UserID:       session.UserID,
+		Date:         session.ServicePlan.Date,
+		Start:        confirmedSlot.Start,
+		End:          confirmedSlot.End,
+		CreatedAt:    time.Now(),
+	}
+
+	// Call the scheduler engine's BookSlot method to reserve the slot.
+	// Note: BookSlot is expected to update aggregates and finalize the booking.
+	if err := s.SchedulerEngine.BookSlot(selectedProvider, session.ServicePlan.Date, confirmedSlot, bookingRecord); err != nil {
+		return nil, fmt.Errorf("failed to book slot: %w", err)
 	}
 
 	// Cleanup: Delete the session from Redis.
-	s.CacheClient.Del(ctx, sessionID)
+	cacheClient.Del(ctx, sessionID)
 
-	// Convert the confirmation response into a Booking object (if needed).
-	booking := &models.Booking{
-		ID:            confirmationResp.BookingID,
-		ProviderID:    confirmationResp.ProviderID,
-		Date:          confirmationResp.Date,
-		Start:         confirmationResp.Start,
-		End:           confirmationResp.End,
-		PaymentMethod: confirmationResp.PaymentMethod,
-		CreatedAt:     confirmationResp.CreatedAt,
-		// Populate additional fields as necessary.
+	// Return the finalized booking.
+	return &bookingRecord, nil
+}
+
+// CancelSession allows the client to explicitly cancel a booking session.
+// It deletes the session data from the cache.
+func (s *DefaultBookingSessionService) CancelSession(sessionID string) error {
+	ctx := context.Background()
+	cacheClient := utils.GetBookingCacheClient()
+	if err := cacheClient.Del(ctx, sessionID).Err(); err != nil {
+		return fmt.Errorf("failed to cancel booking session: %w", err)
 	}
-
-	return booking, nil
+	return nil
 }

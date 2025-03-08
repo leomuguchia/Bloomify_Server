@@ -44,7 +44,7 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		// Endpoints that modify provider data require strict authentication.
 		protected := api.Group("")
 		protected.Use(middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, false))
-		protected.PUT("/update/:id", hb.UpdateProviderHandler)
+		protected.PATCH("/update/:id", hb.UpdateProviderHandler)
 		protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
 		protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
 		protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
@@ -74,9 +74,11 @@ func RegisterHealthRoute(r *gin.Engine) {
 func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	bookingGroup := r.Group("/api/booking")
 	{
+		bookingGroup.Use(middleware.JWTAuthUserMiddleware(hb.UserRepo))
 		bookingGroup.POST("/session", hb.InitiateSession)
 		bookingGroup.PUT("/session/:sessionID", hb.UpdateSession)
 		bookingGroup.POST("/confirm", hb.ConfirmBooking)
+		bookingGroup.DELETE("/session/:sessionID", hb.CancelSession)
 	}
 }
 

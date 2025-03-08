@@ -2,7 +2,6 @@
 package middleware
 
 import (
-	"net"
 	"net/http"
 	"strings"
 
@@ -19,22 +18,6 @@ var restrictedCountries = map[string]bool{
 // A sample list of Tor exit node IPs (for demonstration purposes).
 var torExitNodes = map[string]bool{
 	"1.2.3.4": true, // replace with real Tor exit IPs or integrate a live list
-}
-
-// getClientIP extracts the client IP address from the request.
-func getClientIP(c *gin.Context) string {
-	// Try to get IP from X-Forwarded-For header first.
-	if forwarded := c.Request.Header.Get("X-Forwarded-For"); forwarded != "" {
-		// In case of multiple IPs, the first is the client IP.
-		ips := strings.Split(forwarded, ",")
-		return strings.TrimSpace(ips[0])
-	}
-	// Fallback to RemoteAddr.
-	ip, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		return c.Request.RemoteAddr
-	}
-	return ip
 }
 
 // mockGetCountryFromIP simulates determining the country from an IP address.

@@ -16,13 +16,11 @@ import (
 )
 
 // ProviderService defines the interface for provider-related operations.
-// Note: The AuthenticateProvider and RegisterProvider methods now return a projection
-// of models.Provider (with only ID and Token fields set) to serve as an auth response.
 type ProviderService interface {
 	RegisterProvider(provider models.Provider) (*models.Provider, error)
 	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
 	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)
-	UpdateProvider(c *gin.Context, provider models.Provider) (*models.Provider, error)
+	UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error)
 	DeleteProvider(id string) error
 	AuthenticateProvider(email, password string) (*models.Provider, error)
 	AdvanceVerifyProvider(c *gin.Context, id string, advReq AdvanceVerifyRequest) (*models.Provider, error)
@@ -50,8 +48,9 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*mo
 	if provider.Location == "" {
 		return nil, fmt.Errorf("street address is required")
 	}
-	if provider.Latitude == 0 || provider.Longitude == 0 {
-		return nil, fmt.Errorf("valid map coordinates are required")
+	// Validate that location_geo is provided and has exactly two coordinates.
+	if provider.LocationGeo.Type != "Point" || len(provider.LocationGeo.Coordinates) != 2 {
+		return nil, fmt.Errorf("valid geo coordinates are required in location_geo field")
 	}
 	// Ensure that KYP verification details are present.
 	if provider.KYPDocument == "" {
@@ -170,34 +169,58 @@ func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) erro
 }
 
 // UpdateProvider merges allowed updates and returns the updated provider record (full access view).
-func (s *DefaultProviderService) UpdateProvider(c *gin.Context, provider models.Provider) (*models.Provider, error) {
-	existing, err := s.Repo.GetByIDWithProjection(provider.ID, nil)
+// It implements patch-style updates.
+func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error) {
+	existing, err := s.Repo.GetByIDWithProjection(id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
 
-	if provider.ProviderName != "" {
-		existing.ProviderName = provider.ProviderName
+	// Merge only allowed fields.
+	if v, ok := updates["provider_name"].(string); ok && v != "" {
+		existing.ProviderName = v
 	}
-	if provider.LegalName != "" {
-		existing.LegalName = provider.LegalName
+	if v, ok := updates["legal_name"].(string); ok && v != "" {
+		existing.LegalName = v
 	}
-	if provider.PhoneNumber != "" {
-		existing.PhoneNumber = provider.PhoneNumber
+	if v, ok := updates["phone_number"].(string); ok && v != "" {
+		existing.PhoneNumber = v
 	}
-	if provider.Location != "" {
-		existing.Location = provider.Location
+	if v, ok := updates["location"].(string); ok && v != "" {
+		existing.Location = v
 	}
-	if provider.ServiceType != "" {
-		existing.ServiceType = provider.ServiceType
+	if v, ok := updates["service_type"].(string); ok && v != "" {
+		existing.ServiceType = v
 	}
-	existing.UpdatedAt = time.Now()
+	// Optionally update location_geo if provided.
+	if geo, ok := updates["location_geo"].(map[string]interface{}); ok {
+		if t, ok := geo["type"].(string); ok && t == "Point" {
+			if coords, ok := geo["coordinates"].([]interface{}); ok && len(coords) == 2 {
+				var newCoords []float64
+				for _, c := range coords {
+					switch v := c.(type) {
+					case float64:
+						newCoords = append(newCoords, v)
+					case int:
+						newCoords = append(newCoords, float64(v))
+					}
+				}
+				if len(newCoords) == 2 {
+					existing.LocationGeo = models.GeoPoint{
+						Type:        "Point",
+						Coordinates: newCoords,
+					}
+				}
+			}
+		}
+	}
 
+	existing.UpdatedAt = time.Now()
 	if err := s.Repo.Update(existing); err != nil {
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
-	// Now call GetProviderByID with the context and provider ID, requesting full access view.
-	return s.GetProviderByID(c, provider.ID)
+
+	return s.GetProviderByID(c, id)
 }
 
 // DeleteProvider removes a provider record by its ID.

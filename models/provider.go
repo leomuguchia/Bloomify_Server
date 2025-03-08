@@ -6,15 +6,22 @@ import (
 
 // HistoricalRecord represents a record of a service provided by a provider.
 type HistoricalRecord struct {
-	RecordID         string    `bson:"record_id" json:"record_id"`                 // Unique identifier for the record
-	Date             time.Time `bson:"date" json:"date"`                           // When the service was provided
-	Rating           float64   `bson:"rating" json:"rating"`                       // Service rating
-	ServiceProvided  string    `bson:"service_provided" json:"service_provided"`   // e.g., "Laundry", "Cleaning", "Chauffeur"
-	ServedWho        string    `bson:"served_who" json:"served_who"`               // Information about the client served
-	TotalEarned      float64   `bson:"total_earned" json:"total_earned"`           // Total earnings from the service
-	CustomerFeedback string    `bson:"customer_feedback" json:"customer_feedback"` // Customer feedback
+	RecordID         string    `bson:"record_id" json:"record_id"`
+	Date             time.Time `bson:"date" json:"date"`
+	Rating           float64   `bson:"rating" json:"rating"`
+	ServiceProvided  string    `bson:"service_provided" json:"service_provided"`
+	ServedWho        string    `bson:"served_who" json:"served_who"`
+	TotalEarned      float64   `bson:"total_earned" json:"total_earned"`
+	CustomerFeedback string    `bson:"customer_feedback" json:"customer_feedback"`
 }
 
+// GeoPoint represents a GeoJSON Point.
+type GeoPoint struct {
+	Type        string    `bson:"type" json:"type"`               // Always "Point"
+	Coordinates []float64 `bson:"coordinates" json:"coordinates"` // [longitude, latitude]
+}
+
+// Provider represents a service provider in the system.
 type Provider struct {
 	ID string `bson:"id" json:"id,omitempty"`
 
@@ -31,10 +38,9 @@ type Provider struct {
 	TokenHash    string `bson:"token_hash" json:"-"`
 
 	// Service & Location
-	ServiceType string  `bson:"service_type" json:"service_type,omitempty"`
-	Location    string  `bson:"location" json:"location,omitempty"`
-	Latitude    float64 `bson:"latitude" json:"latitude,omitempty"`
-	Longitude   float64 `bson:"longitude" json:"longitude,omitempty"`
+	ServiceType string   `bson:"service_type" json:"service_type,omitempty"`
+	Location    string   `bson:"location" json:"location,omitempty"`
+	LocationGeo GeoPoint `bson:"location_geo" json:"location_geo"` // GeoJSON representation
 
 	// Verification (KYP)
 	KYPDocument         string `bson:"kyp_document" json:"kyp_document,omitempty"`

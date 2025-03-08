@@ -28,6 +28,7 @@ type HandlerBundle struct {
 	InitiateSession gin.HandlerFunc
 	UpdateSession   gin.HandlerFunc
 	ConfirmBooking  gin.HandlerFunc
+	CancelSession   gin.HandlerFunc
 
 	// AI endpoints
 	AIRecommendHandler gin.HandlerFunc

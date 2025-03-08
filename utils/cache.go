@@ -12,7 +12,7 @@ import (
 
 var (
 	// CacheClient is the generic cache client.
-	CacheClient *redis.Client
+	BookingCacheClient *redis.Client
 	// AuthCacheClient is the dedicated client for authorization caching.
 	AuthCacheClient *redis.Client
 )
@@ -20,14 +20,14 @@ var (
 // InitCache initializes the generic Redis cache client using DB from AppConfig for general caching.
 func InitCache() {
 	log.Printf("Attempting to connect to Redis (Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisCacheDB)
-	CacheClient = redis.NewClient(&redis.Options{
+	BookingCacheClient = redis.NewClient(&redis.Options{
 		Addr:     config.AppConfig.RedisAddr,
 		Password: config.AppConfig.RedisPassword,
 		DB:       config.AppConfig.RedisCacheDB,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_, err := CacheClient.Ping(ctx).Result()
+	_, err := BookingCacheClient.Ping(ctx).Result()
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis (Cache): %v", err)
 	}
@@ -35,11 +35,11 @@ func InitCache() {
 }
 
 // GetCacheClient returns the generic cache client.
-func GetCacheClient() *redis.Client {
-	if CacheClient == nil {
+func GetBookingCacheClient() *redis.Client {
+	if BookingCacheClient == nil {
 		InitCache()
 	}
-	return CacheClient
+	return BookingCacheClient
 }
 
 // InitAuthCache initializes the Redis client for authorization caching using DB from AppConfig for auth cache.

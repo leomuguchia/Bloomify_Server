@@ -5,16 +5,14 @@ import (
 	"fmt"
 
 	"bloomify/models"
-	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.uber.org/zap"
 )
 
 func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID string) (*models.Provider, error) {
 	fullAccess, exists := c.Get("isProviderFullAccess")
-	utils.Logger.Info("Checking isProviderFullAccess flag", zap.Any("isProviderFullAccess", fullAccess), zap.Bool("exists", exists))
+	// utils.Logger.Info("Checking isProviderFullAccess flag", zap.Any("isProviderFullAccess", fullAccess), zap.Bool("exists", exists))
 
 	access := false
 	if exists {
@@ -53,7 +51,7 @@ func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID stri
 
 func (s *DefaultProviderService) GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error) {
 	fullAccess, exists := c.Get("isProviderFullAccess")
-	utils.Logger.Info("Checking isProviderFullAccess flag", zap.Any("isProviderFullAccess", fullAccess), zap.Bool("exists", exists))
+	// utils.Logger.Info("Checking isProviderFullAccess flag", zap.Any("isProviderFullAccess", fullAccess), zap.Bool("exists", exists))
 
 	access := false
 	if exists {
