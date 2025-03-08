@@ -1,94 +1,104 @@
 #!/bin/bash
-# This script updates providers from providers.txt to use the new structure with randomized values.
-# It assumes each line in providers.txt is in the format: ID:Token
-# The update endpoint is: /api/providers/update/:id
-# Each provider's location_geo field will be updated to a random coordinate within approx 5 km of the base.
-# The script also updates:
-#  - "rating" to a random value between 3.0 and 5.0.
-#  - "completed_bookings" to a random integer between 10 and 100.
-#
-# Adjust the ranges as needed for your testing.
+# This script creates 20 providers with randomized geo-coordinates within ~5km of the base point.
+# It uses a set of creative names and saves each provider's id and token in providers_output.txt.
+# All providers are set with the necessary criteria for matching.
+# Adjust values as needed.
 
 BASE_URL="http://192.168.100.19:8080"
-UPDATE_ENDPOINT="${BASE_URL}/api/providers/update"
+REGISTER_ENDPOINT="${BASE_URL}/api/providers/register"
 
-# Base coordinates (center point)
+# Base coordinates (center of search)
 BASE_LAT=37.78
 BASE_LON=-122.42
 
-# Maximum random offset in degrees (approx 5 km is about 0.045 degrees)
+# Maximum random offset in degrees (~5 km is about 0.045 degrees)
 MAX_OFFSET=0.045
 
-# Files
-PROVIDERS_FILE="providers.txt"
+# Output file for storing provider id and token
+OUTPUT_FILE="providers_output.txt"
+> "$OUTPUT_FILE"  # Clear file
 
-if [ ! -f "$PROVIDERS_FILE" ]; then
-  echo "Providers file $PROVIDERS_FILE does not exist. Please run your seed script first."
-  exit 1
-fi
+# An array of creative names.
+names=(
+  "Kelvin Cleaning"
+  "Michael's Cleaners"
+  "Owen Services"
+  "John's Cleaning"
+  "Blessed Laundry"
+  "Hope Dealers"
+  "Creative Cleaners"
+  "Dynamic Detergents"
+  "Sparkle Solutions"
+  "Pure Clean Co."
+  "Fresh Start Cleaning"
+  "Elite Cleaners"
+  "NextGen Clean"
+  "Prime Shine"
+  "Urban Clean"
+  "Sunrise Cleaning"
+  "EcoClean"
+  "Apex Services"
+  "TopNotch Cleaners"
+  "Bright Future Cleaners"
+)
 
-echo "Updating providers with randomized location_geo, rating, and completed_bookings..."
-
-# Function to generate a random offset between -MAX_OFFSET and +MAX_OFFSET.
 rand_offset() {
-  # Generate a random number between 0 and MAX_OFFSET, then randomly flip the sign.
-  offset=$(awk -v max="$MAX_OFFSET" 'BEGIN { srand(); print rand()*max }')
-  sign=$((RANDOM % 2))
-  if [ $sign -eq 0 ]; then
-    echo "-$offset"
-  else
-    echo "$offset"
-  fi
+  awk -v max="$MAX_OFFSET" 'BEGIN { srand(); print (rand()*2-1)*max }'
 }
 
-# Function to generate a random float between MIN and MAX.
-rand_float() {
-  min="$1"
-  max="$2"
-  awk -v min="$min" -v max="$max" 'BEGIN { srand(); print min + rand()*(max-min) }'
-}
-
-# Function to generate a random integer between MIN and MAX.
-rand_int() {
-  min="$1"
-  max="$2"
-  echo $(( (RANDOM % (max - min + 1)) + min ))
-}
-
-while IFS=: read -r id token; do
-  # Generate random offsets for latitude and longitude.
+for i in {0..19}; do
+  # Pick a random name.
+  idx=$((RANDOM % ${#names[@]}))
+  name="${names[$idx]}"
+  legal_name="${name} LLC"
+  # Generate an email by lowercasing the name, removing spaces, and appending the index.
+  email=$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"$i@example.com"
+  
   offsetLat=$(rand_offset)
   offsetLon=$(rand_offset)
-
-  # Calculate new coordinates.
   newLat=$(echo "$BASE_LAT + $offsetLat" | bc -l)
   newLon=$(echo "$BASE_LON + $offsetLon" | bc -l)
-
-  # Generate a random rating between 3.0 and 5.0.
-  newRating=$(rand_float 3.0 5.0)
-  # Generate a random completed_bookings between 10 and 100.
-  newCompleted=$(rand_int 10 100)
-
-  echo "Updating provider $id with new coordinates: lat=$newLat, lon=$newLon, rating=$newRating, completed_bookings=$newCompleted"
-
-  # Build the JSON payload.
+  
+  # Generate random rating and completed bookings.
+  newRating=$(awk -v min=3.0 -v max=5.0 'BEGIN { srand(); print min + rand()*(max-min) }')
+  newCompleted=$(( (RANDOM % 91) + 10 ))
+  
+  echo "Registering provider: '$name' ($email) with coordinates: [$newLon, $newLat], rating: $newRating, completed_bookings: $newCompleted"
+  
   PAYLOAD=$(cat <<EOF
 {
+  "provider_name": "$name",
+  "legal_name": "$legal_name",
+  "email": "$email",
+  "phone_number": "555-$(printf "%04d" $i)",
+  "password": "password$i",
+  "service_type": "cleaning",
   "location": "Test City",
   "location_geo": {"type": "Point", "coordinates": [$newLon, $newLat]},
-  "rating": $newRating,
-  "completed_bookings": $newCompleted
+  "kyp_document": "doc-ref-$i",
+  "kyp_verification_code": "verify$i",
+  "verification_status": "verified",
+  "verification_level": "advanced",
+  "insurance_docs": ["insurance1.pdf", "insurance2.pdf"],
+  "tax_pin": "123456789",
+  "advanced_verified": true,
+  "status": "active"
 }
 EOF
 )
-
-  # Call the update API.
-  RESPONSE=$(curl -s -X PUT "${UPDATE_ENDPOINT}/${id}" \
+  
+  RESPONSE=$(curl -s -X POST "$REGISTER_ENDPOINT" \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer ${token}" \
     -d "$PAYLOAD")
+  
   echo "Response: $RESPONSE"
+  
+  # Extract id and token using jq and append to the output file.
+  id=$(echo "$RESPONSE" | jq -r '.id')
+  token=$(echo "$RESPONSE" | jq -r '.token')
+  echo "$id:$token" >> "$OUTPUT_FILE"
+  
   sleep 1
-done < "$PROVIDERS_FILE"
+done
 
-echo "All provider updates complete."
+echo "All provider registrations complete. Saved output to $OUTPUT_FILE"

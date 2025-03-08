@@ -32,14 +32,12 @@ type DefaultProviderService struct {
 	Repo providerRepo.ProviderRepository
 }
 
-// RegisterProvider validates registration details, creates a new provider record,
-// generates a JWT token, stores its hash, and returns a projection containing the provider's ID and token.
 func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*models.Provider, error) {
 	// Validate required basic fields.
-	if provider.Email == "" || provider.Password == "" {
+	if provider.Profile.Email == "" || provider.Password == "" {
 		return nil, fmt.Errorf("provider email and password are required")
 	}
-	if provider.ProviderName == "" {
+	if provider.Profile.ProviderName == "" {
 		return nil, fmt.Errorf("provider name is required")
 	}
 	if provider.LegalName == "" {
@@ -62,14 +60,18 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*mo
 
 	// Mark the provider as KYP verified.
 	provider.VerificationStatus = "verified"
-	// Determine advanced verification:
-	// advanced_verified is true only if extra details (TaxPIN or InsuranceDocs) are provided.
 	if provider.TaxPIN != "" || len(provider.InsuranceDocs) > 0 {
-		provider.AdvancedVerified = true
+		provider.Profile.AdvancedVerified = true
 		provider.VerificationLevel = "advanced"
 	} else {
-		provider.AdvancedVerified = false
+		provider.Profile.AdvancedVerified = false
 		provider.VerificationLevel = "basic"
+	}
+
+	// Use default profile image if not supplied.
+	defaultProfileImage := "https://example.com/default_profile.png"
+	if provider.Profile.ProfileImage == "" {
+		provider.Profile.ProfileImage = defaultProfileImage
 	}
 
 	// Hash the provided password.
@@ -87,12 +89,12 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*mo
 	provider.UpdatedAt = now
 
 	// Check for an existing provider (using minimal projection).
-	existing, err := s.Repo.GetByEmailWithProjection(provider.Email, bson.M{"id": 1})
+	existing, err := s.Repo.GetByEmailWithProjection(provider.Profile.Email, bson.M{"id": 1})
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing provider: %w", err)
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("provider with email %s already exists", provider.Email)
+		return nil, fmt.Errorf("provider with email %s already exists", provider.Profile.Email)
 	}
 
 	// Persist the new provider.
@@ -101,7 +103,7 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*mo
 	}
 
 	// Generate a JWT token.
-	token, err := utils.GenerateToken(provider.ID, provider.Email, 24*time.Hour)
+	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
 	}
@@ -112,7 +114,7 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*mo
 		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
 	}
 
-	// Return a projection containing only the provider's ID and token.
+	// Return a minimal projection (ID and token) or the full record as needed.
 	return &models.Provider{
 		ID:    provider.ID,
 		Token: token,
@@ -133,7 +135,7 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*
 	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
-	token, err := utils.GenerateToken(provider.ID, provider.Email, 24*time.Hour)
+	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
 	}
@@ -176,15 +178,19 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
 
-	// Merge only allowed fields.
+	// Merge allowed fields.
 	if v, ok := updates["provider_name"].(string); ok && v != "" {
-		existing.ProviderName = v
+		existing.Profile.ProviderName = v
 	}
 	if v, ok := updates["legal_name"].(string); ok && v != "" {
 		existing.LegalName = v
 	}
 	if v, ok := updates["phone_number"].(string); ok && v != "" {
-		existing.PhoneNumber = v
+		existing.Profile.PhoneNumber = v
+	}
+	// Allow updating the profile image.
+	if v, ok := updates["profile_image"].(string); ok && v != "" {
+		existing.Profile.ProfileImage = v
 	}
 	if v, ok := updates["location"].(string); ok && v != "" {
 		existing.Location = v

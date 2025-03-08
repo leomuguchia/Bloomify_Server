@@ -6,62 +6,61 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"time"
 
 	"bloomify/database/repository"
 	"bloomify/models"
 )
 
-// RankedProvider represents a provider along with its computed ranking details.
 type RankedProvider struct {
-	Provider   models.Provider // Underlying provider details.
-	RankPoints float64         // Composite score from matching.
-	Preferred  bool            // True if this provider is the top match.
+	Provider   models.Provider
+	RankPoints float64
+	Preferred  bool
 }
 
-// MatchingService defines methods to match providers based on a service plan.
 type MatchingService interface {
-	// MatchProviders returns a ranked list of providers for a given service plan.
-	MatchProviders(plan models.ServicePlan) ([]models.Provider, error)
+	MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error)
 }
 
-// DefaultMatchingService is our production-ready implementation.
 type DefaultMatchingService struct {
-	// ProviderRepo accesses provider data from the database.
 	ProviderRepo repository.ProviderRepository
 }
 
-// MatchProviders focuses solely on finding and ranking providers based on the service plan.
-func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]models.Provider, error) {
-	ctx := context.Background()
-	rankedProviders, err := s.matchProviders(plan, ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to match providers: %w", err)
-	}
-	return extractProviders(rankedProviders), nil
-}
-
-// matchProviders contains the core matching logic to rank providers concurrently.
-func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx context.Context) ([]RankedProvider, error) {
+func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error) {
 	criteria := repository.ProviderSearchCriteria{
 		ServiceType:   plan.Service,
 		Location:      plan.Location,
-		Latitude:      plan.Latitude,
-		Longitude:     plan.Longitude,
-		MaxDistanceKm: 5, // Maximum effective distance.
+		MaxDistanceKm: 5,
+		LocationGeo:   plan.LocationGeo,
 	}
+	rankedProviders, err := s.matchProviders(criteria, context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to match providers: %w", err)
+	}
+	return extractProvidersDTO(rankedProviders), nil
+}
+
+func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSearchCriteria, ctx context.Context) ([]RankedProvider, error) {
 	providers, err := s.ProviderRepo.AdvancedSearch(criteria)
 	if err != nil {
 		return nil, fmt.Errorf("advanced search failed: %w", err)
 	}
 	if len(providers) == 0 {
-		return nil, fmt.Errorf("no providers found for service '%s'", plan.Service)
+		return nil, fmt.Errorf("no providers found for service '%s'", criteria.ServiceType)
 	}
 
+	// Extract search center from criteria.LocationGeo.
+	if len(criteria.LocationGeo.Coordinates) < 2 {
+		return nil, fmt.Errorf("invalid search center coordinates")
+	}
+	centerLon := criteria.LocationGeo.Coordinates[0]
+	centerLat := criteria.LocationGeo.Coordinates[1]
+
 	const (
-		MaxLocationPoints = 45.0 // Proximity weight.
-		VerifiedBonus     = 20.0 // Fixed bonus if verified.
-		MaxCompletedPts   = 20.0 // Maximum points for completed bookings.
-		MaxRatingPts      = 15.0 // Maximum points for rating.
+		MaxLocationPoints = 45.0
+		VerifiedBonus     = 20.0
+		MaxCompletedPts   = 20.0
+		MaxRatingPts      = 15.0
 	)
 
 	computeLocationScore := func(distanceKm float64) float64 {
@@ -70,14 +69,12 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		}
 		return MaxLocationPoints * (1 - distanceKm/5)
 	}
-
 	computeCompletedScore := func(completed int) float64 {
 		if completed >= 100 {
 			return MaxCompletedPts
 		}
 		return (float64(completed) / 100) * MaxCompletedPts
 	}
-
 	computeRatingScore := func(rating float64) float64 {
 		if rating > 5 {
 			rating = 5
@@ -85,7 +82,6 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 		return (rating / 5) * MaxRatingPts
 	}
 
-	// We'll use a channel to collect computed score data.
 	type scoreData struct {
 		Provider       models.Provider
 		TotalScore     float64
@@ -98,22 +94,19 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 	resultsCh := make(chan scoreData, len(providers))
 	var wg sync.WaitGroup
 
-	// Spawn a goroutine per provider.
 	for _, p := range providers {
 		wg.Add(1)
 		go func(p models.Provider) {
 			defer wg.Done()
-			// Extract coordinates from LocationGeo. GeoJSON stores them as [longitude, latitude].
 			var provLat, provLon float64
 			if len(p.LocationGeo.Coordinates) >= 2 {
-				provLat = p.LocationGeo.Coordinates[1]
 				provLon = p.LocationGeo.Coordinates[0]
+				provLat = p.LocationGeo.Coordinates[1]
 			}
-			// Compute distance using the haversine formula.
-			distanceKm := haversine(plan.Latitude, plan.Longitude, provLat, provLon)
+			distanceKm := haversine(centerLat, centerLon, provLat, provLon)
 			locScore := computeLocationScore(distanceKm)
 			var verifiedScore float64
-			if p.AdvancedVerified {
+			if p.Profile.AdvancedVerified {
 				verifiedScore = VerifiedBonus
 			}
 			compScore := computeCompletedScore(p.CompletedBookings)
@@ -151,7 +144,6 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 			Preferred:  i == 0,
 		})
 	}
-
 	if len(ranked) > 20 {
 		ranked = ranked[:20]
 	}
@@ -159,7 +151,6 @@ func (s *DefaultMatchingService) matchProviders(plan models.ServicePlan, ctx con
 	return ranked, nil
 }
 
-// haversine calculates the great-circle distance (in km) between two geographic coordinates.
 func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	const R = 6371
 	dLat := (lat2 - lat1) * (math.Pi / 180)
@@ -172,11 +163,19 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	return R * c
 }
 
-// extractProviders converts a slice of RankedProvider to a slice of models.Provider.
-func extractProviders(ranked []RankedProvider) []models.Provider {
-	var providers []models.Provider
+func extractProvidersDTO(ranked []RankedProvider) []models.ProviderDTO {
+	var dtos []models.ProviderDTO
 	for _, rp := range ranked {
-		providers = append(providers, rp.Provider)
+		dto := models.ProviderDTO{
+			ID:          rp.Provider.ID,
+			Profile:     rp.Provider.Profile,
+			ServiceType: rp.Provider.ServiceType,
+			Location:    rp.Provider.Location,
+			LocationGeo: rp.Provider.LocationGeo,
+			CreatedAt:   rp.Provider.CreatedAt.Format(time.RFC3339),
+			Preferred:   rp.Preferred,
+		}
+		dtos = append(dtos, dto)
 	}
-	return providers
+	return dtos
 }

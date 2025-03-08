@@ -29,7 +29,7 @@ func (s *DefaultProviderService) AdvanceVerifyProvider(c *gin.Context, providerI
 	}
 
 	// Check if provider is already advanced verified.
-	if provider.AdvancedVerified {
+	if provider.Profile.AdvancedVerified {
 		return nil, fmt.Errorf("provider is already advanced verified")
 	}
 
@@ -44,7 +44,7 @@ func (s *DefaultProviderService) AdvanceVerifyProvider(c *gin.Context, providerI
 	// Update provider record with advanced verification details.
 	provider.TaxPIN = advReq.TaxPIN
 	provider.InsuranceDocs = advReq.InsuranceDocs
-	provider.AdvancedVerified = true
+	provider.Profile.AdvancedVerified = true
 	provider.VerificationLevel = "advanced"
 	provider.UpdatedAt = time.Now()
 

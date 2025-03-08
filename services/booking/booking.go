@@ -15,7 +15,7 @@ import (
 
 // BookingSessionService defines the interface for managing a stateful booking session.
 type BookingSessionService interface {
-	InitiateSession(plan models.ServicePlan) (string, []models.Provider, error)
+	InitiateSession(plan models.ServicePlan) (string, []models.ProviderDTO, error)
 	UpdateSession(sessionID string, selectedProviderID string) (*models.BookingSession, error)
 	ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error)
 	CancelSession(sessionID string) error // For explicit session cancellation.
@@ -28,12 +28,12 @@ type DefaultBookingSessionService struct {
 }
 
 // InitiateSession creates a new booking session, assigns it a unique SessionID,
-// and stores it in Redis. It returns the SessionID along with matched providers.
-func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) (string, []models.Provider, error) {
+// and stores it in Redis. It returns the SessionID along with matched providers (as DTOs).
+func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) (string, []models.ProviderDTO, error) {
 	ctx := context.Background()
 	sessionID := uuid.New().String()
 
-	// Call the matching service to retrieve ranked providers.
+	// Call the matching service to retrieve ranked providers as DTOs.
 	matchedProviders, err := s.MatchingSvc.MatchProviders(plan)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to match providers: %w", err)
@@ -42,7 +42,7 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) 
 	session := models.BookingSession{
 		SessionID:        sessionID,
 		ServicePlan:      plan,
-		MatchedProviders: matchedProviders,
+		MatchedProviders: matchedProviders, // []ProviderDTO
 	}
 
 	sessionData, err := json.Marshal(session)
@@ -73,12 +73,12 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
-	// Verify that the selected provider is among the matched providers.
-	var selectedProvider models.Provider
+	// Verify that the selected provider is among the matched providers (DTOs).
+	var selectedDTO models.ProviderDTO
 	found := false
 	for _, p := range session.MatchedProviders {
 		if p.ID == selectedProviderID {
-			selectedProvider = p
+			selectedDTO = p
 			found = true
 			break
 		}
@@ -90,7 +90,15 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	session.SelectedProvider = selectedProviderID
 	session.Availability = nil
 
-	// Compute available timeslots for the chosen provider using the scheduler.
+	// Convert selectedDTO to a minimal Provider (only required fields for scheduling).
+	selectedProvider := models.Provider{
+		ID:          selectedDTO.ID,
+		ServiceType: selectedDTO.ServiceType,
+		Location:    selectedDTO.Location,
+		LocationGeo: selectedDTO.LocationGeo,
+		Profile:     selectedDTO.Profile,
+	}
+
 	slots, err := s.SchedulerEngine.GetAvailableTimeSlots(selectedProvider, session.ServicePlan.Date)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute availability: %w", err)
@@ -124,12 +132,12 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
-	// Locate the selected provider from the matched providers.
-	var selectedProvider models.Provider
+	// Locate the selected provider from the matched providers (DTOs).
+	var selectedDTO models.ProviderDTO
 	found := false
 	for _, p := range session.MatchedProviders {
 		if p.ID == session.SelectedProvider {
-			selectedProvider = p
+			selectedDTO = p
 			found = true
 			break
 		}
@@ -138,10 +146,18 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		return nil, fmt.Errorf("selected provider not found in booking session")
 	}
 
-	// Create a provisional booking record.
+	// Convert DTO to a minimal Provider.
+	selectedProvider := models.Provider{
+		ID:          selectedDTO.ID,
+		ServiceType: selectedDTO.ServiceType,
+		Location:    selectedDTO.Location,
+		LocationGeo: selectedDTO.LocationGeo,
+		Profile:     selectedDTO.Profile,
+	}
+
 	bookingRecord := models.Booking{
 		ProviderID:   selectedProvider.ID,
-		ProviderName: selectedProvider.ProviderName,
+		ProviderName: selectedProvider.Profile.ProviderName,
 		UserID:       session.UserID,
 		Date:         session.ServicePlan.Date,
 		Start:        confirmedSlot.Start,
@@ -149,16 +165,11 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		CreatedAt:    time.Now(),
 	}
 
-	// Call the scheduler engine's BookSlot method to reserve the slot.
-	// Note: BookSlot is expected to update aggregates and finalize the booking.
 	if err := s.SchedulerEngine.BookSlot(selectedProvider, session.ServicePlan.Date, confirmedSlot, bookingRecord); err != nil {
 		return nil, fmt.Errorf("failed to book slot: %w", err)
 	}
 
-	// Cleanup: Delete the session from Redis.
 	cacheClient.Del(ctx, sessionID)
-
-	// Return the finalized booking.
 	return &bookingRecord, nil
 }
 

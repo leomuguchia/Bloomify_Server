@@ -2,16 +2,22 @@ package providerRepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"bloomify/models"
+	"bloomify/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
 )
 
 func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]models.Provider, error) {
+	logger := utils.GetLogger()
+	logger.Debug("AdvancedSearch: received criteria", zap.Any("criteria", criteria))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -28,7 +34,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 			"$nearSphere": bson.M{
 				"$geometry": bson.M{
 					"type":        "Point",
-					"coordinates": []float64{criteria.Longitude, criteria.Latitude},
+					"coordinates": criteria.LocationGeo.Coordinates,
 				},
 				"$maxDistance": maxDistanceMeters,
 			},
@@ -36,10 +42,13 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	}
 	filter["status"] = bson.M{"$in": []string{"active", "online"}}
 
+	logger.Debug("AdvancedSearch: constructed filter", zap.Any("filter", filter))
+
 	opts := options.Find()
 
 	cursor, err := r.coll.Find(ctx, filter, opts)
 	if err != nil {
+		logger.Error("AdvancedSearch: query failed", zap.Error(err))
 		return nil, fmt.Errorf("advanced search query failed: %w", err)
 	}
 	defer cursor.Close(ctx)
@@ -48,17 +57,22 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	for cursor.Next(ctx) {
 		var p models.Provider
 		if err := cursor.Decode(&p); err != nil {
+			logger.Error("AdvancedSearch: failed to decode provider", zap.Error(err))
 			return nil, fmt.Errorf("failed to decode provider: %w", err)
 		}
 		providers = append(providers, p)
 	}
 	if err := cursor.Err(); err != nil {
+		logger.Error("AdvancedSearch: cursor error", zap.Error(err))
 		return nil, fmt.Errorf("cursor error: %w", err)
 	}
 
 	if len(providers) == 0 {
-		return nil, fmt.Errorf("no providers found matching criteria")
+		errMsg := "no providers found matching criteria"
+		logger.Warn("AdvancedSearch: no providers found", zap.Any("filter", filter))
+		return nil, errors.New(errMsg)
 	}
 
+	logger.Debug("AdvancedSearch: found providers", zap.Int("count", len(providers)))
 	return providers, nil
 }

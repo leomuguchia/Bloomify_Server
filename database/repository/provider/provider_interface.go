@@ -8,19 +8,12 @@ import (
 
 // ProviderSearchCriteria defines criteria for an advanced provider search.
 type ProviderSearchCriteria struct {
-	// Filter by service type (e.g., "Cleaning", "Laundry")
-	ServiceType string
-	// Free-text location filter (e.g., "New York")
-	Location string
-	// Minimum average rating required.
-	MinRating float64
-	// Minimum number of completed bookings.
+	ServiceType          string
+	Location             string
+	MinRating            float64
 	MinCompletedBookings int
-	// For geospatial search: maximum distance (in km) from a given point.
-	MaxDistanceKm float64
-	// Center of the geospatial search.
-	Latitude  float64
-	Longitude float64
+	MaxDistanceKm        float64
+	LocationGeo          models.GeoPoint
 }
 
 // ProviderRepository defines methods for provider data access.
