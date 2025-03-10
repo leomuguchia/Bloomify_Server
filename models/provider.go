@@ -37,6 +37,7 @@ type Provider struct {
 	PasswordHash string  `bson:"password_hash" json:"-"`
 	Token        string  `bson:"-" json:"token,omitempty"`
 	TokenHash    string  `bson:"token_hash" json:"-"`
+	ProviderType string  `bson:"provider_type" json:"provider_type,omitempty"`
 
 	ServiceType string   `bson:"service_type" json:"service_type,omitempty"`
 	Location    string   `bson:"location" json:"location,omitempty"`

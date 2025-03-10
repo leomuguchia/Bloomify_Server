@@ -12,10 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// userService holds the UserService instance and should be set during app initialization.
 var userService user.UserService
 
-// SetUserService sets the user service instance.
 func SetUserService(us user.UserService) {
 	userService = us
 }

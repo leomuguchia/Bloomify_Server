@@ -162,3 +162,39 @@ func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
 		"data":    updatedProvider,
 	})
 }
+
+func (h *ProviderHandler) SetupTimeslotsHandler(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	// Retrieve provider ID from the context (set by JWTAuthProviderMiddleware).
+	providerIDValue, exists := c.Get("providerID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Provider not authenticated"})
+		return
+	}
+	providerID, ok := providerIDValue.(string)
+	if !ok || providerID == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid provider ID in context"})
+		return
+	}
+
+	// Bind the incoming JSON payload to SetupTimeslotsRequest.
+	var req models.SetupTimeslotsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("Invalid timeslot setup request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload", "details": err.Error()})
+		return
+	}
+
+	dto, err := h.Service.SetupTimeslots(c, providerID, req)
+	if err != nil {
+		logger.Error("Failed to set up timeslots", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set up timeslots", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Timeslot setup successful; provider status updated to active",
+		"provider": dto,
+	})
+}

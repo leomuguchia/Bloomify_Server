@@ -48,6 +48,7 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
 		protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
 		protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
+		protected.PUT("/create-timeslots/:id", hb.SetupTimeslotsHandler)
 	}
 }
 

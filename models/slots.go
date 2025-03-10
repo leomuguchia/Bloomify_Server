@@ -2,6 +2,7 @@ package models
 
 // TimeSlot represents a provider's pre-defined booking window.
 type TimeSlot struct {
+	ID        string `bson:"id"`
 	Start     int    `bson:"start" json:"start"`           // minutes from midnight (e.g., 420 for 7:00 AM)
 	End       int    `bson:"end" json:"end"`               // minutes from midnight (e.g., 780 for 1:00 PM)
 	Capacity  int    `bson:"capacity" json:"capacity"`     // total units for the slot (e.g., 30 kids)
@@ -47,4 +48,16 @@ type UrgencySlotData struct {
 
 type FlatrateSlotData struct {
 	BasePrice float64 `bson:"base_price" json:"base_price"`
+}
+
+// ProviderTimeslotDTO represents a minimal view for timeslot setup.
+type ProviderTimeslotDTO struct {
+	ID        string     `json:"id"`
+	Status    string     `json:"status"`
+	TimeSlots []TimeSlot `json:"time_slots"`
+}
+
+// SetupTimeslotsRequest defines the payload for setting up timeslots.
+type SetupTimeslotsRequest struct {
+	TimeSlots []TimeSlot `json:"time_slots" binding:"required"`
 }

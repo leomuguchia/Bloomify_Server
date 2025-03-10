@@ -20,15 +20,27 @@ func NewBookingHandler(svc booking.BookingSessionService) *BookingHandler {
 }
 
 // InitiateSession handles POST /api/booking/session.
-// It expects a JSON payload corresponding to models.ServicePlan.
 func (h *BookingHandler) InitiateSession(c *gin.Context) {
-	var plan models.ServicePlan
-	if err := c.ShouldBindJSON(&plan); err != nil {
+	var req models.InitiateSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
 		return
 	}
 
-	sessionID, providers, err := h.BookingSvc.InitiateSession(plan)
+	userIDValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+
+	userID, ok := userIDValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid userID in context"})
+		return
+	}
+
+	plan := req.ServicePlan
+	sessionID, providers, err := h.BookingSvc.InitiateSession(plan, userID, req.DeviceID, req.UserAgent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate booking session", "details": err.Error()})
 		return

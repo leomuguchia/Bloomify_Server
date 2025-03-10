@@ -53,6 +53,7 @@ func main() {
 	}
 	handlers.SetUserService(userService)
 
+	// The provider service now includes GetTimeslots to satisfy the interface.
 	providerService := &provider.DefaultProviderService{
 		Repo: provRepo,
 	}
@@ -63,19 +64,19 @@ func main() {
 	}
 
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
+		// GetAvailableTimeSlots now expects a string parameter (weekIndexStr)
 		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
 		PaymentHandler: nil,
 	}
-	// Initialize the booking service using the matching service and scheduling engine.
+	// Initialize the booking service using the matching service and updated scheduling engine.
 	bookingService := &booking.DefaultBookingSessionService{
 		MatchingSvc:     matchingServiceInstance,
 		SchedulerEngine: schedulingEngineInstance,
 	}
-	// Create and set the booking handler.
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 	handlers.SetBookingHandler(bookingHandler)
 
-	// Create handler bundle.
+	// Create the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
 		ProviderRepo:                   provRepo,
 		UserRepo:                       userRepo,
@@ -88,20 +89,22 @@ func main() {
 		KYPVerificationHandler:         handlers.KYPVerificationHandler,
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
-		InitiateSession:                bookingHandler.InitiateSession,
-		UpdateSession:                  bookingHandler.UpdateSession,
-		ConfirmBooking:                 bookingHandler.ConfirmBooking,
-		CancelSession:                  bookingHandler.CancelSession,
-		AIRecommendHandler:             handlers.AIRecommendHandler,
-		AISuggestHandler:               handlers.AISuggestHandler,
-		AutoBookHandler:                handlers.AutoBookHandler,
-		RegisterUserHandler:            handlers.RegisterUserHandler,
-		AuthenticateUserHandler:        handlers.AuthenticateUserHandler,
-		GetUserByIDHandler:             handlers.GetUserByIDHandler,
-		GetUserByEmailHandler:          handlers.GetUserByEmailHandler,
-		UpdateUserHandler:              handlers.UpdateUserHandler,
-		DeleteUserHandler:              handlers.DeleteUserHandler,
-		RevokeUserAuthTokenHandler:     handlers.RevokeUserAuthTokenHandler,
+		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler, // New handler
+		// (Optionally, add GetTimeslotsHandler if you want a dedicated route to fetch timeslots)
+		InitiateSession:            bookingHandler.InitiateSession,
+		UpdateSession:              bookingHandler.UpdateSession,
+		ConfirmBooking:             bookingHandler.ConfirmBooking,
+		CancelSession:              bookingHandler.CancelSession,
+		AIRecommendHandler:         handlers.AIRecommendHandler,
+		AISuggestHandler:           handlers.AISuggestHandler,
+		AutoBookHandler:            handlers.AutoBookHandler,
+		RegisterUserHandler:        handlers.RegisterUserHandler,
+		AuthenticateUserHandler:    handlers.AuthenticateUserHandler,
+		GetUserByIDHandler:         handlers.GetUserByIDHandler,
+		GetUserByEmailHandler:      handlers.GetUserByEmailHandler,
+		UpdateUserHandler:          handlers.UpdateUserHandler,
+		DeleteUserHandler:          handlers.DeleteUserHandler,
+		RevokeUserAuthTokenHandler: handlers.RevokeUserAuthTokenHandler,
 	}
 
 	// Register all routes.
@@ -127,7 +130,7 @@ func main() {
 		}
 	}()
 
-	// Listen for OS interrupt signals (e.g., Ctrl+C) to gracefully shutdown.
+	// Listen for OS interrupt signals to gracefully shutdown.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

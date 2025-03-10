@@ -15,13 +15,12 @@ import (
 
 // BookingSessionService defines the interface for managing a stateful booking session.
 type BookingSessionService interface {
-	InitiateSession(plan models.ServicePlan) (string, []models.ProviderDTO, error)
+	InitiateSession(plan models.ServicePlan, userID, deviceID, userAgent string) (string, []models.ProviderDTO, error)
 	UpdateSession(sessionID string, selectedProviderID string) (*models.BookingSession, error)
 	ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error)
-	CancelSession(sessionID string) error // For explicit session cancellation.
+	CancelSession(sessionID string) error
 }
 
-// DefaultBookingSessionService is our production implementation.
 type DefaultBookingSessionService struct {
 	MatchingSvc     MatchingService  // Matches providers based on the service plan.
 	SchedulerEngine SchedulingEngine // Computes available time slots and books a slot.
@@ -29,29 +28,31 @@ type DefaultBookingSessionService struct {
 
 // InitiateSession creates a new booking session, assigns it a unique SessionID,
 // and stores it in Redis. It returns the SessionID along with matched providers (as DTOs).
-func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan) (string, []models.ProviderDTO, error) {
+func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, userID, deviceID, userAgent string) (string, []models.ProviderDTO, error) {
 	ctx := context.Background()
 	sessionID := uuid.New().String()
 
-	// Call the matching service to retrieve ranked providers as DTOs.
 	matchedProviders, err := s.MatchingSvc.MatchProviders(plan)
-	if err != nil {
+	if err != nil { // ✅ Correct error handling
 		return "", nil, fmt.Errorf("failed to match providers: %w", err)
 	}
 
 	session := models.BookingSession{
 		SessionID:        sessionID,
 		ServicePlan:      plan,
-		MatchedProviders: matchedProviders, // []ProviderDTO
+		MatchedProviders: matchedProviders,
+		UserID:           userID,
+		DeviceID:         deviceID,
+		UserAgent:        userAgent,
 	}
 
 	sessionData, err := json.Marshal(session)
-	if err != nil {
+	if err != nil { // ✅ Correct error check
 		return "", nil, fmt.Errorf("failed to marshal booking session: %w", err)
 	}
 
 	cacheClient := utils.GetBookingCacheClient()
-	if err := cacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil {
+	if err := cacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil { // ✅ Correct
 		return "", nil, fmt.Errorf("failed to store booking session: %w", err)
 	}
 
@@ -99,7 +100,7 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 		Profile:     selectedDTO.Profile,
 	}
 
-	slots, err := s.SchedulerEngine.GetAvailableTimeSlots(selectedProvider, session.ServicePlan.Date)
+	slots, err := s.SchedulerEngine.GetAvailableTimeSlots(selectedProvider, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute availability: %w", err)
 	}

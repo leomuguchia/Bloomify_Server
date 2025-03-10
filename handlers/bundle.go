@@ -8,11 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// HandlerBundle groups all your endpoint handlers into one struct.
 type HandlerBundle struct {
 	ProviderRepo providerRepoPkg.ProviderRepository
 	UserRepo     userRepoPkg.UserRepository
-
 	// Provider endpoints
 	GetProviderByIDHandler         gin.HandlerFunc
 	GetProviderByEmailHandler      gin.HandlerFunc
@@ -23,6 +21,7 @@ type HandlerBundle struct {
 	KYPVerificationHandler         gin.HandlerFunc
 	AdvanceVerifyProviderHandler   gin.HandlerFunc
 	RevokeProviderAuthTokenHandler gin.HandlerFunc
+	SetupTimeslotsHandler          gin.HandlerFunc
 
 	// Booking endpoints
 	InitiateSession gin.HandlerFunc

@@ -13,7 +13,7 @@ import (
 // SchedulingEngine defines methods to compute available time slots for a provider.
 type SchedulingEngine interface {
 	// GetAvailableTimeSlots computes available slots for a provider over a 7‑day booking window.
-	GetAvailableTimeSlots(provider models.Provider, date string) ([]models.AvailableSlot, error)
+	GetAvailableTimeSlots(provider models.Provider, weekIndex int) ([]models.AvailableSlot, error)
 	// BookSlot creates a booking record for a provider, given a selected available slot.
 	BookSlot(provider models.Provider, date string, slot models.AvailableSlot, booking models.Booking) error
 }
@@ -24,69 +24,91 @@ type DefaultSchedulingEngine struct {
 	PaymentHandler PaymentProcessor // In-app payment processor
 }
 
-// GetAvailableTimeSlots computes available time slots for the provider over a 7‑day window.
-// It instantiates each recurring slot template for each day (attaching the date) and applies cutoff rules.
-// It now uses denormalized aggregates stored on the TimeSlot to compute usage instead of heavy aggregation.
-func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provider, _ string) ([]models.AvailableSlot, error) {
+// GetAvailableTimeSlots computes available time slots for a provider for a given week.
+// If weekIndex is not provided (or is zero), it returns timeslots for the current week.
+// It first determines the full booking window based on the provider's timeslot dates,
+// then slices that window into 7‑day blocks.
+func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provider, weekIndex int) ([]models.AvailableSlot, error) {
+	// First, determine the full booking window from the provider's timeslot dates.
+	var minDate, maxDate time.Time
+	for i, ts := range provider.TimeSlots {
+		// Expect ts.Date to be in "2006-01-02" format.
+		d, err := time.Parse("2006-01-02", ts.Date)
+		if err != nil {
+			continue // skip invalid dates
+		}
+		if i == 0 || d.Before(minDate) {
+			minDate = d
+		}
+		if i == 0 || d.After(maxDate) {
+			maxDate = d
+		}
+	}
+	if minDate.IsZero() || maxDate.IsZero() {
+		return nil, fmt.Errorf("provider has no valid timeslot dates")
+	}
+
+	// The booking window is from minDate to maxDate (inclusive).
+	// For availability, we will slice this window into weeks.
+	// Determine the starting point for availability:
 	now := time.Now()
-	// Define the booking window cutoff as 7 days from now.
-	cutoff := now.Add(7 * 24 * time.Hour)
+	startDate := now
+	if now.Before(minDate) {
+		startDate = minDate
+	}
+
+	// Calculate the first week's boundary (starting at the midnight of startDate).
+	weekZeroStart := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
+	// For the requested week index, compute the start and end of that week:
+	weekStart := weekZeroStart.AddDate(0, 0, weekIndex*7)
+	weekEnd := weekStart.AddDate(0, 0, 7)
+	// If the computed weekEnd goes beyond maxDate, limit it.
+	if weekEnd.After(maxDate.AddDate(0, 0, 1)) {
+		weekEnd = maxDate.AddDate(0, 0, 1) // so that maxDate is included
+	}
+
+	// Now, loop over each day in the week and pick out matching timeslots.
 	var availableSlots []models.AvailableSlot
-
-	// Loop over each day in the next 7 days.
-	for dayOffset := 0; dayOffset < 7; dayOffset++ {
-		day := now.AddDate(0, 0, dayOffset)
-		dayStr := day.Format("2006-01-02")
-		// Calculate the midnight of the current day.
-		dayMidnight := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
-
-		// Iterate over each timeslot template configured for the provider.
+	for d := weekStart; d.Before(weekEnd); d = d.AddDate(0, 0, 1) {
+		dayStr := d.Format("2006-01-02")
+		// For each timeslot that is scheduled on this day:
 		for _, ts := range provider.TimeSlots {
-			// Compute absolute start/end times by adding minutes from midnight.
-			absStart := dayMidnight.Add(time.Duration(ts.Start) * time.Minute)
+			if ts.Date != dayStr {
+				continue
+			}
+			// Compute the absolute start and end times (for cutoff rules).
+			dayMidnight := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
+			// absStart := dayMidnight.Add(time.Duration(ts.Start) * time.Minute)
 			absEnd := dayMidnight.Add(time.Duration(ts.End) * time.Minute)
 
-			// For today (dayOffset == 0): skip slots that have already ended.
-			if dayOffset == 0 && absEnd.Before(now) {
-				continue
-			}
-			// For any day: if the slot's start is after the overall cutoff, skip it.
-			if absStart.After(cutoff) {
-				continue
-			}
-			// For the final day in the window (dayOffset == 6): ensure the slot is complete within the window.
-			if dayOffset == 6 && absEnd.After(cutoff) {
+			// If the day is today and the slot has already ended, skip it.
+			if dayStr == now.Format("2006-01-02") && absEnd.Before(now) {
 				continue
 			}
 
-			// Instantiate an AvailableSlot, attaching the date.
-			var slot models.AvailableSlot
-			slot.Start = ts.Start
-			slot.End = ts.End
-			slot.UnitType = ts.UnitType
-			slot.Date = dayStr
+			// Create an AvailableSlot instance.
+			slot := models.AvailableSlot{
+				Start:    ts.Start,
+				End:      ts.End,
+				UnitType: ts.UnitType,
+				Date:     dayStr,
+			}
 
-			// Use denormalized aggregates (if present) instead of summing bookings in real time.
+			// Use the same denormalized aggregate logic (as before) to set capacity, pricing, etc.
 			switch ts.SlotModel {
 			case "urgency":
 				if ts.Urgency == nil {
 					continue
 				}
-				// For urgency, standard capacity is reduced by reserved priority.
 				normalCapacity := ts.Capacity - ts.Urgency.ReservedPriority
-
-				usageStandard := ts.BookedUnitsStandard // denormalized standard bookings
-				usagePriority := ts.BookedUnitsPriority // denormalized priority bookings
-
+				usageStandard := ts.BookedUnitsStandard
+				usagePriority := ts.BookedUnitsPriority
 				remainingStandard := normalCapacity - usageStandard
 				remainingPriority := ts.Urgency.ReservedPriority - usagePriority
-
 				slot.RegularCapacityRemaining = remainingStandard
 				slot.PriorityCapacityRemaining = remainingPriority
 				slot.RegularPricePerUnit = ts.Urgency.BasePrice
 				slot.PriorityPricePerUnit = ts.Urgency.BasePrice * (1 + ts.Urgency.PrioritySurchargeRate)
-
-				// If capacity is below 30%, add a notification message.
 				if normalCapacity > 0 && float64(remainingStandard)/float64(normalCapacity) < 0.3 {
 					slot.Message = fmt.Sprintf("Only %d %s remaining for standard bookings", remainingStandard, ts.UnitType)
 				}
@@ -96,23 +118,19 @@ func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provide
 					}
 					slot.Message += fmt.Sprintf("Only %d %s remaining for priority bookings", remainingPriority, ts.UnitType)
 				}
-
 			case "earlybird":
 				if ts.EarlyBird == nil {
 					continue
 				}
-				// For earlybird, we assume one bucket; use denormalized field.
 				usage := ts.BookedUnitsStandard
 				remaining := ts.Capacity - usage
 				nextPrice := GetEarlyBirdNextUnitPrice(*ts.EarlyBird, ts.Capacity, usage)
 				slot.RegularCapacityRemaining = remaining
 				slot.RegularPricePerUnit = nextPrice
-
 				if ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
 					slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
 				}
-
-			default: // "flatrate" (or standard model).
+			default: // "flatrate" or standard.
 				if ts.Flatrate == nil {
 					continue
 				}
@@ -120,19 +138,20 @@ func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provide
 				remaining := ts.Capacity - usage
 				slot.RegularCapacityRemaining = remaining
 				slot.RegularPricePerUnit = ts.Flatrate.BasePrice
-
 				if ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
 					slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
 				}
 			}
-
 			availableSlots = append(availableSlots, slot)
 		}
 	}
 
-	// Optionally sort available slots by their start time (for client display).
+	// Sort the available slots by date and start time.
 	sort.Slice(availableSlots, func(i, j int) bool {
-		return availableSlots[i].Start < availableSlots[j].Start
+		if availableSlots[i].Date == availableSlots[j].Date {
+			return availableSlots[i].Start < availableSlots[j].Start
+		}
+		return availableSlots[i].Date < availableSlots[j].Date
 	})
 
 	return availableSlots, nil

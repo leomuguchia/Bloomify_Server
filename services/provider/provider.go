@@ -25,6 +25,9 @@ type ProviderService interface {
 	AuthenticateProvider(email, password string) (*models.Provider, error)
 	AdvanceVerifyProvider(c *gin.Context, id string, advReq AdvanceVerifyRequest) (*models.Provider, error)
 	RevokeProviderAuthToken(id string) error
+	SetupTimeslots(c *gin.Context, providerID string, req models.SetupTimeslotsRequest) (*models.ProviderTimeslotDTO, error)
+	GetTimeslots(c *gin.Context, providerID string) ([]models.TimeSlot, error)
+	DeleteTimeslot(c *gin.Context, providerID string, timeslotID string) (*models.ProviderTimeslotDTO, error)
 }
 
 // DefaultProviderService is the production implementation.
