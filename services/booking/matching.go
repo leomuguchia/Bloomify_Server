@@ -70,11 +70,9 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 		return MaxLocationPoints * (1 - distanceKm/5)
 	}
 	computeCompletedScore := func(completed int) float64 {
-		if completed >= 100 {
-			return MaxCompletedPts
-		}
-		return (float64(completed) / 100) * MaxCompletedPts
+		return math.Log10(float64(completed+1)) * MaxCompletedPts / math.Log10(101)
 	}
+
 	computeRatingScore := func(rating float64) float64 {
 		if rating > 5 {
 			rating = 5

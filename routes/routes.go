@@ -83,6 +83,16 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	}
 }
 
+// RegisterAdminRoutes sets up endpoints for admin operations.
+func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
+	adminGroup := r.Group("/api/admin")
+	{
+		adminGroup.Use(middleware.JWTAuthAdminMiddleware())
+		// adminGroup.GET("/users", hb.GetAllUsersHandler)
+
+	}
+}
+
 // RegisterRoutes centralizes registration of all endpoints and middleware.
 func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	// Setup global middleware (e.g., CORS) here.
@@ -100,4 +110,5 @@ func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	RegisterAIRoutes(r, hb)
 	RegisterHealthRoute(r)
 	RegisterBookingRoutes(r, hb)
+	RegisterAdminRoutes(r, hb)
 }

@@ -87,3 +87,17 @@ func (s *DefaultProviderService) GetProviderByEmail(c *gin.Context, email string
 	}
 	return provider, nil
 }
+
+// GetAllProviders retrieves all providers while excluding sensitive fields.
+func (s *DefaultProviderService) GetAllProviders() ([]models.Provider, error) {
+	// Define a safe projection to hide sensitive fields.
+	projection := bson.M{
+		"password_hash": 0,
+		"token_hash":    0,
+	}
+	providers, err := s.Repo.GetAllWithProjection(projection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch providers: %w", err)
+	}
+	return providers, nil
+}

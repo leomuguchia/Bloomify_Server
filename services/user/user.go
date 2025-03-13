@@ -37,6 +37,9 @@ type UserService interface {
 	DeleteUser(userID string) error
 	// RevokeUserAuthToken revokes the user's authentication token (for logout).
 	RevokeUserAuthToken(userID string) error
+
+	// Admin route
+	GetAllUsers() ([]models.User, error)
 }
 
 // DefaultUserService is the production implementation.
@@ -201,4 +204,13 @@ func (s *DefaultUserService) DeleteUser(userID string) error {
 		return fmt.Errorf("failed to delete user with id %s: %w", userID, err)
 	}
 	return nil
+}
+
+// GetAllUsers retrieves all users for admin access, excluding sensitive fields.
+func (s *DefaultUserService) GetAllUsers() ([]models.User, error) {
+	users, err := s.Repo.GetAllSafe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch users: %w", err)
+	}
+	return users, nil
 }

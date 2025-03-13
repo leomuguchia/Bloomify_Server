@@ -35,7 +35,7 @@ func main() {
 	utils.InitCache()
 	utils.InitAuthCache()
 
-	// Create a new Gin router with the desired middleware.
+	// Create a new Gin router with desired middleware.
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(utils.ErrorHandler())
@@ -53,7 +53,6 @@ func main() {
 	}
 	handlers.SetUserService(userService)
 
-	// The provider service now includes GetTimeslots to satisfy the interface.
 	providerService := &provider.DefaultProviderService{
 		Repo: provRepo,
 	}
@@ -64,17 +63,18 @@ func main() {
 	}
 
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
-		// GetAvailableTimeSlots now expects a string parameter (weekIndexStr)
 		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
 		PaymentHandler: nil,
 	}
-	// Initialize the booking service using the matching service and updated scheduling engine.
 	bookingService := &booking.DefaultBookingSessionService{
 		MatchingSvc:     matchingServiceInstance,
 		SchedulerEngine: schedulingEngineInstance,
 	}
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 	handlers.SetBookingHandler(bookingHandler)
+
+	// Create the admin handler (elevated service) by passing user and provider services.
+	adminHandler := handlers.NewAdminHandler(userService, providerService)
 
 	// Create the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
@@ -89,15 +89,17 @@ func main() {
 		KYPVerificationHandler:         handlers.KYPVerificationHandler,
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
-		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler, // New handler
-		// (Optionally, add GetTimeslotsHandler if you want a dedicated route to fetch timeslots)
-		InitiateSession:            bookingHandler.InitiateSession,
-		UpdateSession:              bookingHandler.UpdateSession,
-		ConfirmBooking:             bookingHandler.ConfirmBooking,
-		CancelSession:              bookingHandler.CancelSession,
-		AIRecommendHandler:         handlers.AIRecommendHandler,
-		AISuggestHandler:           handlers.AISuggestHandler,
-		AutoBookHandler:            handlers.AutoBookHandler,
+		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler,
+		// Booking endpoints
+		InitiateSession: bookingHandler.InitiateSession,
+		UpdateSession:   bookingHandler.UpdateSession,
+		ConfirmBooking:  bookingHandler.ConfirmBooking,
+		CancelSession:   bookingHandler.CancelSession,
+		// AI endpoints
+		AIRecommendHandler: handlers.AIRecommendHandler,
+		AISuggestHandler:   handlers.AISuggestHandler,
+		AutoBookHandler:    handlers.AutoBookHandler,
+		// User endpoints
 		RegisterUserHandler:        handlers.RegisterUserHandler,
 		AuthenticateUserHandler:    handlers.AuthenticateUserHandler,
 		GetUserByIDHandler:         handlers.GetUserByIDHandler,
@@ -105,9 +107,11 @@ func main() {
 		UpdateUserHandler:          handlers.UpdateUserHandler,
 		DeleteUserHandler:          handlers.DeleteUserHandler,
 		RevokeUserAuthTokenHandler: handlers.RevokeUserAuthTokenHandler,
+		// Admin endpoints
+		AdminHandler: adminHandler,
 	}
 
-	// Register all routes.
+	// Register all routes including admin routes.
 	routes.RegisterRoutes(router, handlerBundle)
 
 	port := config.AppConfig.AppPort

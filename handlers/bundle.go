@@ -42,4 +42,7 @@ type HandlerBundle struct {
 	UpdateUserHandler          gin.HandlerFunc
 	DeleteUserHandler          gin.HandlerFunc
 	RevokeUserAuthTokenHandler gin.HandlerFunc
+
+	// Admin endpoints
+	AdminHandler *AdminHandler
 }

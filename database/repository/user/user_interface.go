@@ -11,7 +11,7 @@ type UserRepository interface {
 	// GetByID retrieves a user by its unique ID.
 	GetByID(id string) (*models.User, error)
 	// GetAll retrieves all users.
-	GetAll() ([]models.User, error)
+	GetAllSafe() ([]models.User, error)
 	// GetByEmail retrieves a user by its email address.
 	GetByEmail(email string) (*models.User, error)
 	// Create inserts a new user record.

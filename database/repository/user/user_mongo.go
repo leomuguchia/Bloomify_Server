@@ -120,6 +120,12 @@ func (r *MongoUserRepo) GetAllWithProjection(projection bson.M) ([]models.User, 
 	return users, nil
 }
 
+// GetAllSafe retrieves all users while excluding sensitive fields.
+func (r *MongoUserRepo) GetAllSafe() ([]models.User, error) {
+	projection := bson.M{"password_hash": 0, "token_hash": 0}
+	return r.GetAllWithProjection(projection)
+}
+
 // --- Exported Methods that Satisfy the UserRepository Interface ---
 
 // Create inserts a new user document.
