@@ -11,14 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// AdminHandler encapsulates admin-level operations that can access multiple services.
+// AdminHandler encapsulates elevated admin-level operations.
 type AdminHandler struct {
 	UserService     user.UserService
 	ProviderService provider.ProviderService
-	// Add other services as needed.
 }
 
-// NewAdminHandler creates a new instance of AdminHandler.
+// NewAdminHandler creates a new AdminHandler.
 func NewAdminHandler(us user.UserService, ps provider.ProviderService) *AdminHandler {
 	return &AdminHandler{
 		UserService:     us,
@@ -26,7 +25,7 @@ func NewAdminHandler(us user.UserService, ps provider.ProviderService) *AdminHan
 	}
 }
 
-// GetAllUsersHandler is an example admin endpoint that retrieves all users.
+// GetAllUsersHandler returns all users (with sensitive fields excluded).
 func (ah *AdminHandler) GetAllUsersHandler(c *gin.Context) {
 	users, err := ah.UserService.GetAllUsers()
 	if err != nil {
@@ -35,4 +34,15 @@ func (ah *AdminHandler) GetAllUsersHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, users)
+}
+
+// GetAllProvidersHandler returns all providers (with sensitive fields excluded).
+func (ah *AdminHandler) GetAllProvidersHandler(c *gin.Context) {
+	providers, err := ah.ProviderService.GetAllProviders()
+	if err != nil {
+		zap.L().Error("Failed to fetch all providers", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch providers"})
+		return
+	}
+	c.JSON(http.StatusOK, providers)
 }

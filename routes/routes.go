@@ -88,8 +88,8 @@ func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	adminGroup := r.Group("/api/admin")
 	{
 		adminGroup.Use(middleware.JWTAuthAdminMiddleware())
-		// adminGroup.GET("/users", hb.GetAllUsersHandler)
-
+		adminGroup.GET("/users", hb.AdminHandler.GetAllUsersHandler)
+		adminGroup.GET("/providers", hb.AdminHandler.GetAllProvidersHandler)
 	}
 }
 

@@ -28,6 +28,7 @@ type ProviderService interface {
 	SetupTimeslots(c *gin.Context, providerID string, req models.SetupTimeslotsRequest) (*models.ProviderTimeslotDTO, error)
 	GetTimeslots(c *gin.Context, providerID string) ([]models.TimeSlot, error)
 	DeleteTimeslot(c *gin.Context, providerID string, timeslotID string) (*models.ProviderTimeslotDTO, error)
+	GetAllProviders() ([]models.Provider, error)
 }
 
 // DefaultProviderService is the production implementation.
