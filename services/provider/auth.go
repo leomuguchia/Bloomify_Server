@@ -1,42 +1,33 @@
-// File: bloomify/service/provider/provider.go
 package provider
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	providerRepo "bloomify/database/repository/provider"
 	"bloomify/models"
 	"bloomify/utils"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// ProviderService defines the interface for provider-related operations.
-type ProviderService interface {
-	RegisterProvider(provider models.Provider) (*models.Provider, error)
-	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
-	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)
-	UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error)
-	DeleteProvider(id string) error
-	AuthenticateProvider(email, password string) (*models.Provider, error)
-	AdvanceVerifyProvider(c *gin.Context, id string, advReq AdvanceVerifyRequest) (*models.Provider, error)
-	RevokeProviderAuthToken(id string) error
-	SetupTimeslots(c *gin.Context, providerID string, req models.SetupTimeslotsRequest) (*models.ProviderTimeslotDTO, error)
-	GetTimeslots(c *gin.Context, providerID string) ([]models.TimeSlot, error)
-	DeleteTimeslot(c *gin.Context, providerID string, timeslotID string) (*models.ProviderTimeslotDTO, error)
-	GetAllProviders() ([]models.Provider, error)
+// ProviderAuthResponse defines the response returned after registration/authentication.
+type ProviderAuthResponse struct {
+	ID           string         `json:"id"`
+	Token        string         `json:"token"`
+	Profile      models.Profile `json:"profile"`
+	CreatedAt    time.Time      `json:"created_at"`
+	ProviderType string         `json:"provider_type,omitempty"`
+	ServiceType  string         `json:"service_type,omitempty"`
+	Rating       float64        `json:"rating,omitempty"`
 }
 
-// DefaultProviderService is the production implementation.
-type DefaultProviderService struct {
-	Repo providerRepo.ProviderRepository
-}
-
-func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*models.Provider, error) {
+// RegisterProvider creates a new provider, generates a token, stores its hash,
+// clears the Redis cache, and returns an enriched auth response.
+func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*ProviderAuthResponse, error) {
 	// Validate required basic fields.
 	if provider.Profile.Email == "" || provider.Password == "" {
 		return nil, fmt.Errorf("provider email and password are required")
@@ -118,16 +109,30 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*mo
 		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
 	}
 
-	// Return a minimal projection (ID and token) or the full record as needed.
-	return &models.Provider{
-		ID:    provider.ID,
-		Token: token,
-	}, nil
+	// Clear the Redis cache entry for this provider.
+	cacheKey := utils.AuthCachePrefix + provider.ID
+	authCache := utils.GetAuthCacheClient()
+	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
+		zap.L().Error("Failed to clear auth cache", zap.Error(err))
+	}
+
+	// Build and return the enriched auth response.
+	response := &ProviderAuthResponse{
+		ID:           provider.ID,
+		Token:        token,
+		Profile:      provider.Profile,
+		CreatedAt:    provider.CreatedAt,
+		ProviderType: provider.ProviderType,
+		ServiceType:  provider.ServiceType,
+		Rating:       provider.Rating,
+	}
+	return response, nil
 }
 
 // AuthenticateProvider verifies credentials, generates a new token,
-// updates the token hash, and returns a projection containing the provider's ID and token.
-func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*models.Provider, error) {
+// updates the token hash, clears the Redis cache, and returns an enriched auth response.
+func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*ProviderAuthResponse, error) {
+	// Fetch only required fields.
 	projection := bson.M{"password_hash": 1, "id": 1, "email": 1}
 	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
 	if err != nil {
@@ -139,23 +144,42 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*
 	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
+
+	// Generate a new JWT token.
 	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
 	}
+
 	// Overwrite the token hash with the new token.
 	provider.TokenHash = utils.HashToken(token)
 	if err := s.Repo.Update(provider); err != nil {
 		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
 	}
-	// Return a projection containing only the provider's ID and token.
-	return &models.Provider{
-		ID:    provider.ID,
-		Token: token,
-	}, nil
+
+	// Clear the Redis cache entry for this provider.
+	cacheKey := utils.AuthCachePrefix + provider.ID
+	authCache := utils.GetAuthCacheClient()
+	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
+		zap.L().Error("Failed to clear auth cache", zap.Error(err))
+	}
+
+	// Optionally, retrieve the full provider details if the projection was minimal.
+	// For this example, we assume the provider object has the required fields filled.
+	response := &ProviderAuthResponse{
+		ID:           provider.ID,
+		Token:        token,
+		Profile:      provider.Profile,
+		CreatedAt:    provider.CreatedAt,
+		ProviderType: provider.ProviderType,
+		ServiceType:  provider.ServiceType,
+		Rating:       provider.Rating,
+	}
+	return response, nil
 }
 
-// RevokeProviderAuthToken revokes the provider's auth token by clearing the token hash.
+// RevokeProviderAuthToken revokes the provider's auth token by clearing the token hash,
+// updating the record, and clearing the Redis cache.
 func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) error {
 	// Retrieve the provider record.
 	provider, err := s.Repo.GetByIDWithProjection(providerID, nil)
@@ -165,78 +189,19 @@ func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) erro
 	if provider == nil {
 		return fmt.Errorf("provider not found")
 	}
+
 	// Clear the token hash.
 	provider.TokenHash = ""
 	provider.UpdatedAt = time.Now()
 	if err := s.Repo.Update(provider); err != nil {
 		return fmt.Errorf("failed to revoke provider auth token: %w", err)
 	}
-	return nil
-}
 
-// UpdateProvider merges allowed updates and returns the updated provider record (full access view).
-// It implements patch-style updates.
-func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error) {
-	existing, err := s.Repo.GetByIDWithProjection(id, nil)
-	if err != nil {
-		return nil, fmt.Errorf("provider not found: %w", err)
-	}
-
-	// Merge allowed fields.
-	if v, ok := updates["provider_name"].(string); ok && v != "" {
-		existing.Profile.ProviderName = v
-	}
-	if v, ok := updates["legal_name"].(string); ok && v != "" {
-		existing.LegalName = v
-	}
-	if v, ok := updates["phone_number"].(string); ok && v != "" {
-		existing.Profile.PhoneNumber = v
-	}
-	// Allow updating the profile image.
-	if v, ok := updates["profile_image"].(string); ok && v != "" {
-		existing.Profile.ProfileImage = v
-	}
-	if v, ok := updates["location"].(string); ok && v != "" {
-		existing.Location = v
-	}
-	if v, ok := updates["service_type"].(string); ok && v != "" {
-		existing.ServiceType = v
-	}
-	// Optionally update location_geo if provided.
-	if geo, ok := updates["location_geo"].(map[string]interface{}); ok {
-		if t, ok := geo["type"].(string); ok && t == "Point" {
-			if coords, ok := geo["coordinates"].([]interface{}); ok && len(coords) == 2 {
-				var newCoords []float64
-				for _, c := range coords {
-					switch v := c.(type) {
-					case float64:
-						newCoords = append(newCoords, v)
-					case int:
-						newCoords = append(newCoords, float64(v))
-					}
-				}
-				if len(newCoords) == 2 {
-					existing.LocationGeo = models.GeoPoint{
-						Type:        "Point",
-						Coordinates: newCoords,
-					}
-				}
-			}
-		}
-	}
-
-	existing.UpdatedAt = time.Now()
-	if err := s.Repo.Update(existing); err != nil {
-		return nil, fmt.Errorf("failed to update provider: %w", err)
-	}
-
-	return s.GetProviderByID(c, id)
-}
-
-// DeleteProvider removes a provider record by its ID.
-func (s *DefaultProviderService) DeleteProvider(providerID string) error {
-	if err := s.Repo.Delete(providerID); err != nil {
-		return fmt.Errorf("failed to delete provider with id %s: %w", providerID, err)
+	// Clear the Redis cache entry for this provider.
+	cacheKey := utils.AuthCachePrefix + providerID
+	authCache := utils.GetAuthCacheClient()
+	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
+		zap.L().Error("Failed to clear auth cache on revoke", zap.Error(err))
 	}
 	return nil
 }

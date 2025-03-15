@@ -19,11 +19,13 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 
 		// Protected routes (Require Authentication)
 		api.Use(middleware.JWTAuthUserMiddleware(hb.UserRepo))
+		api.PUT("/preferences/:id", hb.UpdateUserPreferencesHandler)
 		api.GET("/id/:id", hb.GetUserByIDHandler)
 		api.GET("/email/:email", hb.GetUserByEmailHandler)
 		api.PUT("/update/:id", hb.UpdateUserHandler)
 		api.DELETE("/delete/:id", hb.DeleteUserHandler)
 		api.DELETE("/revoke/:id", hb.RevokeUserAuthTokenHandler)
+		api.PUT("/password/:id", hb.UpdateUserPasswordHandler)
 	}
 }
 

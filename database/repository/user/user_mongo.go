@@ -54,17 +54,23 @@ func (r *MongoUserRepo) ensureIndexes() error {
 
 // --- Projection-based Helper Methods ---
 
-// GetByIDWithProjection retrieves a user by its unique ID using a projection.
-// Pass nil for projection to retrieve the full document.
 func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*models.User, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
-	opts := options.FindOne()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		// Default projection if none provided: omit both sensitive fields.
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		// If a projection is provided, use it as is.
+		proj = projection
 	}
 
+	opts := options.FindOne().SetProjection(proj)
 	var user models.User
 	if err := r.coll.FindOne(ctx, bson.M{"id": id}, opts).Decode(&user); err != nil {
 		return nil, fmt.Errorf("failed to fetch user with id %s: %w", id, err)
@@ -177,19 +183,4 @@ func (r *MongoUserRepo) Delete(id string) error {
 		return fmt.Errorf("user with id %s not found", id)
 	}
 	return nil
-}
-
-// GetByID retrieves a user by its unique ID (full document).
-func (r *MongoUserRepo) GetByID(id string) (*models.User, error) {
-	return r.GetByIDWithProjection(id, nil)
-}
-
-// GetAll retrieves all users (full documents).
-func (r *MongoUserRepo) GetAll() ([]models.User, error) {
-	return r.GetAllWithProjection(nil)
-}
-
-// GetByEmail retrieves a user by its email address (full document).
-func (r *MongoUserRepo) GetByEmail(email string) (*models.User, error) {
-	return r.GetByEmailWithProjection(email, nil)
 }

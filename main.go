@@ -100,13 +100,15 @@ func main() {
 		AISuggestHandler:   handlers.AISuggestHandler,
 		AutoBookHandler:    handlers.AutoBookHandler,
 		// User endpoints
-		RegisterUserHandler:        handlers.RegisterUserHandler,
-		AuthenticateUserHandler:    handlers.AuthenticateUserHandler,
-		GetUserByIDHandler:         handlers.GetUserByIDHandler,
-		GetUserByEmailHandler:      handlers.GetUserByEmailHandler,
-		UpdateUserHandler:          handlers.UpdateUserHandler,
-		DeleteUserHandler:          handlers.DeleteUserHandler,
-		RevokeUserAuthTokenHandler: handlers.RevokeUserAuthTokenHandler,
+		RegisterUserHandler:          handlers.RegisterUserHandler,
+		AuthenticateUserHandler:      handlers.AuthenticateUserHandler,
+		GetUserByIDHandler:           handlers.GetUserByIDHandler,
+		GetUserByEmailHandler:        handlers.GetUserByEmailHandler,
+		UpdateUserHandler:            handlers.UpdateUserHandler,
+		DeleteUserHandler:            handlers.DeleteUserHandler,
+		RevokeUserAuthTokenHandler:   handlers.RevokeUserAuthTokenHandler,
+		UpdateUserPreferencesHandler: handlers.UpdateUserPreferencesHandler,
+		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler, // New password update handler
 		// Admin endpoints
 		AdminHandler: adminHandler,
 	}

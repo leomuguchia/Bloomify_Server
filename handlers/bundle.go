@@ -35,13 +35,15 @@ type HandlerBundle struct {
 	AutoBookHandler    gin.HandlerFunc
 
 	// User endpoints
-	RegisterUserHandler        gin.HandlerFunc
-	AuthenticateUserHandler    gin.HandlerFunc
-	GetUserByIDHandler         gin.HandlerFunc
-	GetUserByEmailHandler      gin.HandlerFunc
-	UpdateUserHandler          gin.HandlerFunc
-	DeleteUserHandler          gin.HandlerFunc
-	RevokeUserAuthTokenHandler gin.HandlerFunc
+	RegisterUserHandler          gin.HandlerFunc
+	AuthenticateUserHandler      gin.HandlerFunc
+	GetUserByIDHandler           gin.HandlerFunc
+	GetUserByEmailHandler        gin.HandlerFunc
+	UpdateUserHandler            gin.HandlerFunc
+	DeleteUserHandler            gin.HandlerFunc
+	RevokeUserAuthTokenHandler   gin.HandlerFunc
+	UpdateUserPreferencesHandler gin.HandlerFunc
+	UpdateUserPasswordHandler    gin.HandlerFunc
 
 	// Admin endpoints
 	AdminHandler *AdminHandler
