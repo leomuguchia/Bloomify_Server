@@ -11,6 +11,7 @@ import (
 type HandlerBundle struct {
 	ProviderRepo providerRepoPkg.ProviderRepository
 	UserRepo     userRepoPkg.UserRepository
+
 	// Provider endpoints
 	GetProviderByIDHandler         gin.HandlerFunc
 	GetProviderByEmailHandler      gin.HandlerFunc
@@ -45,6 +46,16 @@ type HandlerBundle struct {
 	UpdateUserPreferencesHandler gin.HandlerFunc
 	UpdateUserPasswordHandler    gin.HandlerFunc
 
+	// Device endpoints
+	GetDevicesHandler          gin.HandlerFunc
+	SignOutOtherDevicesHandler gin.HandlerFunc
+
+	// OTP verification endpoint
+	VerifyOTPHandler gin.HandlerFunc
+
 	// Admin endpoints
 	AdminHandler *AdminHandler
+
+	// Storage endpoints
+	StorageHandler *StorageHandler
 }

@@ -3,9 +3,11 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"bloomify/models"
 	"bloomify/services/provider"
+	"bloomify/services/user"
 	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
@@ -82,26 +84,64 @@ func (h *ProviderHandler) DeleteProviderHandler(c *gin.Context) {
 }
 
 // AuthenticateProviderHandler handles POST /providers/authenticate.
+// It expects the following in the request JSON:
+//   - email
+//   - password
+//   - optionally, sessionID (if retrying after OTP has been sent)
+//
+// Device details must have been set in context by the DeviceDetailsMiddleware.
 func (h *ProviderHandler) AuthenticateProviderHandler(c *gin.Context) {
 	logger := utils.GetLogger()
+
+	// Bind the authentication request.
 	var req struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
+		Email     string `json:"email" binding:"required,email"`
+		Password  string `json:"password" binding:"required"`
+		SessionID string `json:"sessionID"` // optional: provided if this is a retry after OTP initiation
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Error("Invalid authentication request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	prov, err := h.Service.AuthenticateProvider(req.Email, req.Password)
+	// Extract device details from context (set by DeviceDetailsMiddleware).
+	deviceID, ok := c.Get("deviceID")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device ID"})
+		return
+	}
+	deviceName, _ := c.Get("deviceName")
+	deviceIP, _ := c.Get("deviceIP")
+	deviceLocation, _ := c.Get("deviceLocation")
+
+	// Build the current device object.
+	currentDevice := models.Device{
+		DeviceID:   deviceID.(string),
+		DeviceName: deviceName.(string),
+		IP:         deviceIP.(string),
+		Location:   deviceLocation.(string),
+		LastLogin:  time.Now(),
+	}
+
+	// Call the service layer function for provider authentication with device management.
+	authResp, err := h.Service.AuthenticateProvider(req.Email, req.Password, currentDevice, req.SessionID)
 	if err != nil {
+		// If the error is an OTP pending error, return the waiting session ID.
+		if otpErr, ok := err.(user.OTPPendingError); ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error":     otpErr.Error(),
+				"sessionID": otpErr.SessionID,
+			})
+			return
+		}
 		logger.Error("Authentication failed", zap.String("email", req.Email), zap.Error(err))
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, prov)
+	// Successful authentication.
+	c.JSON(http.StatusOK, authResp)
 }
 
 // AdvanceVerifyProviderHandler handles PUT /providers/advance-verify/:id.

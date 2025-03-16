@@ -85,9 +85,19 @@ func (r *MongoUserRepo) GetByEmailWithProjection(email string, projection bson.M
 	defer cancel()
 
 	opts := options.FindOne()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		// Default projection if none provided: omit both sensitive fields.
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		// If a projection is provided, use it as is.
+		proj = projection
 	}
+
+	opts.SetProjection(proj)
 
 	var user models.User
 	if err := r.coll.FindOne(ctx, bson.M{"email": email}, opts).Decode(&user); err != nil {
@@ -105,11 +115,21 @@ func (r *MongoUserRepo) GetAllWithProjection(projection bson.M) ([]models.User, 
 	defer cancel()
 
 	opts := options.Find()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		// Default projection if none provided: omit both sensitive fields.
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		// If a projection is provided, use it as is.
+		proj = projection
 	}
 
-	cursor, err := r.coll.Find(ctx, bson.M{}, opts)
+	opts.SetProjection(proj)
+
+	cursor, err := r.coll.Find(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve users: %w", err)
 	}

@@ -61,6 +61,7 @@ type Provider struct {
 
 	CreatedAt time.Time `bson:"created_at" json:"created_at,omitempty"`
 	UpdatedAt time.Time `bson:"updated_at" json:"updated_at,omitempty"`
+	Devices   []Device  `bson:"devices,omitempty" json:"devices,omitempty"`
 }
 
 type ProviderDTO struct {

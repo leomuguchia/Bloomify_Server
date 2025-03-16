@@ -10,3 +10,4 @@ REDIS_ADDR: "localhost:6379"
 REDIS_PASSWORD: ""
 REDIS_CACHE_DB: 0       # For general caching
 REDIS_AUTH_DB: 1        # For authorization caching
+REDIS_OTP_DB: 2         # For OTP caching

@@ -15,7 +15,7 @@ type DefaultProviderService struct {
 // ProviderService defines the interface for provider-related operations.
 type ProviderService interface {
 	RegisterProvider(provider models.Provider) (*ProviderAuthResponse, error)
-	AuthenticateProvider(email, password string) (*ProviderAuthResponse, error)
+	AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*ProviderAuthResponse, error)
 	RevokeProviderAuthToken(providerID string) error
 	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
 	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)

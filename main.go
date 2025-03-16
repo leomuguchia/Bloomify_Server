@@ -26,14 +26,20 @@ import (
 )
 
 func main() {
-	// Load configuration and initialize logger.
+	// Load configuration and initialize the logger.
 	config.LoadConfig()
 	logger := utils.GetLogger()
 
-	// Initialize database and caches.
+	// Initialize the database and caches.
 	database.InitDB()
 	utils.InitCache()
 	utils.InitAuthCache()
+
+	// Initialize Cloudinary Storage Service via the utils.Cloudinary() helper.
+	cloudinaryStorageService, err := utils.Cloudinary()
+	if err != nil {
+		logger.Sugar().Fatalf("main: failed to initialize cloudinary storage service: %v", err)
+	}
 
 	// Create a new Gin router with desired middleware.
 	router := gin.New()
@@ -73,10 +79,13 @@ func main() {
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 	handlers.SetBookingHandler(bookingHandler)
 
-	// Create the admin handler (elevated service) by passing user and provider services.
+	// Create the admin handler with elevated privileges.
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
 
-	// Create the handler bundle.
+	// Create the storage handler using the Cloudinary storage service.
+	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
+
+	// Assemble the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
 		ProviderRepo:                   provRepo,
 		UserRepo:                       userRepo,
@@ -108,46 +117,47 @@ func main() {
 		DeleteUserHandler:            handlers.DeleteUserHandler,
 		RevokeUserAuthTokenHandler:   handlers.RevokeUserAuthTokenHandler,
 		UpdateUserPreferencesHandler: handlers.UpdateUserPreferencesHandler,
-		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler, // New password update handler
+		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler,
 		// Admin endpoints
 		AdminHandler: adminHandler,
+		// Storage endpoints (new)
+		StorageHandler: storageHandler,
 	}
 
-	// Register all routes including admin routes.
+	// Register all application routes.
 	routes.RegisterRoutes(router, handlerBundle)
+	// Register storage-specific routes.
+	routes.RegisterStorageRoutes(router, storageHandler)
 
 	port := config.AppConfig.AppPort
 	if port == "" {
 		port = "8080"
 	}
 
-	// Create an HTTP server using the Gin router.
+	// Create and start the HTTP server.
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: router,
 	}
 
 	logger.Sugar().Infof("Starting server on port %s...", port)
-
-	// Start the server in a separate goroutine.
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Sugar().Fatalf("Server failed to start: %v", err)
+			logger.Sugar().Fatalf("main: server failed to start: %v", err)
 		}
 	}()
 
-	// Listen for OS interrupt signals to gracefully shutdown.
+	// Wait for an OS signal to gracefully shutdown.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logger.Sugar().Info("Server is shutting down...")
+	logger.Sugar().Info("main: server is shutting down...")
 
-	// Create a context with a timeout for graceful shutdown.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Sugar().Fatalf("Server forced to shutdown: %v", err)
+		logger.Sugar().Fatalf("main: server forced to shutdown: %v", err)
 	}
 
-	logger.Sugar().Info("Server stopped gracefully")
+	logger.Sugar().Info("main: server stopped gracefully")
 }

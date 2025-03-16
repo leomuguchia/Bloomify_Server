@@ -53,8 +53,8 @@ func verifyPasswordComplexity(pw string) error {
 	return nil
 }
 
-// RegisterUser creates a new user, generates a token, stores its hash, and clears the Redis cache.
-func (s *DefaultUserService) RegisterUser(user models.User) (*AuthResponse, error) {
+// RegisterUser creates a new user, stores device details, generates a token, updates the token hash, and clears the Redis cache.
+func (s *DefaultUserService) RegisterUser(user models.User, device models.Device) (*AuthResponse, error) {
 	// Validate required fields.
 	if user.Email == "" || user.Password == "" {
 		return nil, fmt.Errorf("email and password are required")
@@ -88,13 +88,18 @@ func (s *DefaultUserService) RegisterUser(user models.User) (*AuthResponse, erro
 		return nil, fmt.Errorf("registration failed, please try again")
 	}
 	user.PasswordHash = string(hashedPassword)
-	user.Password = "" // Clear plain-text password
+	user.Password = ""
 
 	// Generate a new unique ID and set timestamps.
 	user.ID = uuid.New().String()
 	now := time.Now()
 	user.CreatedAt = now
 	user.UpdatedAt = now
+
+	// Attach the device details. Mark this device as the creator.
+	device.LastLogin = now
+	device.Creator = true
+	user.Devices = []models.Device{device}
 
 	// Persist the new user.
 	if err := s.Repo.Create(&user); err != nil {
@@ -119,61 +124,9 @@ func (s *DefaultUserService) RegisterUser(user models.User) (*AuthResponse, erro
 	// Clear the Redis cache entry for this user.
 	cacheKey := utils.AuthCachePrefix + user.ID
 	authCache := utils.GetAuthCacheClient()
-	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
-		utils.GetLogger().Error("Failed to clear auth cache", zap.Error(err))
-	}
+	_ = authCache.Del(context.Background(), cacheKey)
 
-	// Return the user's details.
-	return &AuthResponse{
-		ID:           user.ID,
-		Token:        token,
-		Username:     user.Username,
-		Email:        user.Email,
-		PhoneNumber:  user.PhoneNumber,
-		ProfileImage: user.ProfileImage,
-	}, nil
-}
-
-// AuthenticateUser verifies credentials, generates a new token, updates the token hash,
-// and clears the Redis cache.
-func (s *DefaultUserService) AuthenticateUser(email, password string) (*AuthResponse, error) {
-	projection := bson.M{"password_hash": 1, "id": 1, "email": 1, "username": 1, "profile_image": 1, "phone_number": 1}
-	user, err := s.Repo.GetByEmailWithProjection(email, projection)
-	if err != nil {
-		utils.GetLogger().Error("Failed to fetch user for authentication", zap.Error(err))
-		return nil, fmt.Errorf("authentication failed, please try again")
-	}
-	if user == nil {
-		return nil, fmt.Errorf("invalid email or password")
-	}
-
-	// Verify the provided password.
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, fmt.Errorf("invalid email or password")
-	}
-
-	// Generate a new JWT token.
-	token, err := utils.GenerateToken(user.ID, user.Email, 24*time.Hour)
-	if err != nil {
-		utils.GetLogger().Error("Failed to generate auth token", zap.Error(err))
-		return nil, fmt.Errorf("authentication failed, please try again")
-	}
-
-	// Update the token hash.
-	user.TokenHash = utils.HashToken(token)
-	if err := s.Repo.Update(user); err != nil {
-		utils.GetLogger().Error("Failed to update user with token hash", zap.Error(err))
-		return nil, fmt.Errorf("authentication failed, please try again")
-	}
-
-	// Clear the Redis cache entry for this user.
-	cacheKey := utils.AuthCachePrefix + user.ID
-	authCache := utils.GetAuthCacheClient()
-	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
-		utils.GetLogger().Error("Failed to clear auth cache", zap.Error(err))
-	}
-
-	// Return response with additional details.
+	// Return the auth response.
 	return &AuthResponse{
 		ID:           user.ID,
 		Token:        token,

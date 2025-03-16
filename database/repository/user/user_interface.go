@@ -6,9 +6,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-// UserRepository defines methods for user data access.
+// UserRepository defines methods for accessing and managing user data.
 type UserRepository interface {
-	// GetAll retrieves all users.
+	// GetAllSafe retrieves all users, excluding sensitive information.
 	GetAllSafe() ([]models.User, error)
 	// Create inserts a new user record.
 	Create(user *models.User) error
@@ -16,10 +16,10 @@ type UserRepository interface {
 	Update(user *models.User) error
 	// Delete removes a user record by its ID.
 	Delete(id string) error
-	// GetByIDWithProjection retrieves a user by its unique ID with a projection.
+	// GetByIDWithProjection retrieves a user by its unique ID using the specified projection.
 	GetByIDWithProjection(id string, projection bson.M) (*models.User, error)
-	// GetByEmailWithProjection retrieves a user by its email with a projection.
+	// GetByEmailWithProjection retrieves a user by its email using the specified projection.
 	GetByEmailWithProjection(email string, projection bson.M) (*models.User, error)
-	// GetAllWithProjection retrieves all users with an optional projection.
+	// GetAllWithProjection retrieves all users using the specified projection.
 	GetAllWithProjection(projection bson.M) ([]models.User, error)
 }

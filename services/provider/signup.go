@@ -129,55 +129,6 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Pr
 	return response, nil
 }
 
-// AuthenticateProvider verifies credentials, generates a new token,
-// updates the token hash, clears the Redis cache, and returns an enriched auth response.
-func (s *DefaultProviderService) AuthenticateProvider(email, password string) (*ProviderAuthResponse, error) {
-	// Fetch only required fields.
-	projection := bson.M{"password_hash": 1, "id": 1, "email": 1}
-	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch provider for authentication: %w", err)
-	}
-	if provider == nil {
-		return nil, fmt.Errorf("provider with email %s not found", email)
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
-		return nil, fmt.Errorf("invalid credentials")
-	}
-
-	// Generate a new JWT token.
-	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, 24*time.Hour)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate auth token: %w", err)
-	}
-
-	// Overwrite the token hash with the new token.
-	provider.TokenHash = utils.HashToken(token)
-	if err := s.Repo.Update(provider); err != nil {
-		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
-	}
-
-	// Clear the Redis cache entry for this provider.
-	cacheKey := utils.AuthCachePrefix + provider.ID
-	authCache := utils.GetAuthCacheClient()
-	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
-		zap.L().Error("Failed to clear auth cache", zap.Error(err))
-	}
-
-	// Optionally, retrieve the full provider details if the projection was minimal.
-	// For this example, we assume the provider object has the required fields filled.
-	response := &ProviderAuthResponse{
-		ID:           provider.ID,
-		Token:        token,
-		Profile:      provider.Profile,
-		CreatedAt:    provider.CreatedAt,
-		ProviderType: provider.ProviderType,
-		ServiceType:  provider.ServiceType,
-		Rating:       provider.Rating,
-	}
-	return response, nil
-}
-
 // RevokeProviderAuthToken revokes the provider's auth token by clearing the token hash,
 // updating the record, and clearing the Redis cache.
 func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) error {

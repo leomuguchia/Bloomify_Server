@@ -20,6 +20,7 @@ type Config struct {
 	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
 	RedisCacheDB  int    `mapstructure:"REDIS_CACHE_DB"`
 	RedisAuthDB   int    `mapstructure:"REDIS_AUTH_DB"`
+	RedisOTPDB    int    `mapstructure:"REDIS_OTP_DB"` // New OTP database configuration
 }
 
 var AppConfig Config
@@ -40,6 +41,7 @@ func LoadConfig() {
 	viper.SetDefault("REDIS_PASSWORD", "")
 	viper.SetDefault("REDIS_CACHE_DB", 0)
 	viper.SetDefault("REDIS_AUTH_DB", 1)
+	viper.SetDefault("REDIS_OTP_DB", 2) // Default OTP DB index
 	viper.SetDefault("DATABASE_URL", "mongodb://localhost:27017")
 
 	if err := viper.ReadInConfig(); err != nil {
