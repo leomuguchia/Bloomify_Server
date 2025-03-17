@@ -22,9 +22,11 @@ func (e OTPPendingError) Error() string {
 }
 
 // AuthenticateProvider verifies credentials, handles device OTP for new devices,
-// updates token hash, and returns an enriched auth response.
+// updates token hash, and returns an enriched auth response. If a sessionID is provided,
+// it is used to fetch an existing auth session from Redis. If the session is marked as
+// "otp_verified", the function will update the device info and complete authentication.
 func (s *DefaultProviderService) AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*ProviderAuthResponse, error) {
-	// Fetch provider details (with required fields) using a projection.
+	// Fetch provider details using a projection.
 	projection := bson.M{
 		"password_hash": 1,
 		"id":            1,
@@ -41,7 +43,7 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	// Verify password.
+	// Verify the password.
 	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
 		return nil, fmt.Errorf("invalid email or password")
 	}
@@ -54,6 +56,7 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 	sessionID := providedSessionID
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("%s:%s", provider.ID, currentDevice.DeviceID)
+		// Create a new auth session with status "pending".
 		authSession := utils.AuthSession{
 			UserID:        provider.ID,
 			Email:         provider.Profile.Email,
@@ -62,7 +65,6 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 			CreatedAt:     time.Now(),
 			LastUpdatedAt: time.Now(),
 		}
-		// Save the new auth session.
 		if err := utils.SaveAuthSession(sessionClient, sessionID, authSession); err != nil {
 			return nil, fmt.Errorf("failed to create auth session: %w", err)
 		}
@@ -91,15 +93,15 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 	if !deviceExists {
 		// If OTP is not verified yet, check session status.
 		if authSession.Status != "otp_verified" {
-			// Before initiating OTP, enforce the maximum device limit.
+			// Enforce maximum device limit.
 			if len(provider.Devices) >= 3 {
 				return nil, fmt.Errorf("maximum device limit reached. Only 3 devices are allowed")
 			}
-			// Initiate OTP if not already initiated.
 			otpCacheKey := fmt.Sprintf("otp:%s", sessionID)
+			// Check if an OTP is already cached.
 			_, err := sessionClient.Get(ctx, otpCacheKey).Result()
 			if err != nil {
-				// If OTP is not set, initiate it.
+				// If OTP is not set, initiate OTP.
 				if err := utils.InitiateDeviceOTP(provider.ID, currentDevice.DeviceID, provider.Profile.PhoneNumber); err != nil {
 					return nil, fmt.Errorf("failed to initiate OTP: %w", err)
 				}
@@ -111,11 +113,10 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 			// Return an OTP pending error with the sessionID.
 			return nil, OTPPendingError{SessionID: sessionID}
 		}
-		// OTP has been verified. Check device limit again before adding.
+		// If OTP has been verified, ensure the device limit and then add the new device.
 		if len(provider.Devices) >= 3 {
 			return nil, fmt.Errorf("maximum device limit reached. Only 3 devices are allowed")
 		}
-		// Add the new device.
 		currentDevice.LastLogin = time.Now()
 		currentDevice.Creator = false
 		provider.Devices = append(provider.Devices, currentDevice)
@@ -124,7 +125,7 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 		}
 	}
 
-	// Now, complete authentication by generating a new JWT token.
+	// Complete authentication: generate a new JWT token.
 	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, 24*time.Hour)
 	if err != nil {
 		utils.GetLogger().Error("Failed to generate token", zap.Error(err))

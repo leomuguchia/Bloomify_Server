@@ -75,6 +75,12 @@ func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*mo
 	if err := r.coll.FindOne(ctx, bson.M{"id": id}, opts).Decode(&user); err != nil {
 		return nil, fmt.Errorf("failed to fetch user with id %s: %w", id, err)
 	}
+
+	// If Devices field is nil, initialize it to an empty slice.
+	if user.Devices == nil {
+		user.Devices = []models.Device{}
+	}
+
 	return &user, nil
 }
 

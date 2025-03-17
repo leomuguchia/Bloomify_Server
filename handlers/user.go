@@ -104,10 +104,10 @@ func AuthenticateUserHandler(c *gin.Context) {
 	// Call the service layer function for authentication with device management.
 	authResp, err := userService.AuthenticateUser(req.Email, req.Password, currentDevice, req.SessionID)
 	if err != nil {
-		// If the error is an OTP pending error, return the waiting session ID.
 		if otpErr, ok := err.(user.OTPPendingError); ok {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":     otpErr.Error(),
+				"error":     "OTP verification required",
+				"code":      100,
 				"sessionID": otpErr.SessionID,
 			})
 			return

@@ -25,17 +25,7 @@ func (e OTPPendingError) Error() string {
 
 // AuthenticateUser authenticates the user with device info using an auth session.
 func (s *DefaultUserService) AuthenticateUser(email, password string, currentDevice models.Device, providedSessionID string) (*AuthResponse, error) {
-	// Retrieve the full user record including sensitive fields.
-	projection := bson.M{
-		"password_hash": 1,
-		"id":            1,
-		"email":         1,
-		"username":      1,
-		"profile_image": 1,
-		"phone_number":  1,
-		"devices":       1,
-	}
-	userRec, err := s.Repo.GetByEmailWithProjection(email, projection)
+	userRec, err := s.Repo.GetByEmailWithProjection(email, bson.M{})
 	if err != nil {
 		utils.GetLogger().Error("Failed to fetch user", zap.Error(err))
 		return nil, fmt.Errorf("authentication failed, please try again")
@@ -44,19 +34,19 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	// Verify password.
+	// Always verify the password.
 	if err := bcrypt.CompareHashAndPassword([]byte(userRec.PasswordHash), []byte(password)); err != nil {
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	// Get the OTP/Session Redis client.
 	sessionClient := utils.GetAuthCacheClient()
 	ctx := context.Background()
 
-	// Determine the waiting session ID.
+	// Determine session ID. If providedSessionID is not empty, use it; otherwise, create one.
 	sessionID := providedSessionID
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("%s:%s", userRec.ID, currentDevice.DeviceID)
+		// Create a new auth session with status "pending"
 		authSession := utils.AuthSession{
 			UserID:        userRec.ID,
 			Email:         userRec.Email,
@@ -65,19 +55,18 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 			CreatedAt:     time.Now(),
 			LastUpdatedAt: time.Now(),
 		}
-		// Save the session.
 		if err := utils.SaveAuthSession(sessionClient, sessionID, authSession); err != nil {
 			return nil, fmt.Errorf("failed to create auth session: %w", err)
 		}
 	}
 
-	// Retrieve the current session.
+	// Fetch the current session.
 	authSession, err := utils.GetAuthSession(sessionClient, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve auth session: %w", err)
 	}
 
-	// If device not registered, check OTP verification status.
+	// Check if the device is already registered.
 	deviceExists := false
 	for idx, d := range userRec.Devices {
 		if d.DeviceID == currentDevice.DeviceID {
@@ -90,18 +79,19 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 		}
 	}
 
+	// If the device is not registered, decide whether to initiate OTP or continue.
 	if !deviceExists {
-		// If OTP is not verified yet, check session status.
+		// If the session status is not "otp_verified", then initiate OTP if needed.
 		if authSession.Status != "otp_verified" {
-			// Before initiating OTP, enforce the maximum device limit.
+			// Enforce maximum device limit.
 			if len(userRec.Devices) >= 3 {
 				return nil, fmt.Errorf("maximum device limit reached. Only 3 devices are allowed")
 			}
 			otpCacheKey := fmt.Sprintf("otp:%s", sessionID)
-			// Check if OTP is already cached.
+			// Check if an OTP is already in cache.
 			_, err := sessionClient.Get(ctx, otpCacheKey).Result()
 			if err != nil {
-				// If OTP not set, initiate OTP.
+				// OTP not set; initiate OTP.
 				if err := utils.InitiateDeviceOTP(userRec.ID, currentDevice.DeviceID, userRec.PhoneNumber); err != nil {
 					return nil, fmt.Errorf("failed to initiate OTP: %w", err)
 				}
@@ -113,7 +103,8 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 			// Return an OTP pending error with the sessionID.
 			return nil, OTPPendingError{SessionID: sessionID}
 		}
-		// If OTP is verified, add the new device.
+
+		// If OTP has been verified (status is "otp_verified"), add the new device.
 		currentDevice.LastLogin = time.Now()
 		currentDevice.Creator = false
 		userRec.Devices = append(userRec.Devices, currentDevice)
@@ -122,20 +113,21 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 		}
 	}
 
-	// Now, complete authentication.
+	// At this point, either the device was already registered,
+	// or a new device has been added after OTP verification.
+	// Proceed to generate a token and complete authentication.
 	token, err := utils.GenerateToken(userRec.ID, userRec.Email, 24*time.Hour)
 	if err != nil {
 		utils.GetLogger().Error("Failed to generate token", zap.Error(err))
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}
-
 	userRec.TokenHash = utils.HashToken(token)
 	if err := s.Repo.Update(userRec); err != nil {
 		utils.GetLogger().Error("Failed to update user with token hash", zap.Error(err))
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}
 
-	// Clear session since authentication is complete.
+	// Clear the auth session since authentication is complete.
 	_ = utils.DeleteAuthSession(sessionClient, sessionID)
 
 	return &AuthResponse{

@@ -33,7 +33,10 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 				c.Next()
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing or invalid Authorization header"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Missing or invalid Authorization header",
+				"code":  0,
+			})
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -45,13 +48,15 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 				c.Next()
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token or missing provider ID"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token or missing provider ID",
+				"code":  0,
+			})
 			return
 		}
 
 		// Compute token hash.
 		computedHash := utils.HashToken(tokenString)
-		// Use the providerID as the Redis key.
 		cacheKey := utils.AuthCachePrefix + providerID
 
 		// Retrieve the auth cache client.
@@ -59,7 +64,6 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 		if authCache != nil {
 			cachedHash, err := authCache.Get(ctx, cacheKey).Result()
 			if err == nil {
-				// If the cached hash matches, refresh TTL and grant full access.
 				if cachedHash == computedHash {
 					if err := authCache.Expire(ctx, cacheKey, utils.AuthCacheTTL).Err(); err != nil {
 						logger.Error("Failed to refresh auth cache TTL", zap.Error(err))
@@ -69,54 +73,64 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 					c.Next()
 					return
 				}
-				// Token hash mismatch in cache.
 				logger.Error("Token hash mismatch in cache", zap.String("providerID", providerID))
 				if !optional {
-					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token mismatch"})
+					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+						"error": "Token mismatch",
+						"code":  0,
+					})
 					return
 				}
 			} else if err != redis.Nil {
-				// An error occurred checking cache.
 				logger.Error("Error checking auth cache", zap.Error(err))
 				if !optional {
-					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+						"error": "Internal server error",
+						"code":  0,
+					})
 					return
 				}
 			}
 		} else {
-			// Auth cache client should not be nil in a production system.
 			logger.Error("Auth cache client is nil")
 			if !optional {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Internal server error",
+					"code":  0,
+				})
 				return
 			}
 		}
 
-		// Cache validation failed or was unavailable; fallback to DB lookup.
+		// Fallback to DB lookup.
 		proj := bson.M{"id": 1, "token_hash": 1}
 		prov, err := providerRepo.GetByIDWithProjection(providerID, proj)
 		if err != nil || prov == nil {
 			logger.Error("Provider not found in repository", zap.String("providerID", providerID), zap.Error(err))
 			if !optional {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not found"})
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "Provider not found",
+					"code":  0,
+				})
 				return
 			}
 			c.Next()
 			return
 		}
 
-		// Compare the token hash from DB with the computed token hash.
 		if computedHash != prov.TokenHash {
 			logger.Error("Token hash mismatch from DB", zap.String("providerID", providerID))
 			if !optional {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token mismatch"})
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "Token mismatch",
+					"code":  0,
+				})
 				return
 			}
 			c.Next()
 			return
 		}
 
-		// Successful authentication: update the cache (if available) and grant full access.
 		if authCache != nil {
 			if err := authCache.Set(ctx, cacheKey, computedHash, utils.AuthCacheTTL).Err(); err != nil {
 				logger.Error("Failed to set auth cache", zap.Error(err))

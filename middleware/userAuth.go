@@ -24,7 +24,10 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		// Retrieve token from header.
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing or invalid Authorization header"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Missing or invalid Authorization header",
+				"code":  0,
+			})
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -32,7 +35,10 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		// Extract user ID from token.
 		userID, err := utils.ExtractIDFromToken(tokenString)
 		if err != nil || userID == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token or missing user ID"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token or missing user ID",
+				"code":  0,
+			})
 			return
 		}
 
@@ -59,7 +65,10 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			}
 			// Token hash mismatch in cache: authentication fails.
 			logger.Error("Token hash mismatch in cache", zap.String("userID", userID))
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token mismatch"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Token mismatch",
+				"code":  0,
+			})
 			return
 		} else if err != redis.Nil {
 			// An error other than a missing key occurred.
@@ -71,14 +80,20 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		usr, err := userRepo.GetByIDWithProjection(userID, proj)
 		if err != nil || usr == nil {
 			logger.Error("User not found in DB when validating token", zap.String("userID", userID), zap.Error(err))
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication error!"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Authentication error!",
+				"code":  0,
+			})
 			return
 		}
 
 		// Compare token hash from the DB with the computed token hash.
 		if computedHash != usr.TokenHash {
 			logger.Error("Token hash mismatch from DB", zap.String("userID", userID))
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token mismatch"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Token mismatch",
+				"code":  0,
+			})
 			return
 		}
 

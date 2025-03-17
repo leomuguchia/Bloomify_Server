@@ -120,8 +120,10 @@ func main() {
 		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler,
 		// Admin endpoints
 		AdminHandler: adminHandler,
-		// Storage endpoints (new)
+		// Storage endpoints
 		StorageHandler: storageHandler,
+		// OTP endpoint
+		VerifyOTPHandler: handlers.VerifyOTPHandler,
 	}
 
 	// Register all application routes.
@@ -134,13 +136,13 @@ func main() {
 		port = "8080"
 	}
 
-	// Create and start the HTTP server.
+	// Bind the server to all network interfaces.
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    "0.0.0.0:" + port,
 		Handler: router,
 	}
 
-	logger.Sugar().Infof("Starting server on port %s...", port)
+	logger.Sugar().Infof("Starting server on %s...", srv.Addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Sugar().Fatalf("main: server failed to start: %v", err)

@@ -3,6 +3,7 @@ package middleware
 import (
 	providerRepo "bloomify/database/repository/provider"
 	userRepo "bloomify/database/repository/user"
+	"bloomify/models"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -28,7 +29,6 @@ type IPLocation struct {
 }
 
 func lookupIPLocation(ip string) (*IPLocation, error) {
-	// Use a free geo-IP API endpoint (ip-api.com)
 	url := fmt.Sprintf("http://ip-api.com/json/%s", ip)
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
@@ -48,18 +48,15 @@ func lookupIPLocation(ip string) (*IPLocation, error) {
 }
 
 func getClientIP(c *gin.Context) string {
-	// Check for X-Forwarded-For header (may contain multiple IPs).
 	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
 		ips := strings.Split(xff, ",")
 		if len(ips) > 0 && ips[0] != "" {
 			return strings.TrimSpace(ips[0])
 		}
 	}
-	// Check for X-Real-IP header.
 	if xri := c.GetHeader("X-Real-IP"); xri != "" {
 		return strings.TrimSpace(xri)
 	}
-	// Fallback: use RemoteAddr (strip port if present).
 	ip := c.Request.RemoteAddr
 	if host, _, err := net.SplitHostPort(ip); err == nil {
 		return host
@@ -69,7 +66,6 @@ func getClientIP(c *gin.Context) string {
 
 func DeviceDetailsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Retrieve device details from custom headers.
 		deviceID := c.GetHeader("X-Device-ID")
 		deviceName := c.GetHeader("X-Device-Name")
 		if deviceID == "" || deviceName == "" {
@@ -78,55 +74,41 @@ func DeviceDetailsMiddleware() gin.HandlerFunc {
 			})
 			return
 		}
-
-		// Get the client IP.
 		ip := getClientIP(c)
-
-		// Look up location details using the external API.
 		loc, err := lookupIPLocation(ip)
-		var location string
-		if err != nil {
-			location = "Unknown"
-		} else {
-			// Construct a location string (e.g., "City, Region, Country")
+		location := "Unknown"
+		if err == nil {
 			location = fmt.Sprintf("%s, %s, %s", loc.City, loc.RegionName, loc.Country)
 		}
-
-		// Set device details in the context for downstream handlers.
 		c.Set("deviceID", deviceID)
 		c.Set("deviceName", deviceName)
 		c.Set("deviceIP", ip)
 		c.Set("deviceLocation", location)
-
 		c.Next()
 	}
 }
 
 func DeviceAuthMiddlewareUser(userRepo userRepo.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Retrieve the device ID from context (set by DeviceDetailsMiddleware)
 		deviceID, exists := c.Get("deviceID")
-		if !exists {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing device details"})
+		if !exists || deviceID == nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing device details", "code": 0})
 			return
 		}
-
-		// Retrieve the user ID from context (set by JWTAuthUserMiddleware)
 		userID, exists := c.Get("userID")
-		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		if !exists || userID == nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated", "code": 0})
 			return
 		}
-
-		// Use a projection to fetch only the devices field.
 		projection := bson.M{"devices": 1}
 		user, err := userRepo.GetByIDWithProjection(userID.(string), projection)
 		if err != nil || user == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found", "code": 0})
 			return
 		}
-
-		// Check if the device exists in the user's devices list.
+		if user.Devices == nil {
+			user.Devices = []models.Device{}
+		}
 		deviceFound := false
 		for _, d := range user.Devices {
 			if d.DeviceID == deviceID.(string) {
@@ -134,12 +116,10 @@ func DeviceAuthMiddlewareUser(userRepo userRepo.UserRepository) gin.HandlerFunc 
 				break
 			}
 		}
-
 		if !deviceFound {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Device not recognized"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Device not recognized", "code": 0})
 			return
 		}
-
 		c.Next()
 	}
 }
@@ -148,25 +128,20 @@ func DeviceAuthMiddlewareProvider(providerRepo providerRepo.ProviderRepository) 
 	return func(c *gin.Context) {
 		deviceID, exists := c.Get("deviceID")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing device details"})
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing device details", "code": 0})
 			return
 		}
-
 		providerID, exists := c.Get("providerID")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not authenticated"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not authenticated", "code": 0})
 			return
 		}
-
-		// Use a projection to fetch only the devices field.
 		projection := bson.M{"devices": 1}
 		provider, err := providerRepo.GetByIDWithProjection(providerID.(string), projection)
 		if err != nil || provider == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not found"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not found", "code": 0})
 			return
 		}
-
-		// Check if the device exists in the provider's devices list.
 		deviceFound := false
 		for _, d := range provider.Devices {
 			if d.DeviceID == deviceID.(string) {
@@ -174,12 +149,10 @@ func DeviceAuthMiddlewareProvider(providerRepo providerRepo.ProviderRepository) 
 				break
 			}
 		}
-
 		if !deviceFound {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Device not recognized"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Device not recognized", "code": 0})
 			return
 		}
-
 		c.Next()
 	}
 }

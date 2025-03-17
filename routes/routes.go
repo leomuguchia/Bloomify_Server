@@ -17,8 +17,6 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	{
 		api.POST("/register", hb.RegisterUserHandler)
 		api.POST("/login", hb.AuthenticateUserHandler)
-		r.POST("/verify-otp", hb.VerifyOTPHandler)
-
 		api.Use(
 			middleware.JWTAuthUserMiddleware(hb.UserRepo),
 			middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
@@ -31,8 +29,8 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.DELETE("/delete/:id", hb.DeleteUserHandler)
 		api.DELETE("/revoke/:id", hb.RevokeUserAuthTokenHandler)
 		api.PUT("/password/:id", hb.UpdateUserPasswordHandler)
-		api.GET("/devices/:id", hb.GetDevicesHandler)
-		api.DELETE("/devices/:id", hb.SignOutOtherDevicesHandler)
+		api.GET("/devices", hb.GetDevicesHandler)
+		api.DELETE("/devices", hb.SignOutOtherDevicesHandler)
 	}
 }
 
@@ -109,11 +107,15 @@ func RegisterStorageRoutes(router *gin.Engine, storageHandler *handlers.StorageH
 	}
 }
 
+func RegisterOTPRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
+	r.POST("/api/verify-otp", middleware.DeviceDetailsMiddleware(), hb.VerifyOTPHandler)
+}
+
 func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
+		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type", "X-Device-ID", "X-Device-Name"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -124,4 +126,5 @@ func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	RegisterHealthRoute(r)
 	RegisterBookingRoutes(r, hb)
 	RegisterAdminRoutes(r, hb)
+	RegisterOTPRoutes(r, hb)
 }
