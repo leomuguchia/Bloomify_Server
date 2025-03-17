@@ -14,6 +14,8 @@ type UserRepository interface {
 	Create(user *models.User) error
 	// Update modifies an existing user record.
 	Update(user *models.User) error
+	// UpdateWithDocument updates a user record using an explicit update document.
+	UpdateWithDocument(id string, updateDoc bson.M) error
 	// Delete removes a user record by its ID.
 	Delete(id string) error
 	// GetByIDWithProjection retrieves a user by its unique ID using the specified projection.

@@ -26,4 +26,6 @@ type ProviderService interface {
 	GetTimeslots(c *gin.Context, providerID string) ([]models.TimeSlot, error)
 	DeleteTimeslot(c *gin.Context, providerID string, timeslotID string) (*models.ProviderTimeslotDTO, error)
 	GetAllProviders() ([]models.Provider, error)
+	GetProviderDevices(providerID string) ([]models.Device, error)
+	SignOutOtherDevices(providerID, currentDeviceID string) error
 }

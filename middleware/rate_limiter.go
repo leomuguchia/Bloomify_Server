@@ -28,7 +28,7 @@ func (s *rateLimiterStore) getLimiter(ip string) *rate.Limiter {
 	limiter, exists := s.limiters[ip]
 	if !exists {
 		// Configure rate: 20 requests per minute with burst capacity of 5.
-		limiter = rate.NewLimiter(rate.Every(time.Minute/50), 5)
+		limiter = rate.NewLimiter(rate.Every(time.Minute/20), 5)
 		s.limiters[ip] = limiter
 	}
 	return limiter

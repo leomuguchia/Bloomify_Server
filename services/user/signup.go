@@ -23,6 +23,7 @@ type AuthResponse struct {
 	Email        string `json:"email,omitempty"`
 	PhoneNumber  string `json:"phoneNumber,omitempty"`
 	ProfileImage string `json:"profileImage,omitempty"`
+	Rating       int    `json:"rating,omitempty"`
 }
 
 // verifyPasswordComplexity checks that the password contains at least one lowercase letter,
@@ -134,6 +135,7 @@ func (s *DefaultUserService) RegisterUser(user models.User, device models.Device
 		Email:        user.Email,
 		PhoneNumber:  user.PhoneNumber,
 		ProfileImage: user.ProfileImage,
+		Rating:       user.Rating,
 	}, nil
 }
 

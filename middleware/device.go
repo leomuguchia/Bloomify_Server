@@ -1,9 +1,6 @@
 package middleware
 
 import (
-	providerRepo "bloomify/database/repository/provider"
-	userRepo "bloomify/database/repository/user"
-	"bloomify/models"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -12,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.uber.org/zap"
 )
 
 type IPLocation struct {
@@ -74,85 +71,26 @@ func DeviceDetailsMiddleware() gin.HandlerFunc {
 			})
 			return
 		}
+
 		ip := getClientIP(c)
 		loc, err := lookupIPLocation(ip)
 		location := "Unknown"
 		if err == nil {
 			location = fmt.Sprintf("%s, %s, %s", loc.City, loc.RegionName, loc.Country)
 		}
+
+		// Log the received device details (info-level)
+		zap.L().Info("DeviceDetailsMiddleware: received device details",
+			zap.String("deviceID", deviceID),
+			zap.String("deviceName", deviceName),
+			zap.String("deviceIP", ip),
+			zap.String("deviceLocation", location),
+		)
+
 		c.Set("deviceID", deviceID)
 		c.Set("deviceName", deviceName)
 		c.Set("deviceIP", ip)
 		c.Set("deviceLocation", location)
-		c.Next()
-	}
-}
-
-func DeviceAuthMiddlewareUser(userRepo userRepo.UserRepository) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		deviceID, exists := c.Get("deviceID")
-		if !exists || deviceID == nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing device details", "code": 0})
-			return
-		}
-		userID, exists := c.Get("userID")
-		if !exists || userID == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated", "code": 0})
-			return
-		}
-		projection := bson.M{"devices": 1}
-		user, err := userRepo.GetByIDWithProjection(userID.(string), projection)
-		if err != nil || user == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found", "code": 0})
-			return
-		}
-		if user.Devices == nil {
-			user.Devices = []models.Device{}
-		}
-		deviceFound := false
-		for _, d := range user.Devices {
-			if d.DeviceID == deviceID.(string) {
-				deviceFound = true
-				break
-			}
-		}
-		if !deviceFound {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Device not recognized", "code": 0})
-			return
-		}
-		c.Next()
-	}
-}
-
-func DeviceAuthMiddlewareProvider(providerRepo providerRepo.ProviderRepository) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		deviceID, exists := c.Get("deviceID")
-		if !exists {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing device details", "code": 0})
-			return
-		}
-		providerID, exists := c.Get("providerID")
-		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not authenticated", "code": 0})
-			return
-		}
-		projection := bson.M{"devices": 1}
-		provider, err := providerRepo.GetByIDWithProjection(providerID.(string), projection)
-		if err != nil || provider == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Provider not found", "code": 0})
-			return
-		}
-		deviceFound := false
-		for _, d := range provider.Devices {
-			if d.DeviceID == deviceID.(string) {
-				deviceFound = true
-				break
-			}
-		}
-		if !deviceFound {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Device not recognized", "code": 0})
-			return
-		}
 		c.Next()
 	}
 }

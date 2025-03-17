@@ -12,38 +12,36 @@ import (
 )
 
 func (s *DefaultUserService) UpdateUser(user models.User) (*models.User, error) {
-	// Retrieve the full user record by explicitly passing an empty projection.
-	existing, err := s.Repo.GetByIDWithProjection(user.ID, bson.M{})
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-	if existing == nil {
-		return nil, fmt.Errorf("user not found")
+	// Build an update document explicitly.
+	updateFields := bson.M{
+		"updated_at": time.Now(),
 	}
 
-	// Merge allowed updates.
+	// Update non-null fields.
 	if user.Username != "" {
-		existing.Username = user.Username
+		updateFields["username"] = user.Username
 	}
 	if user.PhoneNumber != "" {
-		existing.PhoneNumber = user.PhoneNumber
+		updateFields["phone_number"] = user.PhoneNumber
 	}
 	if user.Email != "" {
-		existing.Email = user.Email
+		updateFields["email"] = user.Email
 	}
-	if user.ProfileImage != "" {
-		existing.ProfileImage = user.ProfileImage
+	// Always update profile_image; if user.ProfileImage is empty, set it to nil.
+	if user.ProfileImage == "" {
+		updateFields["profile_image"] = nil
+	} else {
+		updateFields["profile_image"] = user.ProfileImage
 	}
 
-	// Update the timestamp.
-	existing.UpdatedAt = time.Now()
+	updateDoc := bson.M{"$set": updateFields}
 
-	// Persist the complete updated user model.
-	if err := s.Repo.Update(existing); err != nil {
+	// Use the custom update function.
+	if err := s.Repo.UpdateWithDocument(user.ID, updateDoc); err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
 
-	// Return the updated user object using an explicit projection that omits only password_hash.
+	// Return the updated user object.
 	return s.Repo.GetByIDWithProjection(user.ID, nil)
 }
 

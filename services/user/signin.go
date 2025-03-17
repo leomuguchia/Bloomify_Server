@@ -54,6 +54,9 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 			Status:        "pending",
 			CreatedAt:     time.Now(),
 			LastUpdatedAt: time.Now(),
+			Username:      userRec.Username,
+			PhoneNumber:   userRec.PhoneNumber,
+			Rating:        userRec.Rating,
 		}
 		if err := utils.SaveAuthSession(sessionClient, sessionID, authSession); err != nil {
 			return nil, fmt.Errorf("failed to create auth session: %w", err)
@@ -137,5 +140,6 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 		Email:        userRec.Email,
 		PhoneNumber:  userRec.PhoneNumber,
 		ProfileImage: userRec.ProfileImage,
+		Rating:       userRec.Rating,
 	}, nil
 }

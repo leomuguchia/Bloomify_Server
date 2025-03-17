@@ -25,7 +25,6 @@ func (s *DefaultUserService) SignOutOtherDevices(userID, currentDeviceID string)
 		return fmt.Errorf("user not found")
 	}
 
-	// Retain only the device matching the currentDeviceID.
 	filteredDevices := []models.Device{}
 	for _, device := range user.Devices {
 		if device.DeviceID == currentDeviceID {
@@ -34,7 +33,6 @@ func (s *DefaultUserService) SignOutOtherDevices(userID, currentDeviceID string)
 	}
 	user.Devices = filteredDevices
 
-	// Update the user document in the repository.
 	if err := s.Repo.Update(user); err != nil {
 		return fmt.Errorf("failed to update user devices: %w", err)
 	}

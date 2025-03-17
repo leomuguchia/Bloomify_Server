@@ -63,6 +63,8 @@ func main() {
 		Repo: provRepo,
 	}
 	providerHandler := handlers.NewProviderHandler(providerService)
+	ProviderDeviceHandler := handlers.NewProviderDeviceHandler(providerService)
+	UserDeviceHandler := handlers.NewUserDeviceHandler(userService)
 
 	matchingServiceInstance := &booking.DefaultMatchingService{
 		ProviderRepo: provRepo,
@@ -99,6 +101,9 @@ func main() {
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
 		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler,
+		// provider devices endpoints
+		GetProviderDevicesHandler:          ProviderDeviceHandler.GetProviderDevicesHandler,
+		SignOutOtherProviderDevicesHandler: ProviderDeviceHandler.SignOutOtherProviderDevicesHandler,
 		// Booking endpoints
 		InitiateSession: bookingHandler.InitiateSession,
 		UpdateSession:   bookingHandler.UpdateSession,
@@ -118,6 +123,9 @@ func main() {
 		RevokeUserAuthTokenHandler:   handlers.RevokeUserAuthTokenHandler,
 		UpdateUserPreferencesHandler: handlers.UpdateUserPreferencesHandler,
 		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler,
+		// user Device endpoints
+		GetUserDevicesHandler:          UserDeviceHandler.GetUserDevicesHandler,
+		SignOutOtherUserDevicesHandler: UserDeviceHandler.SignOutOtherUserDevicesHandler,
 		// Admin endpoints
 		AdminHandler: adminHandler,
 		// Storage endpoints

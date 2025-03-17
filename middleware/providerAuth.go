@@ -20,10 +20,21 @@ import (
 // If 'optional' is false, any failure in verifying the token causes an authentication error.
 func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, optional bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Recover from any unexpected panic.
+		defer func() {
+			if r := recover(); r != nil {
+				zap.L().Error("JWTAuthProviderMiddleware: panic recovered", zap.Any("panic", r))
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Internal server error",
+					"code":  0,
+				})
+			}
+		}()
+
 		logger := zap.L()
 		ctx := context.Background()
 
-		// Default: assume public access (i.e. no full access).
+		// Default: assume no full access.
 		c.Set("isProviderFullAccess", false)
 
 		// Retrieve the Authorization header.
@@ -66,14 +77,14 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 			if err == nil {
 				if cachedHash == computedHash {
 					if err := authCache.Expire(ctx, cacheKey, utils.AuthCacheTTL).Err(); err != nil {
-						logger.Error("Failed to refresh auth cache TTL", zap.Error(err))
+						logger.Error("JWTAuthProviderMiddleware: failed to refresh auth cache TTL", zap.Error(err))
 					}
 					c.Set("isProviderFullAccess", true)
 					c.Set("providerID", providerID)
 					c.Next()
 					return
 				}
-				logger.Error("Token hash mismatch in cache", zap.String("providerID", providerID))
+				logger.Error("JWTAuthProviderMiddleware: token hash mismatch in cache", zap.String("providerID", providerID))
 				if !optional {
 					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 						"error": "Token mismatch",
@@ -82,7 +93,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 					return
 				}
 			} else if err != redis.Nil {
-				logger.Error("Error checking auth cache", zap.Error(err))
+				logger.Error("JWTAuthProviderMiddleware: error checking auth cache", zap.Error(err))
 				if !optional {
 					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 						"error": "Internal server error",
@@ -92,7 +103,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 				}
 			}
 		} else {
-			logger.Error("Auth cache client is nil")
+			logger.Error("JWTAuthProviderMiddleware: auth cache client is nil")
 			if !optional {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": "Internal server error",
@@ -106,7 +117,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 		proj := bson.M{"id": 1, "token_hash": 1}
 		prov, err := providerRepo.GetByIDWithProjection(providerID, proj)
 		if err != nil || prov == nil {
-			logger.Error("Provider not found in repository", zap.String("providerID", providerID), zap.Error(err))
+			logger.Error("JWTAuthProviderMiddleware: provider not found in repository", zap.String("providerID", providerID), zap.Error(err))
 			if !optional {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Provider not found",
@@ -119,7 +130,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 		}
 
 		if computedHash != prov.TokenHash {
-			logger.Error("Token hash mismatch from DB", zap.String("providerID", providerID))
+			logger.Error("JWTAuthProviderMiddleware: token hash mismatch from DB", zap.String("providerID", providerID))
 			if !optional {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "Token mismatch",
@@ -133,7 +144,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 
 		if authCache != nil {
 			if err := authCache.Set(ctx, cacheKey, computedHash, utils.AuthCacheTTL).Err(); err != nil {
-				logger.Error("Failed to set auth cache", zap.Error(err))
+				logger.Error("JWTAuthProviderMiddleware: failed to set auth cache", zap.Error(err))
 			}
 		}
 

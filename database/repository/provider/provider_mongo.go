@@ -70,44 +70,62 @@ func (r *MongoProviderRepo) GetByTokenHash(tokenHash string) (*models.Provider, 
 	}
 	if err := r.coll.FindOne(ctx, bson.M{"token_hash": tokenHash}, opts).Decode(&result); err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, nil // No provider found for this token
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to retrieve provider by token hash: %w", err)
 	}
 
-	// If needed, you can fetch the full provider record here using result.ID.
 	return r.GetByID(result.ID)
 }
 
 // GetByIDWithProjection retrieves a provider by its unique ID using a projection.
-// Pass nil for projection if you want the full document.
+// Pass nil for projection if you want the full document with sensitive fields omitted by default.
 func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) (*models.Provider, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
-	opts := options.FindOne()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		// Default projection: omit sensitive fields.
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		proj = projection
 	}
 
+	opts := options.FindOne().SetProjection(proj)
 	var provider models.Provider
 	if err := r.coll.FindOne(ctx, bson.M{"id": id}, opts).Decode(&provider); err != nil {
 		return nil, fmt.Errorf("failed to fetch provider with id %s: %w", id, err)
 	}
+
+	// If Devices field is nil, initialize it to an empty slice.
+	if provider.Devices == nil {
+		provider.Devices = []models.Device{}
+	}
+
 	return &provider, nil
 }
 
 // GetByEmailWithProjection retrieves a provider by its email using a projection.
-// Pass nil for projection if you want the full document.
+// Pass nil for projection to retrieve the full document with sensitive fields omitted by default.
 func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bson.M) (*models.Provider, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
-	opts := options.FindOne()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		proj = projection
 	}
 
+	opts := options.FindOne().SetProjection(proj)
 	var provider models.Provider
 	if err := r.coll.FindOne(ctx, bson.M{"email": email}, opts).Decode(&provider); err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -115,19 +133,31 @@ func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bs
 		}
 		return nil, fmt.Errorf("failed to fetch provider with email %s: %w", email, err)
 	}
+
+	if provider.Devices == nil {
+		provider.Devices = []models.Device{}
+	}
+
 	return &provider, nil
 }
 
 // GetAllWithProjection retrieves all providers with an optional projection.
+// If projection is nil, a default projection is applied.
 func (r *MongoProviderRepo) GetAllWithProjection(projection bson.M) ([]models.Provider, error) {
 	ctx, cancel := newContext(10 * time.Second)
 	defer cancel()
 
-	opts := options.Find()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		proj = projection
 	}
 
+	opts := options.Find().SetProjection(proj)
 	cursor, err := r.coll.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
@@ -140,6 +170,9 @@ func (r *MongoProviderRepo) GetAllWithProjection(projection bson.M) ([]models.Pr
 		if err := cursor.Decode(&p); err != nil {
 			return nil, fmt.Errorf("failed to decode provider: %w", err)
 		}
+		if p.Devices == nil {
+			p.Devices = []models.Device{}
+		}
 		providers = append(providers, p)
 	}
 	return providers, nil
@@ -151,11 +184,17 @@ func (r *MongoProviderRepo) GetByServiceTypeWithProjection(service string, proje
 	defer cancel()
 
 	filter := bson.M{"service_type": bson.M{"$regex": service, "$options": "i"}}
-	opts := options.Find()
-	if projection != nil {
-		opts.SetProjection(projection)
+	var proj bson.M
+	if projection == nil {
+		proj = bson.M{
+			"password_hash": 0,
+			"token_hash":    0,
+		}
+	} else {
+		proj = projection
 	}
 
+	opts := options.Find().SetProjection(proj)
 	cursor, err := r.coll.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find providers for service %s: %w", service, err)
@@ -167,6 +206,9 @@ func (r *MongoProviderRepo) GetByServiceTypeWithProjection(service string, proje
 		var p models.Provider
 		if err := cursor.Decode(&p); err != nil {
 			return nil, fmt.Errorf("failed to decode provider: %w", err)
+		}
+		if p.Devices == nil {
+			p.Devices = []models.Device{}
 		}
 		providers = append(providers, p)
 	}

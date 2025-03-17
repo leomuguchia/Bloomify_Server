@@ -23,6 +23,9 @@ type HandlerBundle struct {
 	AdvanceVerifyProviderHandler   gin.HandlerFunc
 	RevokeProviderAuthTokenHandler gin.HandlerFunc
 	SetupTimeslotsHandler          gin.HandlerFunc
+	// provider devices
+	GetProviderDevicesHandler          gin.HandlerFunc
+	SignOutOtherProviderDevicesHandler gin.HandlerFunc
 
 	// Booking endpoints
 	InitiateSession gin.HandlerFunc
@@ -46,9 +49,9 @@ type HandlerBundle struct {
 	UpdateUserPreferencesHandler gin.HandlerFunc
 	UpdateUserPasswordHandler    gin.HandlerFunc
 
-	// Device endpoints
-	GetDevicesHandler          gin.HandlerFunc
-	SignOutOtherDevicesHandler gin.HandlerFunc
+	// User Device endpoints
+	GetUserDevicesHandler          gin.HandlerFunc
+	SignOutOtherUserDevicesHandler gin.HandlerFunc
 
 	// OTP verification endpoint
 	VerifyOTPHandler gin.HandlerFunc

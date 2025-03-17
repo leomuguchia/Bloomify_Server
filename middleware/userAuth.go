@@ -15,9 +15,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// JWTAuthUserMiddleware validates the JWT token for users with Redis caching.
 func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Recover from any unexpected panics.
+		defer func() {
+			if r := recover(); r != nil {
+				zap.L().Error("JWTAuthUserMiddleware: recovered from panic", zap.Any("panic", r))
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Internal server error",
+					"code":  500,
+				})
+			}
+		}()
+
 		logger := zap.L()
 		ctx := context.Background()
 
@@ -44,42 +54,46 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 
 		// Compute token hash.
 		computedHash := utils.HashToken(tokenString)
-		// Build Redis cache key using userID.
 		cacheKey := utils.AuthCachePrefix + userID
 
 		// Get the dedicated auth cache client.
 		authCache := utils.GetAuthCacheClient()
+		if authCache == nil {
+			logger.Error("JWTAuthUserMiddleware: auth cache client is nil")
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error": "Internal authentication error",
+				"code":  0,
+			})
+			return
+		}
 
-		// Attempt to retrieve the token hash from Redis using the userID.
+		// Attempt to retrieve the token hash from Redis.
 		cachedHash, err := authCache.Get(ctx, cacheKey).Result()
 		if err == nil {
-			// Cache exists, check if the cached token hash matches the computed token hash.
+			// If cached value matches, refresh TTL and continue.
 			if cachedHash == computedHash {
-				// Refresh TTL (sliding expiration) and authenticate.
 				if err := authCache.Expire(ctx, cacheKey, utils.AuthCacheTTL).Err(); err != nil {
-					logger.Error("Failed to refresh auth cache TTL", zap.Error(err))
+					logger.Error("JWTAuthUserMiddleware: failed to refresh auth cache TTL", zap.Error(err))
 				}
 				c.Set("userID", userID)
 				c.Next()
 				return
 			}
-			// Token hash mismatch in cache: authentication fails.
-			logger.Error("Token hash mismatch in cache", zap.String("userID", userID))
+			logger.Error("JWTAuthUserMiddleware: token hash mismatch in cache", zap.String("userID", userID))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Token mismatch",
 				"code":  0,
 			})
 			return
 		} else if err != redis.Nil {
-			// An error other than a missing key occurred.
-			logger.Error("Error checking auth cache", zap.Error(err))
+			logger.Error("JWTAuthUserMiddleware: error checking auth cache", zap.Error(err))
 		}
 
 		// Cache miss: Query the database.
 		proj := bson.M{"id": 1, "token_hash": 1}
 		usr, err := userRepo.GetByIDWithProjection(userID, proj)
 		if err != nil || usr == nil {
-			logger.Error("User not found in DB when validating token", zap.String("userID", userID), zap.Error(err))
+			logger.Error("JWTAuthUserMiddleware: user not found in DB", zap.String("userID", userID), zap.Error(err))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Authentication error!",
 				"code":  0,
@@ -87,9 +101,9 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			return
 		}
 
-		// Compare token hash from the DB with the computed token hash.
+		// Compare token hash from DB.
 		if computedHash != usr.TokenHash {
-			logger.Error("Token hash mismatch from DB", zap.String("userID", userID))
+			logger.Error("JWTAuthUserMiddleware: token hash mismatch from DB", zap.String("userID", userID))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Token mismatch",
 				"code":  0,
@@ -97,9 +111,9 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			return
 		}
 
-		// Successful validation: Cache the token hash using userID as key.
+		// Successful validation: cache the token hash.
 		if err := authCache.Set(ctx, cacheKey, computedHash, utils.AuthCacheTTL).Err(); err != nil {
-			logger.Error("Failed to set auth cache", zap.Error(err))
+			logger.Error("JWTAuthUserMiddleware: failed to set auth cache", zap.Error(err))
 		}
 
 		// Set the user ID in the context and continue.

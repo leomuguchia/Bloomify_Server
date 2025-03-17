@@ -29,37 +29,41 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.DELETE("/delete/:id", hb.DeleteUserHandler)
 		api.DELETE("/revoke/:id", hb.RevokeUserAuthTokenHandler)
 		api.PUT("/password/:id", hb.UpdateUserPasswordHandler)
-		api.GET("/devices", hb.GetDevicesHandler)
-		api.DELETE("/devices", hb.SignOutOtherDevicesHandler)
+		api.GET("/devices", hb.GetUserDevicesHandler)
+		api.DELETE("/devices", hb.SignOutOtherUserDevicesHandler)
 	}
 }
 
 func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api/providers")
-	api.Use(middleware.DeviceDetailsMiddleware()) // Extract device details for all routes
+	api.Use(middleware.DeviceDetailsMiddleware()) // Extract device details
 
 	{
 		api.POST("/register", hb.RegisterProviderHandler)
 		api.POST("/login", hb.AuthenticateProviderHandler)
 		api.POST("/kyp/verify", hb.KYPVerificationHandler)
 
-		// Public routes that still require JWT verification but no device authentication
+		// Public routes requiring optional JWT verification but no device auth
 		public := api.Group("")
 		public.GET("/id/:id", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByIDHandler)
 		public.GET("/email/:email", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByEmailHandler)
 
-		// Protected routes - require both JWT and Device authentication
+		// Protected routes – require both JWT and Device authentication.
 		protected := api.Group("")
 		protected.Use(
 			middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, false),
 			middleware.DeviceAuthMiddlewareProvider(hb.ProviderRepo),
 		)
-
-		protected.PATCH("/update/:id", hb.UpdateProviderHandler)
-		protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
-		protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
-		protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
-		protected.PUT("/create-timeslots/:id", hb.SetupTimeslotsHandler)
+		{
+			protected.PATCH("/update/:id", hb.UpdateProviderHandler)
+			protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
+			protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
+			protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
+			protected.PUT("/create-timeslots/:id", hb.SetupTimeslotsHandler)
+			// Provider device endpoints
+			protected.GET("/devices", hb.GetProviderDevicesHandler)
+			protected.DELETE("/devices", hb.SignOutOtherProviderDevicesHandler)
+		}
 	}
 }
 

@@ -210,3 +210,19 @@ func (r *MongoUserRepo) Delete(id string) error {
 	}
 	return nil
 }
+
+func (r *MongoUserRepo) UpdateWithDocument(id string, updateDoc bson.M) error {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Use a filter that matches the user by "id" (adjust if your DB uses "_id").
+	filter := bson.M{"id": id}
+	result, err := r.coll.UpdateOne(ctx, filter, updateDoc)
+	if err != nil {
+		return fmt.Errorf("failed to update user with id %s: %w", id, err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user with id %s not found", id)
+	}
+	return nil
+}

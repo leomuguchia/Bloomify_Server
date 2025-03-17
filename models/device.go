@@ -3,7 +3,6 @@ package models
 
 import "time"
 
-// Device represents a device associated with a user.
 type Device struct {
 	DeviceID   string    `bson:"device_id" json:"device_id"`
 	DeviceName string    `bson:"device_name" json:"device_name"`

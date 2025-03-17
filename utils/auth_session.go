@@ -21,7 +21,9 @@ type AuthSession struct {
 	CreatedAt     time.Time         `json:"createdAt"`
 	LastUpdatedAt time.Time         `json:"lastUpdatedAt"`
 	Token         string            `json:"token,omitempty"` // Final JWT token (set when complete)
-	// Add other fields as needed.
+	Username      string            `json:"username"`
+	PhoneNumber   string            `json:"phoneNumber"`
+	Rating        int               `json:"rating,omitempty"`
 }
 
 // DeviceSessionInfo holds device details for the authentication session.
