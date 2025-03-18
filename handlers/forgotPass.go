@@ -44,7 +44,11 @@ func ResetUserPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password has been successfully reset. Please sign in with your new password."})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Password has been successfully reset. Please sign in with your new password.",
+		"code":    102,
+		"status":  "success",
+	})
 }
 
 func ResetProviderPasswordHandler(c *gin.Context) {
@@ -76,5 +80,9 @@ func ResetProviderPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password has been successfully reset. Please sign in with your new password."})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Password has been successfully reset. Please sign in with your new password.",
+		"code":    102,
+		"status":  "success",
+	})
 }

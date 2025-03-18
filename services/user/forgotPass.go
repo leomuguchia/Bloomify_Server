@@ -1,18 +1,15 @@
 package user
 
 import (
+	"bloomify/utils"
 	"context"
 	"fmt"
 	"time"
-
-	"bloomify/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
-
-
 
 // ResetPassword resets a user's password via a three-state OTP-based flow.
 // State 1: Called with email only → initiates OTP and returns OTPPendingError.
@@ -56,7 +53,7 @@ func (s *DefaultUserService) ResetPassword(email, providedOTP, newPassword, prov
 		return fmt.Errorf("failed to retrieve password reset session: %w", err)
 	}
 
-	// 4. If no OTP is provided and no new password is provided (State 1: Initiation)
+	// 4. State 1: If no OTP and no new password is provided, initiate OTP.
 	if providedOTP == "" && newPassword == "" {
 		otpCacheKey := fmt.Sprintf("otp:%s", sessionID)
 		// Check if an OTP is already in cache.
@@ -75,15 +72,17 @@ func (s *DefaultUserService) ResetPassword(email, providedOTP, newPassword, prov
 		return OTPPendingError{SessionID: sessionID}
 	}
 
-	// 5. At this point, providedOTP is present. Verify the provided OTP.
-	if err := utils.VerifyDeviceOTPRecord(userRec.ID, "reset_password", providedOTP); err != nil {
-		return fmt.Errorf("OTP verification failed: %w", err)
-	}
-	// Mark session as verified.
-	authSession.Status = "otp_verified"
-	authSession.LastUpdatedAt = time.Now()
-	if err := utils.SaveAuthSession(sessionClient, sessionID, *authSession); err != nil {
-		return fmt.Errorf("failed to update password reset session: %w", err)
+	// 5. OTP verification: Only verify if the session isn't already verified.
+	if authSession.Status != "otp_verified" {
+		if err := utils.VerifyDeviceOTPRecord(userRec.ID, "reset_password", providedOTP); err != nil {
+			return fmt.Errorf("OTP verification failed: %w", err)
+		}
+		// Mark session as verified.
+		authSession.Status = "otp_verified"
+		authSession.LastUpdatedAt = time.Now()
+		if err := utils.SaveAuthSession(sessionClient, sessionID, *authSession); err != nil {
+			return fmt.Errorf("failed to update password reset session: %w", err)
+		}
 	}
 
 	// 6. If OTP is verified but new password is not provided (State 2), prompt for new password.
