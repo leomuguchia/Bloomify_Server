@@ -1,3 +1,4 @@
+// File: database/repository/user/userMongoQueries.go
 package userRepo
 
 import (
@@ -52,21 +53,18 @@ func (r *MongoUserRepo) ensureIndexes() error {
 	return nil
 }
 
-// --- Projection-based Helper Methods ---
-
+// GetByIDWithProjection retrieves a user by its ID with an optional projection.
 func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*models.User, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
 	var proj bson.M
 	if projection == nil {
-		// Default projection if none provided: omit both sensitive fields.
 		proj = bson.M{
 			"password_hash": 0,
 			"token_hash":    0,
 		}
 	} else {
-		// If a projection is provided, use it as is.
 		proj = projection
 	}
 
@@ -85,7 +83,6 @@ func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*mo
 }
 
 // GetByEmailWithProjection retrieves a user by its email using a projection.
-// Pass nil for projection to retrieve the full document.
 func (r *MongoUserRepo) GetByEmailWithProjection(email string, projection bson.M) (*models.User, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
@@ -93,16 +90,13 @@ func (r *MongoUserRepo) GetByEmailWithProjection(email string, projection bson.M
 	opts := options.FindOne()
 	var proj bson.M
 	if projection == nil {
-		// Default projection if none provided: omit both sensitive fields.
 		proj = bson.M{
 			"password_hash": 0,
 			"token_hash":    0,
 		}
 	} else {
-		// If a projection is provided, use it as is.
 		proj = projection
 	}
-
 	opts.SetProjection(proj)
 
 	var user models.User
@@ -123,19 +117,17 @@ func (r *MongoUserRepo) GetAllWithProjection(projection bson.M) ([]models.User, 
 	opts := options.Find()
 	var proj bson.M
 	if projection == nil {
-		// Default projection if none provided: omit both sensitive fields.
 		proj = bson.M{
 			"password_hash": 0,
 			"token_hash":    0,
 		}
 	} else {
-		// If a projection is provided, use it as is.
 		proj = projection
 	}
-
 	opts.SetProjection(proj)
 
-	cursor, err := r.coll.Find(ctx, opts)
+	// Provide an empty filter to match all documents.
+	cursor, err := r.coll.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve users: %w", err)
 	}
@@ -156,73 +148,4 @@ func (r *MongoUserRepo) GetAllWithProjection(projection bson.M) ([]models.User, 
 func (r *MongoUserRepo) GetAllSafe() ([]models.User, error) {
 	projection := bson.M{"password_hash": 0, "token_hash": 0}
 	return r.GetAllWithProjection(projection)
-}
-
-// --- Exported Methods that Satisfy the UserRepository Interface ---
-
-// Create inserts a new user document.
-func (r *MongoUserRepo) Create(user *models.User) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	now := time.Now()
-	user.CreatedAt = now
-	user.UpdatedAt = now
-
-	_, err := r.coll.InsertOne(ctx, user)
-	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
-	}
-	return nil
-}
-
-// Update modifies an existing user document.
-func (r *MongoUserRepo) Update(user *models.User) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	user.UpdatedAt = time.Now()
-	filter := bson.M{"id": user.ID}
-	update := bson.M{"$set": user}
-
-	result, err := r.coll.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return fmt.Errorf("failed to update user with id %s: %w", user.ID, err)
-	}
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("user with id %s not found", user.ID)
-	}
-	return nil
-}
-
-// Delete removes a user document by its ID.
-func (r *MongoUserRepo) Delete(id string) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	filter := bson.M{"id": id}
-	result, err := r.coll.DeleteOne(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to delete user with id %s: %w", id, err)
-	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("user with id %s not found", id)
-	}
-	return nil
-}
-
-func (r *MongoUserRepo) UpdateWithDocument(id string, updateDoc bson.M) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	// Use a filter that matches the user by "id" (adjust if your DB uses "_id").
-	filter := bson.M{"id": id}
-	result, err := r.coll.UpdateOne(ctx, filter, updateDoc)
-	if err != nil {
-		return fmt.Errorf("failed to update user with id %s: %w", id, err)
-	}
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("user with id %s not found", id)
-	}
-	return nil
 }

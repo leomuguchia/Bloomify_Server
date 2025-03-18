@@ -44,4 +44,6 @@ type ProviderRepository interface {
 	GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error)
 	// GetByTokenHash retrieves a provider whose token_hash matches the provided hash.
 	GetByTokenHash(tokenHash string) (*models.Provider, error)
+	// UpdateWithDocument patches a provider document with the specified update document.
+	UpdateWithDocument(id string, updateDoc bson.M) error
 }

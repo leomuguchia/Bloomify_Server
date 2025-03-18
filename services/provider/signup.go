@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"bloomify/models"
+	"bloomify/services/user"
 	"bloomify/utils"
 
 	"github.com/google/uuid"
@@ -67,6 +68,11 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Pr
 	defaultProfileImage := "https://example.com/default_profile.png"
 	if provider.Profile.ProfileImage == "" {
 		provider.Profile.ProfileImage = defaultProfileImage
+	}
+
+	// Verify password complexity.
+	if err := user.VerifyPasswordComplexity(provider.Password); err != nil {
+		return nil, err
 	}
 
 	// Hash the provided password.

@@ -89,8 +89,8 @@ func main() {
 
 	// Assemble the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
+		// Provider endpoints
 		ProviderRepo:                   provRepo,
-		UserRepo:                       userRepo,
 		GetProviderByIDHandler:         providerHandler.GetProviderByIDHandler,
 		GetProviderByEmailHandler:      providerHandler.GetProviderByEmailHandler,
 		RegisterProviderHandler:        providerHandler.RegisterProviderHandler,
@@ -101,18 +101,22 @@ func main() {
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
 		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler,
-		// provider devices endpoints
+
+		// Provider device endpoints
 		GetProviderDevicesHandler:          ProviderDeviceHandler.GetProviderDevicesHandler,
 		SignOutOtherProviderDevicesHandler: ProviderDeviceHandler.SignOutOtherProviderDevicesHandler,
+
 		// Booking endpoints
 		InitiateSession: bookingHandler.InitiateSession,
 		UpdateSession:   bookingHandler.UpdateSession,
 		ConfirmBooking:  bookingHandler.ConfirmBooking,
 		CancelSession:   bookingHandler.CancelSession,
+
 		// AI endpoints
 		AIRecommendHandler: handlers.AIRecommendHandler,
 		AISuggestHandler:   handlers.AISuggestHandler,
 		AutoBookHandler:    handlers.AutoBookHandler,
+
 		// User endpoints
 		RegisterUserHandler:          handlers.RegisterUserHandler,
 		AuthenticateUserHandler:      handlers.AuthenticateUserHandler,
@@ -123,21 +127,28 @@ func main() {
 		RevokeUserAuthTokenHandler:   handlers.RevokeUserAuthTokenHandler,
 		UpdateUserPreferencesHandler: handlers.UpdateUserPreferencesHandler,
 		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler,
-		// user Device endpoints
+
+		// User device endpoints
 		GetUserDevicesHandler:          UserDeviceHandler.GetUserDevicesHandler,
 		SignOutOtherUserDevicesHandler: UserDeviceHandler.SignOutOtherUserDevicesHandler,
+
+		// OTP endpoints
+		VerifyOTPHandler:     handlers.VerifyOTPHandler,
+		ResetPasswordHandler: handlers.ResetUserPasswordHandler,
+
+		// Provider forgot password endpoint
+		ResetProviderPasswordHandler: handlers.ResetProviderPasswordHandler,
+
 		// Admin endpoints
 		AdminHandler: adminHandler,
+
 		// Storage endpoints
-		StorageHandler: storageHandler,
-		// OTP endpoint
-		VerifyOTPHandler: handlers.VerifyOTPHandler,
+		StorageHandler:        storageHandler,
+		UploadFileHandler:     storageHandler.UploadFileHandler,
+		GetDownloadURLHandler: storageHandler.GetDownloadURLHandler,
 	}
 
-	// Register all application routes.
 	routes.RegisterRoutes(router, handlerBundle)
-	// Register storage-specific routes.
-	routes.RegisterStorageRoutes(router, storageHandler)
 
 	port := config.AppConfig.AppPort
 	if port == "" {

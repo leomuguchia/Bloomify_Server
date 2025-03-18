@@ -28,7 +28,7 @@ type AuthResponse struct {
 
 // verifyPasswordComplexity checks that the password contains at least one lowercase letter,
 // one uppercase letter, one digit, and one symbol.
-func verifyPasswordComplexity(pw string) error {
+func VerifyPasswordComplexity(pw string) error {
 	var (
 		hasMinLen = len(pw) >= 8
 		hasUpper  = regexp.MustCompile(`[A-Z]`).MatchString(pw)
@@ -68,7 +68,7 @@ func (s *DefaultUserService) RegisterUser(user models.User, device models.Device
 	}
 
 	// Verify password complexity.
-	if err := verifyPasswordComplexity(user.Password); err != nil {
+	if err := VerifyPasswordComplexity(user.Password); err != nil {
 		return nil, err
 	}
 

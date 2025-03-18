@@ -14,15 +14,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// OTPPendingError indicates that OTP verification is required.
-type OTPPendingError struct {
-	SessionID string
-}
-
-func (e OTPPendingError) Error() string {
-	return fmt.Sprintf("OTP verification required. SessionID: %s", e.SessionID)
-}
-
 // AuthenticateUser authenticates the user with device info using an auth session.
 func (s *DefaultUserService) AuthenticateUser(email, password string, currentDevice models.Device, providedSessionID string) (*AuthResponse, error) {
 	userRec, err := s.Repo.GetByEmailWithProjection(email, bson.M{})

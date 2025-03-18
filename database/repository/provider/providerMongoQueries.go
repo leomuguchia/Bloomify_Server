@@ -56,8 +56,6 @@ func (r *MongoProviderRepo) ensureIndexes() error {
 	return nil
 }
 
-// --- Projection-based Helper Methods ---
-
 // GetByTokenHash retrieves a provider by its token_hash using a projection.
 func (r *MongoProviderRepo) GetByTokenHash(tokenHash string) (*models.Provider, error) {
 	ctx, cancel := newContext(5 * time.Second)
@@ -86,7 +84,6 @@ func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) 
 
 	var proj bson.M
 	if projection == nil {
-		// Default projection: omit sensitive fields.
 		proj = bson.M{
 			"password_hash": 0,
 			"token_hash":    0,
@@ -101,7 +98,6 @@ func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) 
 		return nil, fmt.Errorf("failed to fetch provider with id %s: %w", id, err)
 	}
 
-	// If Devices field is nil, initialize it to an empty slice.
 	if provider.Devices == nil {
 		provider.Devices = []models.Device{}
 	}
@@ -158,6 +154,7 @@ func (r *MongoProviderRepo) GetAllWithProjection(projection bson.M) ([]models.Pr
 	}
 
 	opts := options.Find().SetProjection(proj)
+	// Use an empty filter to match all documents.
 	cursor, err := r.coll.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
@@ -215,11 +212,16 @@ func (r *MongoProviderRepo) GetByServiceTypeWithProjection(service string, proje
 	return providers, nil
 }
 
-// --- Exported Methods that Satisfy the ProviderRepository Interface ---
+// --- Exported Query Methods ---
 
 // GetByID retrieves a provider by its unique ID (full document).
 func (r *MongoProviderRepo) GetByID(id string) (*models.Provider, error) {
 	return r.GetByIDWithProjection(id, nil)
+}
+
+// GetByEmail retrieves a provider by its email address (full document).
+func (r *MongoProviderRepo) GetByEmail(email string) (*models.Provider, error) {
+	return r.GetByEmailWithProjection(email, nil)
 }
 
 // GetAll retrieves all providers (full documents).
@@ -230,54 +232,4 @@ func (r *MongoProviderRepo) GetAll() ([]models.Provider, error) {
 // GetByServiceType returns providers that offer a specific service (full documents).
 func (r *MongoProviderRepo) GetByServiceType(service string) ([]models.Provider, error) {
 	return r.GetByServiceTypeWithProjection(service, nil)
-}
-
-// GetByEmail retrieves a provider by its email address (full document).
-func (r *MongoProviderRepo) GetByEmail(email string) (*models.Provider, error) {
-	return r.GetByEmailWithProjection(email, nil)
-}
-
-// Create inserts a new provider document.
-func (r *MongoProviderRepo) Create(provider *models.Provider) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	_, err := r.coll.InsertOne(ctx, provider)
-	if err != nil {
-		return fmt.Errorf("failed to create provider: %w", err)
-	}
-	return nil
-}
-
-// Update modifies an existing provider document.
-func (r *MongoProviderRepo) Update(provider *models.Provider) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	filter := bson.M{"id": provider.ID}
-	update := bson.M{"$set": provider}
-	result, err := r.coll.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return fmt.Errorf("failed to update provider with id %s: %w", provider.ID, err)
-	}
-	if result.MatchedCount == 0 {
-		return fmt.Errorf("provider with id %s not found", provider.ID)
-	}
-	return nil
-}
-
-// Delete removes a provider document.
-func (r *MongoProviderRepo) Delete(id string) error {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	filter := bson.M{"id": id}
-	result, err := r.coll.DeleteOne(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("failed to delete provider with id %s: %w", id, err)
-	}
-	if result.DeletedCount == 0 {
-		return fmt.Errorf("provider with id %s not found", id)
-	}
-	return nil
 }

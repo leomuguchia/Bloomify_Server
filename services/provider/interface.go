@@ -3,6 +3,7 @@ package provider
 import (
 	providerRepo "bloomify/database/repository/provider"
 	"bloomify/models"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,4 +29,23 @@ type ProviderService interface {
 	GetAllProviders() ([]models.Provider, error)
 	GetProviderDevices(providerID string) ([]models.Device, error)
 	SignOutOtherDevices(providerID, currentDeviceID string) error
+	ResetPassword(email, providedOTP, newPassword, providedSessionID string) error
+}
+
+// OTPPendingError indicates that OTP verification is required.
+type OTPPendingError struct {
+	SessionID string
+}
+
+func (e OTPPendingError) Error() string {
+	return fmt.Sprintf("OTP verification required. SessionID: %s", e.SessionID)
+}
+
+// NewPasswordRequiredError indicates that a new password is required after OTP verification.
+type NewPasswordRequiredError struct {
+	SessionID string
+}
+
+func (e NewPasswordRequiredError) Error() string {
+	return fmt.Sprintf("OTP verified. New password required. SessionID: %s", e.SessionID)
 }

@@ -17,11 +17,17 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	{
 		api.POST("/register", hb.RegisterUserHandler)
 		api.POST("/login", hb.AuthenticateUserHandler)
-		api.Use(
-			middleware.JWTAuthUserMiddleware(hb.UserRepo),
-			middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
-		)
 
+		// Password reset endpoint (revamped single endpoint)
+		api.POST("/reset-password", hb.ResetPasswordHandler)
+	}
+
+	// Protected routes
+	api.Use(
+		middleware.JWTAuthUserMiddleware(hb.UserRepo),
+		middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
+	)
+	{
 		api.PUT("/preferences/:id", hb.UpdateUserPreferencesHandler)
 		api.GET("/id/:id", hb.GetUserByIDHandler)
 		api.GET("/email/:email", hb.GetUserByEmailHandler)
@@ -33,7 +39,6 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.DELETE("/devices", hb.SignOutOtherUserDevicesHandler)
 	}
 }
-
 func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api/providers")
 	api.Use(middleware.DeviceDetailsMiddleware()) // Extract device details
@@ -43,7 +48,10 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.POST("/login", hb.AuthenticateProviderHandler)
 		api.POST("/kyp/verify", hb.KYPVerificationHandler)
 
-		// Public routes requiring optional JWT verification but no device auth
+		// Add the provider forgot password endpoint.
+		api.POST("/reset-password", hb.ResetProviderPasswordHandler)
+
+		// Public routes requiring partial JWT verification but no device auth.
 		public := api.Group("")
 		public.GET("/id/:id", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByIDHandler)
 		public.GET("/email/:email", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByEmailHandler)
@@ -103,11 +111,11 @@ func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	}
 }
 
-func RegisterStorageRoutes(router *gin.Engine, storageHandler *handlers.StorageHandler) {
-	storageGroup := router.Group("/storage")
+func RegisterStorageRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
+	storageGroup := r.Group("/storage")
 	{
-		storageGroup.POST("/:type/:bucket/upload", storageHandler.UploadFileHandler)
-		storageGroup.GET("/:type/:bucket/:filename", storageHandler.GetDownloadURLHandler)
+		storageGroup.POST("/:type/:bucket/upload", hb.UploadFileHandler)
+		storageGroup.GET("/:type/:bucket/:filename", hb.GetDownloadURLHandler)
 	}
 }
 
@@ -131,4 +139,5 @@ func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	RegisterBookingRoutes(r, hb)
 	RegisterAdminRoutes(r, hb)
 	RegisterOTPRoutes(r, hb)
+	RegisterStorageRoutes(r, hb)
 }

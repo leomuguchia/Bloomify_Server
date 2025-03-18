@@ -74,7 +74,7 @@ func AuthenticateUserHandler(c *gin.Context) {
 	var req struct {
 		Email     string `json:"email" binding:"required,email"`
 		Password  string `json:"password" binding:"required"`
-		SessionID string `json:"sessionID"` // optional: provided if this is a retry after OTP initiation
+		SessionID string `json:"sessionID"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Error("Invalid authentication request", zap.Error(err))

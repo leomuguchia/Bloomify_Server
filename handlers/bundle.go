@@ -1,4 +1,3 @@
-// File: bloomify/handlers/handlerBundle.go
 package handlers
 
 import (
@@ -23,7 +22,8 @@ type HandlerBundle struct {
 	AdvanceVerifyProviderHandler   gin.HandlerFunc
 	RevokeProviderAuthTokenHandler gin.HandlerFunc
 	SetupTimeslotsHandler          gin.HandlerFunc
-	// provider devices
+
+	// Provider device endpoints
 	GetProviderDevicesHandler          gin.HandlerFunc
 	SignOutOtherProviderDevicesHandler gin.HandlerFunc
 
@@ -49,16 +49,24 @@ type HandlerBundle struct {
 	UpdateUserPreferencesHandler gin.HandlerFunc
 	UpdateUserPasswordHandler    gin.HandlerFunc
 
-	// User Device endpoints
+	// User device endpoints
 	GetUserDevicesHandler          gin.HandlerFunc
 	SignOutOtherUserDevicesHandler gin.HandlerFunc
 
-	// OTP verification endpoint
+	// OTP endpoints
 	VerifyOTPHandler gin.HandlerFunc
+
+	// Password reset endpoints for users
+	ResetPasswordHandler gin.HandlerFunc
+
+	// New provider password reset endpoint.
+	ResetProviderPasswordHandler gin.HandlerFunc
 
 	// Admin endpoints
 	AdminHandler *AdminHandler
 
 	// Storage endpoints
-	StorageHandler *StorageHandler
+	StorageHandler        *StorageHandler
+	UploadFileHandler     gin.HandlerFunc
+	GetDownloadURLHandler gin.HandlerFunc
 }
