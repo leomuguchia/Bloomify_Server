@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 type IPLocation struct {
@@ -78,14 +77,6 @@ func DeviceDetailsMiddleware() gin.HandlerFunc {
 		if err == nil {
 			location = fmt.Sprintf("%s, %s, %s", loc.City, loc.RegionName, loc.Country)
 		}
-
-		// Log the received device details (info-level)
-		zap.L().Info("DeviceDetailsMiddleware: received device details",
-			zap.String("deviceID", deviceID),
-			zap.String("deviceName", deviceName),
-			zap.String("deviceIP", ip),
-			zap.String("deviceLocation", location),
-		)
 
 		c.Set("deviceID", deviceID)
 		c.Set("deviceName", deviceName)

@@ -1,13 +1,12 @@
 package provider
 
 import (
-	"context"
-	"fmt"
-	"time"
-
 	"bloomify/models"
 	"bloomify/services/user"
 	"bloomify/utils"
+	"context"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -26,9 +25,10 @@ type ProviderAuthResponse struct {
 	Rating       float64        `json:"rating,omitempty"`
 }
 
-// RegisterProvider creates a new provider, generates a token, stores its hash,
-// clears the Redis cache, and returns an enriched auth response.
-func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*ProviderAuthResponse, error) {
+// RegisterProvider creates a new provider, generates a token that includes the device ID,
+// assigns the token hash to that device, attaches the device to the provider record,
+// clears the Redis cache (using a composite key), and returns an enriched auth response.
+func (s *DefaultProviderService) RegisterProvider(provider models.Provider, device models.Device) (*ProviderAuthResponse, error) {
 	// Validate required basic fields.
 	if provider.Profile.Email == "" || provider.Password == "" {
 		return nil, fmt.Errorf("provider email and password are required")
@@ -98,29 +98,33 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Pr
 		return nil, fmt.Errorf("provider with email %s already exists", provider.Profile.Email)
 	}
 
-	// Persist the new provider.
-	if err := s.Repo.Create(&provider); err != nil {
-		return nil, fmt.Errorf("failed to create provider: %w", err)
-	}
+	// Prepare the device details.
+	device.LastLogin = now
+	device.Creator = true
 
-	// Generate a JWT token.
-	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, 24*time.Hour)
+	// Generate a JWT token for the new provider that includes the device ID.
+	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, device.DeviceID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate auth token: %w", err)
+		utils.GetLogger().Error("Failed to generate auth token", zap.Error(err))
+		return nil, fmt.Errorf("registration failed, please try again")
+	}
+	// Compute the token hash and assign it to the device.
+	tokenHash := utils.HashToken(token)
+	device.TokenHash = tokenHash
+
+	// Attach the device to the provider (assuming providers have a Devices field similar to users).
+	provider.Devices = []models.Device{device}
+
+	// Persist the new provider with the device (including token hash).
+	if err := s.Repo.Create(&provider); err != nil {
+		utils.GetLogger().Error("Failed to create provider", zap.Error(err))
+		return nil, fmt.Errorf("registration failed, please try again")
 	}
 
-	// Store the token hash in the provider record.
-	provider.TokenHash = utils.HashToken(token)
-	if err := s.Repo.Update(&provider); err != nil {
-		return nil, fmt.Errorf("failed to update provider with token hash: %w", err)
-	}
-
-	// Clear the Redis cache entry for this provider.
-	cacheKey := utils.AuthCachePrefix + provider.ID
+	// Clear the Redis cache entry for this device using a composite key.
+	cacheKey := utils.AuthCachePrefix + provider.ID + ":" + device.DeviceID
 	authCache := utils.GetAuthCacheClient()
-	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
-		zap.L().Error("Failed to clear auth cache", zap.Error(err))
-	}
+	_ = authCache.Del(context.Background(), cacheKey)
 
 	// Build and return the enriched auth response.
 	response := &ProviderAuthResponse{
@@ -135,9 +139,7 @@ func (s *DefaultProviderService) RegisterProvider(provider models.Provider) (*Pr
 	return response, nil
 }
 
-// RevokeProviderAuthToken revokes the provider's auth token by clearing the token hash,
-// updating the record, and clearing the Redis cache.
-func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) error {
+func (s *DefaultProviderService) RevokeProviderAuthToken(providerID, deviceID string) error {
 	// Retrieve the provider record.
 	provider, err := s.Repo.GetByIDWithProjection(providerID, nil)
 	if err != nil {
@@ -147,18 +149,38 @@ func (s *DefaultProviderService) RevokeProviderAuthToken(providerID string) erro
 		return fmt.Errorf("provider not found")
 	}
 
-	// Clear the token hash.
-	provider.TokenHash = ""
-	provider.UpdatedAt = time.Now()
-	if err := s.Repo.Update(provider); err != nil {
+	// Clear the token hash for the specified device.
+	deviceFound := false
+	for i, d := range provider.Devices {
+		if d.DeviceID == deviceID {
+			provider.Devices[i].TokenHash = ""
+			deviceFound = true
+			break
+		}
+	}
+	if !deviceFound {
+		return fmt.Errorf("device not found")
+	}
+
+	// Build update document to patch only devices and updated_at.
+	updateDoc := bson.M{
+		"$set": bson.M{
+			"devices":    provider.Devices,
+			"updated_at": time.Now(),
+		},
+	}
+
+	// Update the provider record using UpdateWithDocument.
+	if err := s.Repo.UpdateWithDocument(providerID, updateDoc); err != nil {
 		return fmt.Errorf("failed to revoke provider auth token: %w", err)
 	}
 
-	// Clear the Redis cache entry for this provider.
-	cacheKey := utils.AuthCachePrefix + providerID
+	// Clear the Redis cache entry using the composite key.
+	cacheKey := utils.AuthCachePrefix + providerID + ":" + deviceID
 	authCache := utils.GetAuthCacheClient()
 	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
 		zap.L().Error("Failed to clear auth cache on revoke", zap.Error(err))
 	}
+
 	return nil
 }

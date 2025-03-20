@@ -54,7 +54,7 @@ func VerifyPasswordComplexity(pw string) error {
 	return nil
 }
 
-// RegisterUser creates a new user, stores device details, generates a token, updates the token hash, and clears the Redis cache.
+// RegisterUser creates a new user, stores device details (with its token hash), and clears the device-specific Redis cache.
 func (s *DefaultUserService) RegisterUser(user models.User, device models.Device) (*AuthResponse, error) {
 	// Validate required fields.
 	if user.Email == "" || user.Password == "" {
@@ -97,33 +97,31 @@ func (s *DefaultUserService) RegisterUser(user models.User, device models.Device
 	user.CreatedAt = now
 	user.UpdatedAt = now
 
-	// Attach the device details. Mark this device as the creator.
+	// Prepare the device details.
 	device.LastLogin = now
 	device.Creator = true
+
+	// Generate a JWT token for the new user that includes the device ID.
+	token, err := utils.GenerateToken(user.ID, user.Email, device.DeviceID)
+	if err != nil {
+		utils.GetLogger().Error("Failed to generate auth token", zap.Error(err))
+		return nil, fmt.Errorf("registration failed, please try again")
+	}
+	// Compute the token hash and assign it to the device.
+	tokenHash := utils.HashToken(token)
+	device.TokenHash = tokenHash
+
+	// Attach the device to the user.
 	user.Devices = []models.Device{device}
 
-	// Persist the new user.
+	// Persist the new user with the device (including token hash).
 	if err := s.Repo.Create(&user); err != nil {
 		utils.GetLogger().Error("Failed to create user", zap.Error(err))
 		return nil, fmt.Errorf("registration failed, please try again")
 	}
 
-	// Generate a JWT token for the new user.
-	token, err := utils.GenerateToken(user.ID, user.Email, 24*time.Hour)
-	if err != nil {
-		utils.GetLogger().Error("Failed to generate auth token", zap.Error(err))
-		return nil, fmt.Errorf("registration failed, please try again")
-	}
-
-	// Store the token hash in the user record.
-	user.TokenHash = utils.HashToken(token)
-	if err := s.Repo.Update(&user); err != nil {
-		utils.GetLogger().Error("Failed to update user with token hash", zap.Error(err))
-		return nil, fmt.Errorf("registration failed, please try again")
-	}
-
-	// Clear the Redis cache entry for this user.
-	cacheKey := utils.AuthCachePrefix + user.ID
+	// Clear the Redis cache entry for this device using a composite key.
+	cacheKey := utils.AuthCachePrefix + user.ID + ":" + device.DeviceID
 	authCache := utils.GetAuthCacheClient()
 	_ = authCache.Del(context.Background(), cacheKey)
 
@@ -139,8 +137,7 @@ func (s *DefaultUserService) RegisterUser(user models.User, device models.Device
 	}, nil
 }
 
-// RevokeUserAuthToken clears the token hash from the database and removes the corresponding Redis cache.
-func (s *DefaultUserService) RevokeUserAuthToken(userID string) error {
+func (s *DefaultUserService) RevokeUserAuthToken(userID, deviceID string) error {
 	// Retrieve the user record.
 	user, err := s.Repo.GetByIDWithProjection(userID, nil)
 	if err != nil {
@@ -150,19 +147,41 @@ func (s *DefaultUserService) RevokeUserAuthToken(userID string) error {
 	if user == nil {
 		return fmt.Errorf("user not found")
 	}
-	// Clear the token hash.
-	user.TokenHash = ""
-	user.UpdatedAt = time.Now()
-	if err := s.Repo.Update(user); err != nil {
+
+	// Clear the token hash for the specified device.
+	deviceFound := false
+	for i, d := range user.Devices {
+		if d.DeviceID == deviceID {
+			user.Devices[i].TokenHash = ""
+			deviceFound = true
+			break
+		}
+	}
+	if !deviceFound {
+		return fmt.Errorf("device not found")
+	}
+
+	// Build update document to patch only devices and updated_at.
+	now := time.Now()
+	updateDoc := bson.M{
+		"$set": bson.M{
+			"devices":    user.Devices,
+			"updated_at": now,
+		},
+	}
+
+	// Update the user record using UpdateWithDocument.
+	if err := s.Repo.UpdateWithDocument(userID, updateDoc); err != nil {
 		utils.GetLogger().Error("Failed to revoke user auth token", zap.String("userID", userID), zap.Error(err))
 		return fmt.Errorf("failed to logout, please try again")
 	}
 
-	// Clear the Redis cache entry.
-	cacheKey := utils.AuthCachePrefix + userID
+	// Clear the Redis cache entry using the composite key.
+	cacheKey := utils.AuthCachePrefix + userID + ":" + deviceID
 	authCache := utils.GetAuthCacheClient()
 	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
 		utils.GetLogger().Error("Failed to clear auth cache on logout", zap.Error(err))
 	}
+
 	return nil
 }

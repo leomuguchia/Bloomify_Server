@@ -10,7 +10,6 @@ type User struct {
 	PhoneNumber  string    `bson:"phone_number" json:"phoneNumber"`
 	Password     string    `bson:"-" json:"password,omitempty"`
 	PasswordHash string    `bson:"password_hash" json:"-"`
-	TokenHash    string    `bson:"token_hash" json:"-"`
 	ProfileImage string    `bson:"profile_image,omitempty" json:"profileImage,omitempty"`
 	Preferences  []string  `bson:"preferences,omitempty" json:"preferences,omitempty"`
 	Devices      []Device  `bson:"devices,omitempty" json:"devices,omitempty"`

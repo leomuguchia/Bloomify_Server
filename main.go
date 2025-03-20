@@ -35,13 +35,11 @@ func main() {
 	utils.InitCache()
 	utils.InitAuthCache()
 
-	// Initialize Cloudinary Storage Service via the utils.Cloudinary() helper.
 	cloudinaryStorageService, err := utils.Cloudinary()
 	if err != nil {
 		logger.Sugar().Fatalf("main: failed to initialize cloudinary storage service: %v", err)
 	}
 
-	// Create a new Gin router with desired middleware.
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(utils.ErrorHandler())
@@ -49,11 +47,9 @@ func main() {
 	router.Use(middleware.RateLimitMiddleware())
 	router.Use(middleware.GeolocationMiddleware())
 
-	// Setup repositories.
 	provRepo := providerRepo.NewMongoProviderRepo()
 	userRepo := userRepoPkg.NewMongoUserRepo()
 
-	// Setup services.
 	userService := &user.DefaultUserService{
 		Repo: userRepo,
 	}
@@ -78,19 +74,17 @@ func main() {
 		MatchingSvc:     matchingServiceInstance,
 		SchedulerEngine: schedulingEngineInstance,
 	}
+
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 	handlers.SetBookingHandler(bookingHandler)
-
-	// Create the admin handler with elevated privileges.
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
-
-	// Create the storage handler using the Cloudinary storage service.
 	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
 
-	// Assemble the handler bundle.
+	// Assemble the handler bundle
 	handlerBundle := &handlers.HandlerBundle{
 		// Provider endpoints
 		ProviderRepo:                   provRepo,
+		UserRepo:                       userRepo,
 		GetProviderByIDHandler:         providerHandler.GetProviderByIDHandler,
 		GetProviderByEmailHandler:      providerHandler.GetProviderByEmailHandler,
 		RegisterProviderHandler:        providerHandler.RegisterProviderHandler,
@@ -155,7 +149,6 @@ func main() {
 		port = "8080"
 	}
 
-	// Bind the server to all network interfaces.
 	srv := &http.Server{
 		Addr:    "0.0.0.0:" + port,
 		Handler: router,

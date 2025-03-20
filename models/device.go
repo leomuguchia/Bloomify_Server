@@ -10,6 +10,7 @@ type Device struct {
 	Location   string    `bson:"location" json:"location"`
 	LastLogin  time.Time `bson:"last_login" json:"last_login"`
 	Creator    bool      `bson:"creator" json:"creator"`
+	TokenHash  string    `bson:"token_hash" json:"-"`
 }
 
 // DeviceOTP holds temporary OTP data for device verification.

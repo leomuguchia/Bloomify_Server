@@ -22,7 +22,14 @@ func ResetUserPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	err := userService.ResetPassword(req.Email, req.OTP, req.NewPassword, req.SessionID)
+	// Extract device details from context (set by DeviceDetailsMiddleware).
+	deviceID, ok := c.Get("deviceID")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device details: X-Device-ID"})
+		return
+	}
+
+	err := userService.ResetPassword(req.Email, req.OTP, req.NewPassword, req.SessionID, deviceID.(string))
 	if err != nil {
 		if otpErr, ok := err.(user.OTPPendingError); ok {
 			c.JSON(http.StatusUnauthorized, gin.H{

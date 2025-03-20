@@ -13,11 +13,10 @@ type DefaultProviderService struct {
 	Repo providerRepo.ProviderRepository
 }
 
-// ProviderService defines the interface for provider-related operations.
 type ProviderService interface {
-	RegisterProvider(provider models.Provider) (*ProviderAuthResponse, error)
+	RegisterProvider(provider models.Provider, device models.Device) (*ProviderAuthResponse, error)
 	AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*ProviderAuthResponse, error)
-	RevokeProviderAuthToken(providerID string) error
+	RevokeProviderAuthToken(providerID, deviceID string) error
 	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
 	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)
 	UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error)

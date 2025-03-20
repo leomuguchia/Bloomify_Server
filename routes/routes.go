@@ -17,8 +17,6 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	{
 		api.POST("/register", hb.RegisterUserHandler)
 		api.POST("/login", hb.AuthenticateUserHandler)
-
-		// Password reset endpoint (revamped single endpoint)
 		api.POST("/reset-password", hb.ResetPasswordHandler)
 	}
 
@@ -39,6 +37,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.DELETE("/devices", hb.SignOutOtherUserDevicesHandler)
 	}
 }
+
 func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api/providers")
 	api.Use(middleware.DeviceDetailsMiddleware()) // Extract device details

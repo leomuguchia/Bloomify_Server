@@ -1,10 +1,10 @@
-// File: middleware/jwt_auth_user.go
 package middleware
 
 import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	userRepo "bloomify/database/repository/user"
 	"bloomify/utils"
@@ -12,15 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.uber.org/zap"
 )
 
 func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Recover from any unexpected panics.
+		// Recover from unexpected panics.
 		defer func() {
 			if r := recover(); r != nil {
-				zap.L().Error("JWTAuthUserMiddleware: recovered from panic", zap.Any("panic", r))
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error": "Internal server error",
 					"code":  500,
@@ -28,7 +26,6 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			}
 		}()
 
-		logger := zap.L()
 		ctx := context.Background()
 
 		// Retrieve token from header.
@@ -41,12 +38,46 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			return
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-
-		// Extract user ID from token.
-		userID, err := utils.ExtractIDFromToken(tokenString)
-		if err != nil || userID == "" {
+		if tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token or missing user ID",
+				"error": "Invalid token",
+				"code":  0,
+			})
+			return
+		}
+
+		// Extract both user ID and device ID from the token.
+		userID, tokenDeviceID, err := utils.ExtractIDsFromToken(tokenString)
+		if err != nil || userID == "" || tokenDeviceID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token or missing user/device ID",
+				"code":  0,
+			})
+			return
+		}
+
+		// Retrieve device ID from context (set by DeviceDetailsMiddleware).
+		ctxDeviceIDVal, exists := c.Get("deviceID")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Missing device details in context",
+				"code":  0,
+			})
+			return
+		}
+		ctxDeviceID, ok := ctxDeviceIDVal.(string)
+		if !ok || ctxDeviceID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid device details in context",
+				"code":  0,
+			})
+			return
+		}
+
+		// Compare the deviceID from the token with the one set in context.
+		if tokenDeviceID != ctxDeviceID {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Device mismatch",
 				"code":  0,
 			})
 			return
@@ -54,12 +85,20 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 
 		// Compute token hash.
 		computedHash := utils.HashToken(tokenString)
-		cacheKey := utils.AuthCachePrefix + userID
+		if computedHash == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token",
+				"code":  0,
+			})
+			return
+		}
+
+		// Build composite cache key using userID and deviceID.
+		cacheKey := utils.AuthCachePrefix + userID + ":" + tokenDeviceID
 
 		// Get the dedicated auth cache client.
 		authCache := utils.GetAuthCacheClient()
 		if authCache == nil {
-			logger.Error("JWTAuthUserMiddleware: auth cache client is nil")
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error": "Internal authentication error",
 				"code":  0,
@@ -70,40 +109,46 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		// Attempt to retrieve the token hash from Redis.
 		cachedHash, err := authCache.Get(ctx, cacheKey).Result()
 		if err == nil {
-			// If cached value matches, refresh TTL and continue.
+			// If found and valid, refresh TTL (1 hour) and continue.
 			if cachedHash == computedHash {
-				if err := authCache.Expire(ctx, cacheKey, utils.AuthCacheTTL).Err(); err != nil {
-					logger.Error("JWTAuthUserMiddleware: failed to refresh auth cache TTL", zap.Error(err))
-				}
+				_ = authCache.Expire(ctx, cacheKey, time.Hour).Err()
 				c.Set("userID", userID)
+				// No need to re-set "deviceID" as it's already in context.
 				c.Next()
 				return
 			}
-			logger.Error("JWTAuthUserMiddleware: token hash mismatch in cache", zap.String("userID", userID))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Token mismatch",
 				"code":  0,
 			})
 			return
 		} else if err != redis.Nil {
-			logger.Error("JWTAuthUserMiddleware: error checking auth cache", zap.Error(err))
+			// For errors other than key not found, you may choose to log and continue.
 		}
 
 		// Cache miss: Query the database.
-		proj := bson.M{"id": 1, "token_hash": 1}
+		proj := bson.M{"id": 1, "devices": 1}
 		usr, err := userRepo.GetByIDWithProjection(userID, proj)
 		if err != nil || usr == nil {
-			logger.Error("JWTAuthUserMiddleware: user not found in DB", zap.String("userID", userID), zap.Error(err))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Authentication error!",
+				"error": "Authentication error",
 				"code":  0,
 			})
 			return
 		}
 
-		// Compare token hash from DB.
-		if computedHash != usr.TokenHash {
-			logger.Error("JWTAuthUserMiddleware: token hash mismatch from DB", zap.String("userID", userID))
+		// Find the device with the matching deviceID in the user's devices.
+		var deviceTokenHash string
+		found := false
+		for _, d := range usr.Devices {
+			if d.DeviceID == tokenDeviceID {
+				deviceTokenHash = d.TokenHash
+				found = true
+				break
+			}
+		}
+
+		if !found || deviceTokenHash == "" || deviceTokenHash != computedHash {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Token mismatch",
 				"code":  0,
@@ -111,12 +156,10 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			return
 		}
 
-		// Successful validation: cache the token hash.
-		if err := authCache.Set(ctx, cacheKey, computedHash, utils.AuthCacheTTL).Err(); err != nil {
-			logger.Error("JWTAuthUserMiddleware: failed to set auth cache", zap.Error(err))
-		}
+		// Successful DB validation: Save token hash to cache with 1-hour TTL.
+		_ = authCache.Set(ctx, cacheKey, computedHash, time.Hour).Err()
 
-		// Set the user ID in the context and continue.
+		// Set userID in context and proceed.
 		c.Set("userID", userID)
 		c.Next()
 	}

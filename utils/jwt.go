@@ -21,14 +21,14 @@ func getSecret() string {
 	return secret
 }
 
-// GenerateToken creates a signed JWT token with the given subject (e.g., providerID or userID) and email.
-// The token expires after the specified duration.
-func GenerateToken(subject, email string, duration time.Duration) (string, error) {
+// GenerateToken creates a signed JWT token with the given subject (userID),
+// email, and deviceID. The token includes both IDs in its claims and does not expire.
+func GenerateToken(subject, email, deviceID string) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":   subject,
-		"email": email,
-		"iat":   time.Now().Unix(),
-		"exp":   time.Now().Add(duration).Unix(),
+		"sub":       subject,
+		"email":     email,
+		"device_id": deviceID,
+		"iat":       time.Now().Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secretKey)
@@ -51,23 +51,28 @@ func ValidateToken(tokenString string) (*jwt.Token, error) {
 	})
 }
 
-// ExtractProviderIDFromToken extracts the ID (subject) from a valid JWT token string.
-// It returns the extracted ID or an error if validation fails.
-func ExtractIDFromToken(tokenString string) (string, error) {
+// ExtractIDsFromToken extracts both the user ID (subject) and device ID from a valid JWT token string.
+// It returns the extracted IDs or an error if validation fails.
+func ExtractIDsFromToken(tokenString string) (userID, deviceID string, err error) {
 	token, err := ValidateToken(tokenString)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return "", errors.New("invalid token")
+		return "", "", errors.New("invalid token")
 	}
 
-	sub, ok := claims["sub"].(string)
-	if !ok || sub == "" {
-		return "", errors.New("token does not contain a valid 'sub' claim")
+	uid, ok := claims["sub"].(string)
+	if !ok || uid == "" {
+		return "", "", errors.New("token does not contain a valid 'sub' claim")
 	}
 
-	return sub, nil
+	did, ok := claims["device_id"].(string)
+	if !ok || did == "" {
+		return "", "", errors.New("token does not contain a valid 'device_id' claim")
+	}
+
+	return uid, did, nil
 }

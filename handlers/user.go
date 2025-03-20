@@ -18,6 +18,7 @@ func SetUserService(us user.UserService) {
 	userService = us
 }
 
+// RegisterUserHandler creates a new user with device details.
 func RegisterUserHandler(c *gin.Context) {
 	// Extract device details from context (set by DeviceDetailsMiddleware).
 	deviceID, exists := c.Get("deviceID")
@@ -60,13 +61,8 @@ func RegisterUserHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, authResp)
 }
 
-// AuthenticateUserHandler handles authentication requests with device management and OTP.
-// It expects the following in the request JSON:
-//   - email
-//   - password
-//   - optionally, sessionID (if retrying after OTP has been sent)
-//
-// Device details must have been set in context by the DeviceDetailsMiddleware.
+// AuthenticateUserHandler handles user sign‑in with device management and OTP.
+// It expects JSON containing email, password, and optionally a sessionID.
 func AuthenticateUserHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 
@@ -101,9 +97,10 @@ func AuthenticateUserHandler(c *gin.Context) {
 		LastLogin:  time.Now(),
 	}
 
-	// Call the service layer function for authentication with device management.
+	// Call the authentication service with device management.
 	authResp, err := userService.AuthenticateUser(req.Email, req.Password, currentDevice, req.SessionID)
 	if err != nil {
+		// If OTP is pending, return that information.
 		if otpErr, ok := err.(user.OTPPendingError); ok {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error":     "OTP verification required",
@@ -121,117 +118,24 @@ func AuthenticateUserHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, authResp)
 }
 
-func GetUserByIDHandler(c *gin.Context) {
-	logger := utils.GetLogger()
-	id := c.Param("id")
-	usr, err := userService.GetUserByID(id)
-	if err != nil {
-		logger.Error("User not found", zap.String("id", id), zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, usr)
-}
-
-// GetUserByEmailHandler handles GET /users/email/:email.
-func GetUserByEmailHandler(c *gin.Context) {
-	logger := utils.GetLogger()
-	email := c.Param("email")
-	usr, err := userService.GetUserByEmail(email)
-	if err != nil {
-		logger.Error("User not found by email", zap.String("email", email), zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, usr)
-}
-
-func UpdateUserHandler(c *gin.Context) {
-	logger := utils.GetLogger()
-	id := c.Param("id")
-
-	var reqUser models.User
-	if err := c.ShouldBindJSON(&reqUser); err != nil {
-		logger.Error("Invalid update request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	reqUser.ID = id
-
-	updatedUser, err := userService.UpdateUser(reqUser)
-	if err != nil {
-		logger.Error("Update error", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, updatedUser)
-}
-
-// DeleteUserHandler handles DELETE /users/delete/:id.
-func DeleteUserHandler(c *gin.Context) {
-	logger := utils.GetLogger()
-	id := c.Param("id")
-	if err := userService.DeleteUser(id); err != nil {
-		logger.Error("Delete error", zap.String("id", id), zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
-}
-
-// RevokeUserAuthTokenHandler handles DELETE /users/revoke/:id.
+// RevokeUserAuthTokenHandler handles token revocation for a user.
+// It requires the user ID in the URL parameter and uses the device details from context.
 func RevokeUserAuthTokenHandler(c *gin.Context) {
 	logger := utils.GetLogger()
-	id := c.Param("id")
-	if err := userService.RevokeUserAuthToken(id); err != nil {
-		logger.Error("Revoke token error", zap.String("id", id), zap.Error(err))
+	userID := c.Param("id")
+
+	// Extract device ID from context.
+	deviceID, ok := c.Get("deviceID")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device details: X-Device-ID"})
+		return
+	}
+
+	// Call the service to revoke the token for this specific device.
+	if err := userService.RevokeUserAuthToken(userID, deviceID.(string)); err != nil {
+		logger.Error("Revoke token error", zap.String("userID", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Auth token revoked"})
-}
-
-// UpdateUserPreferencesHandler handles PUT /users/preferences/:id.
-func UpdateUserPreferencesHandler(c *gin.Context) {
-	userID := c.Param("id")
-	var req struct {
-		Preferences []string `json:"preferences" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := userService.UpdateUserPreferences(userID, req.Preferences); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Preferences updated successfully"})
-}
-
-// UpdateUserPasswordHandler handles PUT /users/password/:id.
-// It expects a JSON payload with "currentPassword" and "newPassword".
-func UpdateUserPasswordHandler(c *gin.Context) {
-	logger := utils.GetLogger()
-	userID := c.Param("id")
-
-	var req struct {
-		CurrentPassword string `json:"currentPassword" binding:"required"`
-		NewPassword     string `json:"newPassword" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Error("Invalid update password request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	updatedUser, err := userService.UpdateUserPassword(userID, req.CurrentPassword, req.NewPassword)
-	if err != nil {
-		logger.Error("Failed to update user password", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, updatedUser)
 }
