@@ -14,8 +14,13 @@ type DefaultProviderService struct {
 }
 
 type ProviderService interface {
-	RegisterProvider(provider models.Provider, device models.Device) (*ProviderAuthResponse, error)
-	AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*ProviderAuthResponse, error)
+	// Multi‑step registration
+	RegisterBasic(basicReq models.ProviderBasicRegistrationData, device models.Device) (sessionID string, status int, err error)
+	VerifyOTP(sessionID string, deviceID string, providedOTP string) (status int, err error)
+	VerifyKYP(sessionID string, kypData models.KYPVerificationData) (status int, err error)
+	FinalizeRegistration(sessionID string, catalogueData models.ServiceCatalogue) (*models.ProviderAuthResponse, error)
+
+	AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*models.ProviderAuthResponse, error)
 	RevokeProviderAuthToken(providerID, deviceID string) error
 	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
 	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)

@@ -24,4 +24,6 @@ type UserRepository interface {
 	GetByEmailWithProjection(email string, projection bson.M) (*models.User, error)
 	// GetAllWithProjection retrieves all users using the specified projection.
 	GetAllWithProjection(projection bson.M) ([]models.User, error)
+	// IsUserAvailable checks if a user with the given basic registration details already exists.
+	IsUserAvailable(basicReq models.UserBasicRegistrationData) (bool, error)
 }

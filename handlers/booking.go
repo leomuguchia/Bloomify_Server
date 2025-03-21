@@ -7,16 +7,21 @@ import (
 	"bloomify/services/booking"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // BookingHandler handles HTTP requests for booking operations.
 type BookingHandler struct {
 	BookingSvc booking.BookingSessionService
+	Logger     *zap.Logger
 }
 
 // NewBookingHandler returns a new BookingHandler instance.
-func NewBookingHandler(svc booking.BookingSessionService) *BookingHandler {
-	return &BookingHandler{BookingSvc: svc}
+func NewBookingHandler(svc booking.BookingSessionService, logger *zap.Logger) *BookingHandler {
+	return &BookingHandler{
+		BookingSvc: svc,
+		Logger:     logger,
+	}
 }
 
 // InitiateSession handles POST /api/booking/session.
@@ -39,9 +44,9 @@ func (h *BookingHandler) InitiateSession(c *gin.Context) {
 		return
 	}
 
-	plan := req.ServicePlan
-	sessionID, providers, err := h.BookingSvc.InitiateSession(plan, userID, req.DeviceID, req.UserAgent)
+	sessionID, providers, err := h.BookingSvc.InitiateSession(req.ServicePlan, userID, req.DeviceID, req.UserAgent)
 	if err != nil {
+		h.Logger.Error("InitiateSession: failed to initiate booking session", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate booking session", "details": err.Error()})
 		return
 	}
@@ -53,7 +58,6 @@ func (h *BookingHandler) InitiateSession(c *gin.Context) {
 }
 
 // UpdateSession handles PUT /api/booking/session/:sessionID.
-// It expects a JSON payload with a selected provider ID.
 func (h *BookingHandler) UpdateSession(c *gin.Context) {
 	sessionID := c.Param("sessionID")
 
@@ -67,6 +71,7 @@ func (h *BookingHandler) UpdateSession(c *gin.Context) {
 
 	session, err := h.BookingSvc.UpdateSession(sessionID, req.SelectedProviderID)
 	if err != nil {
+		h.Logger.Error("UpdateSession: failed to update booking session", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update booking session", "details": err.Error()})
 		return
 	}
@@ -79,7 +84,6 @@ func (h *BookingHandler) UpdateSession(c *gin.Context) {
 }
 
 // ConfirmBooking handles POST /api/booking/confirm.
-// It expects a JSON payload with both a sessionID and a confirmedSlot.
 func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 	var req struct {
 		SessionID     string               `json:"sessionID" binding:"required"`
@@ -92,6 +96,7 @@ func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 
 	bookingResult, err := h.BookingSvc.ConfirmBooking(req.SessionID, req.ConfirmedSlot)
 	if err != nil {
+		h.Logger.Error("ConfirmBooking: failed to confirm booking", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to confirm booking", "details": err.Error()})
 		return
 	}
@@ -107,54 +112,24 @@ func (h *BookingHandler) CancelSession(c *gin.Context) {
 		return
 	}
 	if err := h.BookingSvc.CancelSession(sessionID); err != nil {
+		h.Logger.Error("CancelSession: failed to cancel booking session", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking session", "details": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "booking session cancelled"})
 }
 
-// --- Global Booking Handler Setup ---
-// To allow direct access to booking endpoints via package-level functions.
-var globalBookingHandler *BookingHandler
-
-// SetBookingHandler assigns the global booking handler.
-// This must be called during application initialization.
-func SetBookingHandler(h *BookingHandler) {
-	globalBookingHandler = h
-}
-
-// InitiateSession is a package-level function that delegates to the global booking handler.
-func InitiateSession(c *gin.Context) {
-	if globalBookingHandler == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
+// GetAvailableServices handles GET /api/booking/services.
+func (h *BookingHandler) GetAvailableServices(c *gin.Context) {
+	// Assume h.BookingSvc is of type DefaultBookingSessionService or implements GetAvailableServices.
+	services, err := h.BookingSvc.GetAvailableServices()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to fetch services",
+			"details": err.Error(),
+		})
 		return
 	}
-	globalBookingHandler.InitiateSession(c)
-}
 
-// UpdateSession is a package-level function that delegates to the global booking handler.
-func UpdateSession(c *gin.Context) {
-	if globalBookingHandler == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
-		return
-	}
-	globalBookingHandler.UpdateSession(c)
-}
-
-// ConfirmBooking is a package-level function that delegates to the global booking handler.
-func ConfirmBooking(c *gin.Context) {
-	if globalBookingHandler == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
-		return
-	}
-	globalBookingHandler.ConfirmBooking(c)
-}
-
-// CancelSession is a package-level function that delegates to the global booking handler.
-func CancelSession(c *gin.Context) {
-	if globalBookingHandler == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "booking handler not initialized"})
-		return
-	}
-	globalBookingHandler.CancelSession(c)
+	c.JSON(http.StatusOK, services)
 }

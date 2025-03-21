@@ -18,9 +18,14 @@ func SetUserService(us user.UserService) {
 	userService = us
 }
 
-// RegisterUserHandler creates a new user with device details.
+// RegisterUserHandler orchestrates the three-step registration process.
+// "basic": Initiates registration (returns code 100 on success).
+// "otp": Verifies the OTP (returns code 101 on success).
+// "preferences": Finalizes registration (returns AuthResponse, code 102).
 func RegisterUserHandler(c *gin.Context) {
-	// Extract device details from context (set by DeviceDetailsMiddleware).
+	logger := utils.GetLogger()
+
+	// Extract device details from context.
 	deviceID, exists := c.Get("deviceID")
 	if !exists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device details: X-Device-ID"})
@@ -33,8 +38,6 @@ func RegisterUserHandler(c *gin.Context) {
 	}
 	deviceIP, _ := c.Get("deviceIP")
 	deviceLocation, _ := c.Get("deviceLocation")
-
-	// Build the device model.
 	device := models.Device{
 		DeviceID:   deviceID.(string),
 		DeviceName: deviceName.(string),
@@ -44,21 +47,64 @@ func RegisterUserHandler(c *gin.Context) {
 		Creator:    true,
 	}
 
-	// Bind the incoming JSON to a User model.
-	var reqUser models.User
-	if err := c.ShouldBindJSON(&reqUser); err != nil {
+	// Bind request body.
+	var req models.UserRegistrationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("Invalid registration request", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Call the registration service with the user and device.
-	authResp, err := userService.RegisterUser(reqUser, device)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	switch req.Step {
+	case "basic":
+		if req.BasicData == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing basic registration data"})
+			return
+		}
+		sessionID, code, err := userService.InitiateRegistration(*req.BasicData, device)
+		if err != nil {
+			logger.Error("Basic registration failed", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		// Success: code 100 indicates OTP pending.
+		c.JSON(http.StatusAccepted, gin.H{"sessionID": sessionID, "status": code})
 
-	c.JSON(http.StatusCreated, authResp)
+	case "otp":
+		if req.SessionID == "" || req.OTP == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sessionID or OTP for verification"})
+			return
+		}
+		code, err := userService.VerifyRegistrationOTP(req.SessionID, device.DeviceID, req.OTP)
+		if err != nil {
+			logger.Error("OTP verification failed", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		// Success: code 101 indicates OTP verified.
+		c.JSON(http.StatusOK, gin.H{"sessionID": req.SessionID, "status": code})
+
+	case "preferences":
+		if req.SessionID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sessionID for finalizing registration"})
+			return
+		}
+		if len(req.Preferences) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Preferences are required to finalize registration"})
+			return
+		}
+		authResp, err := userService.FinalizeRegistration(req.SessionID, req.Preferences)
+		if err != nil {
+			logger.Error("Finalizing registration failed", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		// Success: code 102 indicates registration complete.
+		c.JSON(http.StatusCreated, gin.H{"auth": authResp, "code": 102})
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid registration step"})
+	}
 }
 
 // AuthenticateUserHandler handles user sign‑in with device management and OTP.

@@ -35,11 +35,13 @@ func main() {
 	utils.InitCache()
 	utils.InitAuthCache()
 
+	// Initialize Cloudinary Storage Service.
 	cloudinaryStorageService, err := utils.Cloudinary()
 	if err != nil {
 		logger.Sugar().Fatalf("main: failed to initialize cloudinary storage service: %v", err)
 	}
 
+	// Create the Gin router.
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(utils.ErrorHandler())
@@ -47,9 +49,11 @@ func main() {
 	router.Use(middleware.RateLimitMiddleware())
 	router.Use(middleware.GeolocationMiddleware())
 
+	// Setup repositories.
 	provRepo := providerRepo.NewMongoProviderRepo()
 	userRepo := userRepoPkg.NewMongoUserRepo()
 
+	// Setup services.
 	userService := &user.DefaultUserService{
 		Repo: userRepo,
 	}
@@ -62,6 +66,7 @@ func main() {
 	ProviderDeviceHandler := handlers.NewProviderDeviceHandler(providerService)
 	UserDeviceHandler := handlers.NewUserDeviceHandler(userService)
 
+	// Setup booking services.
 	matchingServiceInstance := &booking.DefaultMatchingService{
 		ProviderRepo: provRepo,
 	}
@@ -74,15 +79,16 @@ func main() {
 		MatchingSvc:     matchingServiceInstance,
 		SchedulerEngine: schedulingEngineInstance,
 	}
+	// Create the booking handler directly using dependency injection.
+	bookingHandler := handlers.NewBookingHandler(bookingService, logger)
 
-	bookingHandler := handlers.NewBookingHandler(bookingService)
-	handlers.SetBookingHandler(bookingHandler)
+	// Setup other handlers.
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
 	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
 
-	// Assemble the handler bundle
+	// Assemble the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
-		// Provider endpoints
+		// Provider endpoints.
 		ProviderRepo:                   provRepo,
 		UserRepo:                       userRepo,
 		GetProviderByIDHandler:         providerHandler.GetProviderByIDHandler,
@@ -91,64 +97,66 @@ func main() {
 		UpdateProviderHandler:          providerHandler.UpdateProviderHandler,
 		DeleteProviderHandler:          providerHandler.DeleteProviderHandler,
 		AuthenticateProviderHandler:    providerHandler.AuthenticateProviderHandler,
-		KYPVerificationHandler:         handlers.KYPVerificationHandler,
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
 		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler,
 
-		// Provider device endpoints
+		// Provider device endpoints.
 		GetProviderDevicesHandler:          ProviderDeviceHandler.GetProviderDevicesHandler,
 		SignOutOtherProviderDevicesHandler: ProviderDeviceHandler.SignOutOtherProviderDevicesHandler,
 
-		// Booking endpoints
-		InitiateSession: bookingHandler.InitiateSession,
-		UpdateSession:   bookingHandler.UpdateSession,
-		ConfirmBooking:  bookingHandler.ConfirmBooking,
-		CancelSession:   bookingHandler.CancelSession,
+		// Booking endpoints.
+		InitiateSession:      bookingHandler.InitiateSession,
+		UpdateSession:        bookingHandler.UpdateSession,
+		ConfirmBooking:       bookingHandler.ConfirmBooking,
+		CancelSession:        bookingHandler.CancelSession,
+		GetAvailableServices: bookingHandler.GetAvailableServices,
 
-		// AI endpoints
+		// AI endpoints.
 		AIRecommendHandler: handlers.AIRecommendHandler,
 		AISuggestHandler:   handlers.AISuggestHandler,
 		AutoBookHandler:    handlers.AutoBookHandler,
 
-		// User endpoints
-		RegisterUserHandler:          handlers.RegisterUserHandler,
-		AuthenticateUserHandler:      handlers.AuthenticateUserHandler,
-		GetUserByIDHandler:           handlers.GetUserByIDHandler,
-		GetUserByEmailHandler:        handlers.GetUserByEmailHandler,
-		UpdateUserHandler:            handlers.UpdateUserHandler,
-		DeleteUserHandler:            handlers.DeleteUserHandler,
-		RevokeUserAuthTokenHandler:   handlers.RevokeUserAuthTokenHandler,
-		UpdateUserPreferencesHandler: handlers.UpdateUserPreferencesHandler,
-		UpdateUserPasswordHandler:    handlers.UpdateUserPasswordHandler,
+		// User endpoints.
+		RegisterUserHandler:        handlers.RegisterUserHandler,
+		AuthenticateUserHandler:    handlers.AuthenticateUserHandler,
+		GetUserByIDHandler:         handlers.GetUserByIDHandler,
+		GetUserByEmailHandler:      handlers.GetUserByEmailHandler,
+		UpdateUserHandler:          handlers.UpdateUserHandler,
+		DeleteUserHandler:          handlers.DeleteUserHandler,
+		RevokeUserAuthTokenHandler: handlers.RevokeUserAuthTokenHandler,
+		UpdateUserPasswordHandler:  handlers.UpdateUserPasswordHandler,
 
-		// User device endpoints
+		// User device endpoints.
 		GetUserDevicesHandler:          UserDeviceHandler.GetUserDevicesHandler,
 		SignOutOtherUserDevicesHandler: UserDeviceHandler.SignOutOtherUserDevicesHandler,
 
-		// OTP endpoints
-		VerifyOTPHandler:     handlers.VerifyOTPHandler,
+		// OTP endpoints.
+		VerifyOTPHandler: handlers.VerifyOTPHandler,
+
+		// Password reset endpoints for users.
 		ResetPasswordHandler: handlers.ResetUserPasswordHandler,
 
-		// Provider forgot password endpoint
+		// Provider forgot password endpoint.
 		ResetProviderPasswordHandler: handlers.ResetProviderPasswordHandler,
 
-		// Admin endpoints
+		// Admin endpoints.
 		AdminHandler: adminHandler,
 
-		// Storage endpoints
+		// Storage endpoints.
 		StorageHandler:        storageHandler,
 		UploadFileHandler:     storageHandler.UploadFileHandler,
 		GetDownloadURLHandler: storageHandler.GetDownloadURLHandler,
 	}
 
+	// Register routes with the assembled handler bundle.
 	routes.RegisterRoutes(router, handlerBundle)
 
+	// Start the HTTP server.
 	port := config.AppConfig.AppPort
 	if port == "" {
 		port = "8080"
 	}
-
 	srv := &http.Server{
 		Addr:    "0.0.0.0:" + port,
 		Handler: router,

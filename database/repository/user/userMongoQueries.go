@@ -149,3 +149,29 @@ func (r *MongoUserRepo) GetAllSafe() ([]models.User, error) {
 	projection := bson.M{"password_hash": 0, "token_hash": 0}
 	return r.GetAllWithProjection(projection)
 }
+
+// IsUserAvailable checks whether a user with the given username or email already exists.
+func (r *MongoUserRepo) IsUserAvailable(basicReq models.UserBasicRegistrationData) (bool, error) {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Create a filter that checks for the given username or email.
+	filter := bson.M{
+		"$or": []bson.M{
+			{"username": basicReq.Username},
+			{"email": basicReq.Email},
+		},
+	}
+	var user models.User
+	err := r.coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		// If no document was found, it's available.
+		if err.Error() == "mongo: no documents in result" {
+			return true, nil
+		}
+		// Otherwise, return the error.
+		return false, err
+	}
+	// Document found – username or email is taken.
+	return false, nil
+}

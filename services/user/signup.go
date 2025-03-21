@@ -1,9 +1,7 @@
 package user
 
 import (
-	"context"
 	"fmt"
-	"regexp"
 	"time"
 
 	"bloomify/models"
@@ -15,173 +13,153 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// AuthResponse contains the user's ID, token, and additional details.
-type AuthResponse struct {
-	ID           string `json:"id"`
-	Token        string `json:"token"`
-	Username     string `json:"username,omitempty"`
-	Email        string `json:"email,omitempty"`
-	PhoneNumber  string `json:"phoneNumber,omitempty"`
-	ProfileImage string `json:"profileImage,omitempty"`
-	Rating       int    `json:"rating,omitempty"`
+// InitiateRegistration validates basic data, checks for duplicates, creates a registration session,
+// initiates OTP, and returns the session ID with code 100 (OTP pending).
+func (s *DefaultUserService) InitiateRegistration(basicReq models.UserBasicRegistrationData, device models.Device) (string, int, error) {
+	if basicReq.Email == "" || basicReq.Password == "" || basicReq.Username == "" || basicReq.PhoneNumber == "" {
+		return "", 0, fmt.Errorf("all fields are required")
+	}
+
+	// Check if username/email is available
+	available, err := s.Repo.IsUserAvailable(basicReq)
+	if err != nil {
+		utils.GetLogger().Error("InitiateRegistration: availability check failed", zap.Error(err))
+		return "", 0, fmt.Errorf("registration failed, please try again")
+	}
+	if !available {
+		return "", 0, fmt.Errorf("a user with this email or username already exists")
+	}
+
+	existing, err := s.Repo.GetByEmailWithProjection(basicReq.Email, bson.M{"id": 1})
+	if err != nil {
+		utils.GetLogger().Error("InitiateRegistration: failed to check for existing user", zap.Error(err))
+		return "", 0, fmt.Errorf("registration failed, please try again")
+	}
+	if existing != nil {
+		return "", 0, fmt.Errorf("a user with this email already exists")
+	}
+
+	sessionClient := utils.GetAuthCacheClient()
+	sessionID := fmt.Sprintf("%s:%s", basicReq.Email, device.DeviceID)
+
+	regSession := models.UserRegistrationSession{
+		TempID: sessionID,
+		BasicData: &models.UserBasicRegistrationData{
+			Username:    basicReq.Username,
+			Email:       basicReq.Email,
+			Password:    basicReq.Password,
+			PhoneNumber: basicReq.PhoneNumber,
+		},
+		OTPStatus:     "pending",
+		CreatedAt:     time.Now(),
+		LastUpdatedAt: time.Now(),
+		Devices:       []models.Device{device},
+	}
+
+	if err := utils.InitiateDeviceOTP(basicReq.Email, device.DeviceID, basicReq.PhoneNumber); err != nil {
+		return "", 0, fmt.Errorf("failed to initiate OTP: %w", err)
+	}
+
+	if err := SaveUserRegistrationSession(sessionClient, sessionID, regSession, 30*time.Minute); err != nil {
+		return "", 0, fmt.Errorf("failed to save registration session: %w", err)
+	}
+
+	// Return sessionID with code 100 (OTP pending).
+	return sessionID, 100, nil
 }
 
-// verifyPasswordComplexity checks that the password contains at least one lowercase letter,
-// one uppercase letter, one digit, and one symbol.
-func VerifyPasswordComplexity(pw string) error {
-	var (
-		hasMinLen = len(pw) >= 8
-		hasUpper  = regexp.MustCompile(`[A-Z]`).MatchString(pw)
-		hasLower  = regexp.MustCompile(`[a-z]`).MatchString(pw)
-		hasNumber = regexp.MustCompile(`[0-9]`).MatchString(pw)
-		hasSymbol = regexp.MustCompile(`[\W_]`).MatchString(pw) // non-alphanumeric
-	)
-	if !hasMinLen {
-		return fmt.Errorf("password must be at least 8 characters long")
+// VerifyRegistrationOTP retrieves the session, verifies the OTP, updates the session to "verified",
+// and returns code 101 (OTP verified).
+func (s *DefaultUserService) VerifyRegistrationOTP(sessionID string, deviceID string, providedOTP string) (int, error) {
+	sessionClient := utils.GetAuthCacheClient()
+	regSession, err := GetUserRegistrationSession(sessionClient, sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to retrieve registration session: %w", err)
 	}
-	if !hasUpper {
-		return fmt.Errorf("password must include at least one uppercase letter")
+
+	if err := utils.VerifyDeviceOTPRecord(regSession.BasicData.Email, deviceID, providedOTP); err != nil {
+		return 0, fmt.Errorf("OTP verification failed: %w", err)
 	}
-	if !hasLower {
-		return fmt.Errorf("password must include at least one lowercase letter")
+
+	regSession.OTPStatus = "verified"
+	regSession.LastUpdatedAt = time.Now()
+	if err := SaveUserRegistrationSession(sessionClient, sessionID, regSession, 30*time.Minute); err != nil {
+		return 0, fmt.Errorf("failed to update registration session: %w", err)
 	}
-	if !hasNumber {
-		return fmt.Errorf("password must include at least one number")
-	}
-	if !hasSymbol {
-		return fmt.Errorf("password must include at least one symbol")
-	}
-	return nil
+
+	// Return code 101 to indicate OTP verified.
+	return 101, nil
 }
 
-// RegisterUser creates a new user, stores device details (with its token hash), and clears the device-specific Redis cache.
-func (s *DefaultUserService) RegisterUser(user models.User, device models.Device) (*AuthResponse, error) {
-	// Validate required fields.
-	if user.Email == "" || user.Password == "" {
-		return nil, fmt.Errorf("email and password are required")
+// FinalizeRegistration retrieves the session, builds and persists the user record using stored basic data and provided preferences,
+// clears the registration session, and returns an AuthResponse. (Finalization corresponds to code 102.)
+func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences []string) (*AuthResponse, error) {
+	sessionClient := utils.GetAuthCacheClient()
+	regSession, err := GetUserRegistrationSession(sessionClient, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve registration session: %w", err)
 	}
-	if user.Username == "" {
-		return nil, fmt.Errorf("username is required")
+	if regSession.OTPStatus != "verified" {
+		return nil, fmt.Errorf("OTP not verified")
 	}
-	if user.PhoneNumber == "" {
-		return nil, fmt.Errorf("phone number is required")
+	if regSession.BasicData == nil {
+		return nil, fmt.Errorf("registration session missing basic data")
 	}
 
-	// Verify password complexity.
-	if err := VerifyPasswordComplexity(user.Password); err != nil {
+	if err := VerifyPasswordComplexity(regSession.BasicData.Password); err != nil {
 		return nil, err
 	}
 
-	// Check for an existing user.
-	existing, err := s.Repo.GetByEmailWithProjection(user.Email, bson.M{"id": 1})
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(regSession.BasicData.Password), bcrypt.DefaultCost)
 	if err != nil {
-		utils.GetLogger().Error("Failed to check for existing user", zap.Error(err))
+		utils.GetLogger().Error("FinalizeRegistration: Failed to hash password", zap.Error(err))
 		return nil, fmt.Errorf("registration failed, please try again")
 	}
-	if existing != nil {
-		return nil, fmt.Errorf("a user with this email already exists")
-	}
 
-	// Hash the provided password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		utils.GetLogger().Error("Failed to hash password", zap.Error(err))
-		return nil, fmt.Errorf("registration failed, please try again")
+	userObj := models.User{
+		Username:     regSession.BasicData.Username,
+		Email:        regSession.BasicData.Email,
+		PhoneNumber:  regSession.BasicData.PhoneNumber,
+		PasswordHash: string(hashedPassword),
+		Password:     "",
+		Preferences:  preferences,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
-	user.PasswordHash = string(hashedPassword)
-	user.Password = ""
+	userObj.ID = uuid.New().String()
 
-	// Generate a new unique ID and set timestamps.
-	user.ID = uuid.New().String()
+	if len(regSession.Devices) == 0 {
+		return nil, fmt.Errorf("registration session missing device information")
+	}
+	device := regSession.Devices[0]
 	now := time.Now()
-	user.CreatedAt = now
-	user.UpdatedAt = now
-
-	// Prepare the device details.
 	device.LastLogin = now
 	device.Creator = true
 
-	// Generate a JWT token for the new user that includes the device ID.
-	token, err := utils.GenerateToken(user.ID, user.Email, device.DeviceID)
+	token, err := utils.GenerateToken(userObj.ID, userObj.Email, device.DeviceID)
 	if err != nil {
-		utils.GetLogger().Error("Failed to generate auth token", zap.Error(err))
+		utils.GetLogger().Error("FinalizeRegistration: Failed to generate auth token", zap.Error(err))
 		return nil, fmt.Errorf("registration failed, please try again")
 	}
-	// Compute the token hash and assign it to the device.
 	tokenHash := utils.HashToken(token)
 	device.TokenHash = tokenHash
 
-	// Attach the device to the user.
-	user.Devices = []models.Device{device}
+	userObj.Devices = []models.Device{device}
 
-	// Persist the new user with the device (including token hash).
-	if err := s.Repo.Create(&user); err != nil {
-		utils.GetLogger().Error("Failed to create user", zap.Error(err))
+	if err := s.Repo.Create(&userObj); err != nil {
+		utils.GetLogger().Error("FinalizeRegistration: Failed to create user", zap.Error(err))
 		return nil, fmt.Errorf("registration failed, please try again")
 	}
 
-	// Clear the Redis cache entry for this device using a composite key.
-	cacheKey := utils.AuthCachePrefix + user.ID + ":" + device.DeviceID
-	authCache := utils.GetAuthCacheClient()
-	_ = authCache.Del(context.Background(), cacheKey)
+	_ = DeleteUserRegistrationSession(sessionClient, sessionID)
 
-	// Return the auth response.
 	return &AuthResponse{
-		ID:           user.ID,
+		ID:           userObj.ID,
 		Token:        token,
-		Username:     user.Username,
-		Email:        user.Email,
-		PhoneNumber:  user.PhoneNumber,
-		ProfileImage: user.ProfileImage,
-		Rating:       user.Rating,
+		Username:     userObj.Username,
+		Email:        userObj.Email,
+		PhoneNumber:  userObj.PhoneNumber,
+		ProfileImage: userObj.ProfileImage,
+		Rating:       userObj.Rating,
 	}, nil
-}
-
-func (s *DefaultUserService) RevokeUserAuthToken(userID, deviceID string) error {
-	// Retrieve the user record.
-	user, err := s.Repo.GetByIDWithProjection(userID, nil)
-	if err != nil {
-		utils.GetLogger().Error("Failed to retrieve user", zap.String("userID", userID), zap.Error(err))
-		return fmt.Errorf("failed to logout, please try again")
-	}
-	if user == nil {
-		return fmt.Errorf("user not found")
-	}
-
-	// Clear the token hash for the specified device.
-	deviceFound := false
-	for i, d := range user.Devices {
-		if d.DeviceID == deviceID {
-			user.Devices[i].TokenHash = ""
-			deviceFound = true
-			break
-		}
-	}
-	if !deviceFound {
-		return fmt.Errorf("device not found")
-	}
-
-	// Build update document to patch only devices and updated_at.
-	now := time.Now()
-	updateDoc := bson.M{
-		"$set": bson.M{
-			"devices":    user.Devices,
-			"updated_at": now,
-		},
-	}
-
-	// Update the user record using UpdateWithDocument.
-	if err := s.Repo.UpdateWithDocument(userID, updateDoc); err != nil {
-		utils.GetLogger().Error("Failed to revoke user auth token", zap.String("userID", userID), zap.Error(err))
-		return fmt.Errorf("failed to logout, please try again")
-	}
-
-	// Clear the Redis cache entry using the composite key.
-	cacheKey := utils.AuthCachePrefix + userID + ":" + deviceID
-	authCache := utils.GetAuthCacheClient()
-	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
-		utils.GetLogger().Error("Failed to clear auth cache on logout", zap.Error(err))
-	}
-
-	return nil
 }

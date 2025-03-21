@@ -11,14 +11,13 @@ type HandlerBundle struct {
 	ProviderRepo providerRepoPkg.ProviderRepository
 	UserRepo     userRepoPkg.UserRepository
 
-	// Provider endpoints
+	// Provider endpoints (unified registration endpoint now)
 	GetProviderByIDHandler         gin.HandlerFunc
 	GetProviderByEmailHandler      gin.HandlerFunc
-	RegisterProviderHandler        gin.HandlerFunc
+	RegisterProviderHandler        gin.HandlerFunc // Unified registration (basic/OTP/KYP/catalogue)
 	UpdateProviderHandler          gin.HandlerFunc
 	DeleteProviderHandler          gin.HandlerFunc
 	AuthenticateProviderHandler    gin.HandlerFunc
-	KYPVerificationHandler         gin.HandlerFunc
 	AdvanceVerifyProviderHandler   gin.HandlerFunc
 	RevokeProviderAuthTokenHandler gin.HandlerFunc
 	SetupTimeslotsHandler          gin.HandlerFunc
@@ -28,10 +27,11 @@ type HandlerBundle struct {
 	SignOutOtherProviderDevicesHandler gin.HandlerFunc
 
 	// Booking endpoints
-	InitiateSession gin.HandlerFunc
-	UpdateSession   gin.HandlerFunc
-	ConfirmBooking  gin.HandlerFunc
-	CancelSession   gin.HandlerFunc
+	InitiateSession      gin.HandlerFunc
+	UpdateSession        gin.HandlerFunc
+	ConfirmBooking       gin.HandlerFunc
+	CancelSession        gin.HandlerFunc
+	GetAvailableServices gin.HandlerFunc
 
 	// AI endpoints
 	AIRecommendHandler gin.HandlerFunc
@@ -39,21 +39,20 @@ type HandlerBundle struct {
 	AutoBookHandler    gin.HandlerFunc
 
 	// User endpoints
-	RegisterUserHandler          gin.HandlerFunc
-	AuthenticateUserHandler      gin.HandlerFunc
-	GetUserByIDHandler           gin.HandlerFunc
-	GetUserByEmailHandler        gin.HandlerFunc
-	UpdateUserHandler            gin.HandlerFunc
-	DeleteUserHandler            gin.HandlerFunc
-	RevokeUserAuthTokenHandler   gin.HandlerFunc
-	UpdateUserPreferencesHandler gin.HandlerFunc
-	UpdateUserPasswordHandler    gin.HandlerFunc
+	RegisterUserHandler        gin.HandlerFunc
+	AuthenticateUserHandler    gin.HandlerFunc
+	GetUserByIDHandler         gin.HandlerFunc
+	GetUserByEmailHandler      gin.HandlerFunc
+	UpdateUserHandler          gin.HandlerFunc
+	DeleteUserHandler          gin.HandlerFunc
+	RevokeUserAuthTokenHandler gin.HandlerFunc
+	UpdateUserPasswordHandler  gin.HandlerFunc
 
 	// User device endpoints
 	GetUserDevicesHandler          gin.HandlerFunc
 	SignOutOtherUserDevicesHandler gin.HandlerFunc
 
-	// OTP endpoints
+	// OTP endpoints (for user OTP verification, if separate)
 	VerifyOTPHandler gin.HandlerFunc
 
 	// Password reset endpoints for users

@@ -26,7 +26,6 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
 	)
 	{
-		api.PUT("/preferences/:id", hb.UpdateUserPreferencesHandler)
 		api.GET("/id/:id", hb.GetUserByIDHandler)
 		api.GET("/email/:email", hb.GetUserByEmailHandler)
 		api.PUT("/update/:id", hb.UpdateUserHandler)
@@ -45,9 +44,6 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	{
 		api.POST("/register", hb.RegisterProviderHandler)
 		api.POST("/login", hb.AuthenticateProviderHandler)
-		api.POST("/kyp/verify", hb.KYPVerificationHandler)
-
-		// Add the provider forgot password endpoint.
 		api.POST("/reset-password", hb.ResetProviderPasswordHandler)
 
 		// Public routes requiring partial JWT verification but no device auth.
@@ -92,12 +88,17 @@ func RegisterHealthRoute(r *gin.Engine) {
 
 func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	bookingGroup := r.Group("/api/booking")
+	bookingGroup.Use(
+		middleware.DeviceDetailsMiddleware(),
+		middleware.JWTAuthUserMiddleware(hb.UserRepo),
+		middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
+	)
 	{
-		bookingGroup.Use(middleware.JWTAuthUserMiddleware(hb.UserRepo))
 		bookingGroup.POST("/session", hb.InitiateSession)
 		bookingGroup.PUT("/session/:sessionID", hb.UpdateSession)
 		bookingGroup.POST("/confirm", hb.ConfirmBooking)
 		bookingGroup.DELETE("/session/:sessionID", hb.CancelSession)
+		bookingGroup.GET("/services", hb.GetAvailableServices)
 	}
 }
 

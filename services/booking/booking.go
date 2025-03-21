@@ -1,4 +1,3 @@
-// File: booking/booking_session_service.go
 package booking
 
 import (
@@ -20,7 +19,7 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 	sessionID := uuid.New().String()
 
 	matchedProviders, err := s.MatchingSvc.MatchProviders(plan)
-	if err != nil { // ✅ Correct error handling
+	if err != nil {
 		return "", nil, fmt.Errorf("failed to match providers: %w", err)
 	}
 
@@ -34,12 +33,12 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 	}
 
 	sessionData, err := json.Marshal(session)
-	if err != nil { // ✅ Correct error check
+	if err != nil {
 		return "", nil, fmt.Errorf("failed to marshal booking session: %w", err)
 	}
 
 	cacheClient := utils.GetBookingCacheClient()
-	if err := cacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil { // ✅ Correct
+	if err := cacheClient.Set(ctx, sessionID, sessionData, 10*time.Minute).Err(); err != nil {
 		return "", nil, fmt.Errorf("failed to store booking session: %w", err)
 	}
 
@@ -78,13 +77,12 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	session.SelectedProvider = selectedProviderID
 	session.Availability = nil
 
-	// Convert selectedDTO to a minimal Provider (only required fields for scheduling).
+	// Convert selectedDTO to a minimal Provider for scheduling.
 	selectedProvider := models.Provider{
-		ID:          selectedDTO.ID,
-		ServiceType: selectedDTO.ServiceType,
-		Location:    selectedDTO.Location,
-		LocationGeo: selectedDTO.LocationGeo,
-		Profile:     selectedDTO.Profile,
+		ID:               selectedDTO.ID,
+		ServiceCatalogue: selectedDTO.ServiceCatalogue,
+		LocationGeo:      selectedDTO.LocationGeo,
+		Profile:          selectedDTO.Profile,
 	}
 
 	slots, err := s.SchedulerEngine.GetAvailableTimeSlots(selectedProvider, 0)
@@ -110,7 +108,6 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 	ctx := context.Background()
 	cacheClient := utils.GetBookingCacheClient()
 
-	// Retrieve the booking session.
 	sessionData, err := cacheClient.Get(ctx, sessionID).Result()
 	if err != nil {
 		return nil, fmt.Errorf("booking session not found or expired: %w", err)
@@ -136,11 +133,10 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 
 	// Convert DTO to a minimal Provider.
 	selectedProvider := models.Provider{
-		ID:          selectedDTO.ID,
-		ServiceType: selectedDTO.ServiceType,
-		Location:    selectedDTO.Location,
-		LocationGeo: selectedDTO.LocationGeo,
-		Profile:     selectedDTO.Profile,
+		ID:               selectedDTO.ID,
+		ServiceCatalogue: selectedDTO.ServiceCatalogue,
+		LocationGeo:      selectedDTO.LocationGeo,
+		Profile:          selectedDTO.Profile,
 	}
 
 	bookingRecord := models.Booking{

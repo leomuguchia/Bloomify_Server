@@ -233,3 +233,29 @@ func (r *MongoProviderRepo) GetAll() ([]models.Provider, error) {
 func (r *MongoProviderRepo) GetByServiceType(service string) ([]models.Provider, error) {
 	return r.GetByServiceTypeWithProjection(service, nil)
 }
+
+// IsProviderAvailable checks if a provider with the given email or username already exists.
+func (r *MongoProviderRepo) IsProviderAvailable(basicReq models.ProviderBasicRegistrationData) (bool, error) {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Filter for existing provider by email or username.
+	filter := bson.M{
+		"$or": []bson.M{
+			{"email": basicReq.Email},
+			{"username": basicReq.Username},
+		},
+	}
+
+	var provider models.Provider
+	err := r.coll.FindOne(ctx, filter).Decode(&provider)
+	if err != nil {
+		// If no document is found, then it's available.
+		if err.Error() == "mongo: no documents in result" {
+			return true, nil
+		}
+		return false, err
+	}
+	// Document found – provider details are taken.
+	return false, nil
+}

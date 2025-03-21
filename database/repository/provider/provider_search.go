@@ -22,11 +22,29 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	defer cancel()
 
 	filter := bson.M{}
+
+	// Filter by baseline service type within the service catalogue.
 	if criteria.ServiceType != "" {
-		filter["service_type"] = bson.M{"$regex": criteria.ServiceType, "$options": "i"}
+		filter["service_catalogue.service_type"] = bson.M{
+			"$regex":   criteria.ServiceType,
+			"$options": "i",
+		}
 	}
+
+	// Filter by service mode within the service catalogue.
+	if criteria.ServiceMode != "" {
+		filter["service_catalogue.mode"] = bson.M{
+			"$regex":   criteria.ServiceMode,
+			"$options": "i",
+		}
+	}
+
+	// Filter by location if provided.
 	if criteria.Location != "" {
-		filter["location"] = bson.M{"$regex": criteria.Location, "$options": "i"}
+		filter["location"] = bson.M{
+			"$regex":   criteria.Location,
+			"$options": "i",
+		}
 	}
 	if criteria.MaxDistanceKm > 0 {
 		maxDistanceMeters := criteria.MaxDistanceKm * 1000
@@ -40,6 +58,8 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 			},
 		}
 	}
+
+	// Ensure provider status is active or online.
 	filter["status"] = bson.M{"$in": []string{"active", "online"}}
 
 	logger.Debug("AdvancedSearch: constructed filter", zap.Any("filter", filter))

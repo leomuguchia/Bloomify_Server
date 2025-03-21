@@ -8,12 +8,12 @@ import (
 
 // ProviderSearchCriteria defines criteria for an advanced provider search.
 type ProviderSearchCriteria struct {
-	ServiceType          string
-	Location             string
-	MinRating            float64
-	MinCompletedBookings int
-	MaxDistanceKm        float64
-	LocationGeo          models.GeoPoint
+	ServiceType   string
+	ServiceMode   string
+	Location      string
+	MaxDistanceKm float64
+	LocationGeo   models.GeoPoint
+	Mode          string
 }
 
 // ProviderRepository defines methods for provider data access.
@@ -46,4 +46,6 @@ type ProviderRepository interface {
 	GetByTokenHash(tokenHash string) (*models.Provider, error)
 	// UpdateWithDocument patches a provider document with the specified update document.
 	UpdateWithDocument(id string, updateDoc bson.M) error
+	// IsProviderAvailable checks if a provider with the given basic registration details already exists.
+	IsProviderAvailable(basicReq models.ProviderBasicRegistrationData) (bool, error)
 }

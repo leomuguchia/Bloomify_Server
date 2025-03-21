@@ -4,21 +4,21 @@ package models
 import "time"
 
 type Device struct {
-	DeviceID   string    `bson:"device_id" json:"device_id"`
-	DeviceName string    `bson:"device_name" json:"device_name"`
+	DeviceID   string    `bson:"deviceId" json:"deviceId"`
+	DeviceName string    `bson:"deviceName" json:"deviceName"`
 	IP         string    `bson:"ip" json:"ip"`
 	Location   string    `bson:"location" json:"location"`
-	LastLogin  time.Time `bson:"last_login" json:"last_login"`
+	LastLogin  time.Time `bson:"lastLogin" json:"lastLogin"`
 	Creator    bool      `bson:"creator" json:"creator"`
-	TokenHash  string    `bson:"token_hash" json:"-"`
+	TokenHash  string    `bson:"tokenHash" json:"-"`
 }
 
 // DeviceOTP holds temporary OTP data for device verification.
 type DeviceOTP struct {
-	UserID    string    `json:"user_id"`
-	DeviceID  string    `json:"device_id"`
+	UserID    string    `json:"userId"`
+	DeviceID  string    `json:"deviceId"`
 	OTP       string    `json:"otp"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 type OTPPendingError struct {

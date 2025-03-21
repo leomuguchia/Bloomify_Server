@@ -6,7 +6,6 @@ import (
 	"math"
 	"sort"
 	"sync"
-	"time"
 
 	"bloomify/database/repository"
 	"bloomify/models"
@@ -28,8 +27,8 @@ type DefaultMatchingService struct {
 
 func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error) {
 	criteria := repository.ProviderSearchCriteria{
-		ServiceType:   plan.Service,
-		Location:      plan.Location,
+		ServiceType:   plan.ServiceType,
+		Mode:          plan.Mode,
 		MaxDistanceKm: 5,
 		LocationGeo:   plan.LocationGeo,
 	}
@@ -49,7 +48,6 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 		return nil, fmt.Errorf("no providers found for service '%s'", criteria.ServiceType)
 	}
 
-	// Extract search center from criteria.LocationGeo.
 	if len(criteria.LocationGeo.Coordinates) < 2 {
 		return nil, fmt.Errorf("invalid search center coordinates")
 	}
@@ -72,7 +70,6 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 	computeCompletedScore := func(completed int) float64 {
 		return math.Log10(float64(completed+1)) * MaxCompletedPts / math.Log10(101)
 	}
-
 	computeRatingScore := func(rating float64) float64 {
 		if rating > 5 {
 			rating = 5
@@ -165,13 +162,11 @@ func extractProvidersDTO(ranked []RankedProvider) []models.ProviderDTO {
 	var dtos []models.ProviderDTO
 	for _, rp := range ranked {
 		dto := models.ProviderDTO{
-			ID:          rp.Provider.ID,
-			Profile:     rp.Provider.Profile,
-			ServiceType: rp.Provider.ServiceType,
-			Location:    rp.Provider.Location,
-			LocationGeo: rp.Provider.LocationGeo,
-			CreatedAt:   rp.Provider.CreatedAt.Format(time.RFC3339),
-			Preferred:   rp.Preferred,
+			ID:               rp.Provider.ID,
+			Profile:          rp.Provider.Profile,
+			ServiceCatalogue: rp.Provider.ServiceCatalogue,
+			LocationGeo:      rp.Provider.LocationGeo,
+			Preferred:        rp.Preferred,
 		}
 		dtos = append(dtos, dto)
 	}

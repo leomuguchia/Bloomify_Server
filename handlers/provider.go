@@ -21,6 +21,7 @@ func NewProviderHandler(ps provider.ProviderService) *ProviderHandler {
 	return &ProviderHandler{Service: ps}
 }
 
+// RegisterProviderHandler orchestrates the multi‑step registration process.
 func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 
@@ -36,7 +37,6 @@ func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 	}
 	deviceIP, _ := c.Get("deviceIP")
 	deviceLocation, _ := c.Get("deviceLocation")
-
 	device := models.Device{
 		DeviceID:   deviceID.(string),
 		DeviceName: deviceName.(string),
@@ -46,21 +46,73 @@ func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 		Creator:    true,
 	}
 
-	var reqProvider models.Provider
-	if err := c.ShouldBindJSON(&reqProvider); err != nil {
+	var req models.ProviderRegistrationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Error("Invalid registration request", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
 	}
 
-	createdProvider, err := h.Service.RegisterProvider(reqProvider, device)
-	if err != nil {
-		logger.Error("Failed to register provider", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register provider"})
-		return
+	switch req.Step {
+	case "basic":
+		// Step 1: Basic Registration + OTP Initiation.
+		if req.BasicData == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing basic registration data"})
+			return
+		}
+		sessionID, status, err := h.Service.RegisterBasic(*req.BasicData, device)
+		if err != nil {
+			logger.Error("Failed in basic registration", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Basic registration failed: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"sessionID": sessionID, "status": status})
+	case "otp":
+		// Step 1.5: OTP Verification.
+		if req.SessionID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sessionID for OTP verification"})
+			return
+		}
+		if req.OTP == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing OTP"})
+			return
+		}
+		status, err := h.Service.VerifyOTP(req.SessionID, device.DeviceID, req.OTP)
+		if err != nil {
+			logger.Error("Failed in OTP verification", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "OTP verification failed: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"sessionID": req.SessionID, "status": status})
+	case "kyp":
+		// Step 2: KYP Verification.
+		if req.SessionID == "" || req.KYPData == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sessionID or KYP data"})
+			return
+		}
+		status, err := h.Service.VerifyKYP(req.SessionID, *req.KYPData)
+		if err != nil {
+			logger.Error("Failed in KYP verification", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "KYP verification failed: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"sessionID": req.SessionID, "status": status})
+	case "catalogue":
+		// Step 3: Service Catalogue & Finalization.
+		if req.SessionID == "" || req.ServiceCatalogue == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sessionID or service catalogue data"})
+			return
+		}
+		providerAuthResp, err := h.Service.FinalizeRegistration(req.SessionID, *req.ServiceCatalogue)
+		if err != nil {
+			logger.Error("Failed to finalize registration", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration finalization failed: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusCreated, providerAuthResp)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid registration step"})
 	}
-
-	c.JSON(http.StatusCreated, createdProvider)
 }
 
 func (h *ProviderHandler) AuthenticateProviderHandler(c *gin.Context) {

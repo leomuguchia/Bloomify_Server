@@ -8,6 +8,7 @@ type BookingSessionService interface {
 	UpdateSession(sessionID string, selectedProviderID string) (*models.BookingSession, error)
 	ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error)
 	CancelSession(sessionID string) error
+	GetAvailableServices() ([]models.Service, error)
 }
 
 type DefaultBookingSessionService struct {

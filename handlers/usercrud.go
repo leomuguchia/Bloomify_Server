@@ -67,25 +67,6 @@ func DeleteUserHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
 }
 
-// UpdateUserPreferencesHandler handles PUT /users/preferences/:id.
-func UpdateUserPreferencesHandler(c *gin.Context) {
-	userID := c.Param("id")
-	var req struct {
-		Preferences []string `json:"preferences" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := userService.UpdateUserPreferences(userID, req.Preferences); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Preferences updated successfully"})
-}
-
 // UpdateUserPasswordHandler handles PUT /users/password/:id.
 // It expects a JSON payload with "currentPassword" and "newPassword".
 func UpdateUserPasswordHandler(c *gin.Context) {

@@ -15,7 +15,7 @@ import (
 
 // AuthenticateProvider verifies credentials, handles OTP for new devices,
 // updates the per‑device token hash, and returns an enriched auth response.
-func (s *DefaultProviderService) AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*ProviderAuthResponse, error) {
+func (s *DefaultProviderService) AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*models.ProviderAuthResponse, error) {
 	// 1. Fetch provider details using a projection.
 	projection := bson.M{
 		"password_hash": 1,
@@ -146,13 +146,13 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 	_ = utils.DeleteAuthSession(sessionClient, sessionID)
 
 	// 12. Build and return the enriched authentication response.
-	return &ProviderAuthResponse{
+	return &models.ProviderAuthResponse{
 		ID:           provider.ID,
 		Token:        token,
 		Profile:      provider.Profile,
 		CreatedAt:    provider.CreatedAt,
 		ProviderType: provider.ProviderType,
-		ServiceType:  provider.ServiceType,
+		ServiceType:  provider.ServiceCatalogue.ServiceType,
 		Rating:       provider.Rating,
 	}, nil
 }

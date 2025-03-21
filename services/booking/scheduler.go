@@ -282,7 +282,7 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, date strin
 			Start:       ts.Start,
 			End:         ts.End,
 			Reason:      "capacity reached",
-			ServiceType: provider.ServiceType,
+			ServiceType: provider.ServiceCatalogue.ServiceType,
 		}
 		if err := se.Repo.CreateBlockedInterval(&block); err != nil {
 			fmt.Printf("warning: failed to create block: %v\n", err)

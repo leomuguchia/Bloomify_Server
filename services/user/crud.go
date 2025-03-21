@@ -9,6 +9,7 @@ import (
 	"bloomify/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -127,20 +128,51 @@ func (s *DefaultUserService) DeleteUser(userID string) error {
 	return nil
 }
 
-// UpdateUserPreferences updates a user's preferences.
-func (s *DefaultUserService) UpdateUserPreferences(userID string, preferences []string) error {
+func (s *DefaultUserService) RevokeUserAuthToken(userID, deviceID string) error {
+	// Retrieve the user record.
 	user, err := s.Repo.GetByIDWithProjection(userID, nil)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve user: %w", err)
+		utils.GetLogger().Error("Failed to retrieve user", zap.String("userID", userID), zap.Error(err))
+		return fmt.Errorf("failed to logout, please try again")
 	}
 	if user == nil {
 		return fmt.Errorf("user not found")
 	}
-	user.Preferences = preferences
-	user.UpdatedAt = time.Now()
 
-	if err := s.Repo.Update(user); err != nil {
-		return fmt.Errorf("failed to update user preferences: %w", err)
+	// Clear the token hash for the specified device.
+	deviceFound := false
+	for i, d := range user.Devices {
+		if d.DeviceID == deviceID {
+			user.Devices[i].TokenHash = ""
+			deviceFound = true
+			break
+		}
 	}
+	if !deviceFound {
+		return fmt.Errorf("device not found")
+	}
+
+	// Build update document to patch only devices and updated_at.
+	now := time.Now()
+	updateDoc := bson.M{
+		"$set": bson.M{
+			"devices":    user.Devices,
+			"updated_at": now,
+		},
+	}
+
+	// Update the user record using UpdateWithDocument.
+	if err := s.Repo.UpdateWithDocument(userID, updateDoc); err != nil {
+		utils.GetLogger().Error("Failed to revoke user auth token", zap.String("userID", userID), zap.Error(err))
+		return fmt.Errorf("failed to logout, please try again")
+	}
+
+	// Clear the Redis cache entry using the composite key.
+	cacheKey := utils.AuthCachePrefix + userID + ":" + deviceID
+	authCache := utils.GetAuthCacheClient()
+	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
+		utils.GetLogger().Error("Failed to clear auth cache on logout", zap.Error(err))
+	}
+
 	return nil
 }
