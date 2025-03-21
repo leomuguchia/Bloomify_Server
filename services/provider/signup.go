@@ -19,7 +19,7 @@ func (s *DefaultProviderService) RegisterBasic(basicReq models.ProviderBasicRegi
 		return "", 0, fmt.Errorf("email, password, and phone number are required")
 	}
 
-	available, err := r.IsProviderAvailable(basicReq)
+	available, err := s.Repo.IsProviderAvailable(basicReq)
 	if err != nil {
 		return "", 0, fmt.Errorf("availability check failed: %w", err)
 	}
