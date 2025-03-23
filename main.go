@@ -73,12 +73,14 @@ func main() {
 
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
 		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
-		PaymentHandler: nil,
+		PaymentHandler: &booking.InAppPaymentProcessor{},
 	}
+
 	bookingService := &booking.DefaultBookingSessionService{
 		MatchingSvc:     matchingServiceInstance,
 		SchedulerEngine: schedulingEngineInstance,
 	}
+
 	// Create the booking handler directly using dependency injection.
 	bookingHandler := handlers.NewBookingHandler(bookingService, logger)
 

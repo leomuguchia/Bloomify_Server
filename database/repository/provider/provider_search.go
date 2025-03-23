@@ -25,7 +25,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 
 	// Filter by baseline service type within the service catalogue.
 	if criteria.ServiceType != "" {
-		filter["service_catalogue.service_type"] = bson.M{
+		filter["serviceCatalogue.serviceType"] = bson.M{
 			"$regex":   criteria.ServiceType,
 			"$options": "i",
 		}
@@ -33,7 +33,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 
 	// Filter by service mode within the service catalogue.
 	if criteria.ServiceMode != "" {
-		filter["service_catalogue.mode"] = bson.M{
+		filter["serviceCatalogue.mode"] = bson.M{
 			"$regex":   criteria.ServiceMode,
 			"$options": "i",
 		}
@@ -48,7 +48,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	}
 	if criteria.MaxDistanceKm > 0 {
 		maxDistanceMeters := criteria.MaxDistanceKm * 1000
-		filter["location_geo"] = bson.M{
+		filter["locationGeo"] = bson.M{
 			"$nearSphere": bson.M{
 				"$geometry": bson.M{
 					"type":        "Point",

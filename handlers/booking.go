@@ -121,9 +121,9 @@ func (h *BookingHandler) CancelSession(c *gin.Context) {
 
 // GetAvailableServices handles GET /api/booking/services.
 func (h *BookingHandler) GetAvailableServices(c *gin.Context) {
-	// Assume h.BookingSvc is of type DefaultBookingSessionService or implements GetAvailableServices.
 	services, err := h.BookingSvc.GetAvailableServices()
 	if err != nil {
+		h.Logger.Error("GetAvailableServices: failed to fetch services", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "failed to fetch services",
 			"details": err.Error(),

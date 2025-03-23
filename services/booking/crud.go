@@ -1,6 +1,11 @@
 package booking
 
-import "bloomify/models"
+import (
+	"bloomify/models"
+	"bloomify/utils"
+	"context"
+	"fmt"
+)
 
 // GetAvailableServices returns a list of 10 available services stored in memory.
 func (svc *DefaultBookingSessionService) GetAvailableServices() ([]models.Service, error) {
@@ -17,4 +22,15 @@ func (svc *DefaultBookingSessionService) GetAvailableServices() ([]models.Servic
 		{ID: "10", Name: "Fitness Training", Icon: "fitness"},
 	}
 	return services, nil
+}
+
+// CancelSession allows the client to explicitly cancel a booking session.
+// It deletes the session data from the cache.
+func (s *DefaultBookingSessionService) CancelSession(sessionID string) error {
+	ctx := context.Background()
+	cacheClient := utils.GetBookingCacheClient()
+	if err := cacheClient.Del(ctx, sessionID).Err(); err != nil {
+		return fmt.Errorf("failed to cancel booking session: %w", err)
+	}
+	return nil
 }

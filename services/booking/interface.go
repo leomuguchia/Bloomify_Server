@@ -11,7 +11,8 @@ type BookingSessionService interface {
 	GetAvailableServices() ([]models.Service, error)
 }
 
+// DefaultBookingSessionService implements BookingSessionService.
 type DefaultBookingSessionService struct {
-	MatchingSvc     MatchingService  // Matches providers based on the service plan.
-	SchedulerEngine SchedulingEngine // Computes available time slots and books a slot.
+	MatchingSvc     MatchingService
+	SchedulerEngine *DefaultSchedulingEngine
 }

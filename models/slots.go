@@ -15,19 +15,25 @@ type TimeSlot struct {
 	BookedUnitsStandard int                `bson:"bookedUnitsStandard,omitempty" json:"bookedUnitsStandard,omitempty"`
 	BookedUnitsPriority int                `bson:"bookedUnitsPriority,omitempty" json:"bookedUnitsPriority,omitempty"`
 	Version             int                `bson:"version" json:"version"`
+	CustomOptionKey     string             `bson:"customOptionKey,omitempty" json:"customOptionKey,omitempty"` // e.g., "luxury", "eco_friendly"
+	Mode                string             `bson:"mode,omitempty" json:"mode,omitempty"`
 }
 
-// AvailableSlot represents a time slot with its remaining capacity, unit type, pricing, and an optional message.
+// AvailableSlot represents a user‑facing timeslot with computed pricing and capacity.
 type AvailableSlot struct {
-	Start                     int     `bson:"start" json:"start"`
-	End                       int     `bson:"end" json:"end"`
-	UnitType                  string  `bson:"unitType" json:"unitType"` // e.g., "child", "kg", "hour"
-	RegularCapacityRemaining  int     `bson:"regularCapacityRemaining" json:"regularCapacityRemaining"`
-	PriorityCapacityRemaining int     `bson:"priorityCapacityRemaining,omitempty" json:"priorityCapacityRemaining,omitempty"`
-	RegularPricePerUnit       float64 `bson:"regularPricePerUnit,omitempty" json:"regularPricePerUnit,omitempty"`
-	PriorityPricePerUnit      float64 `bson:"priorityPricePerUnit,omitempty" json:"priorityPricePerUnit,omitempty"`
-	Message                   string  `bson:"message,omitempty" json:"message,omitempty"`
-	Date                      string  `bson:"date,omitempty" json:"date"`
+	ID                        string             `json:"id"` // Unique identifier to map back to a full TimeSlot.
+	Start                     int                `json:"start"`
+	End                       int                `json:"end"`
+	UnitType                  string             `json:"unitType"`
+	RegularCapacityRemaining  int                `json:"regularCapacityRemaining"`
+	PriorityCapacityRemaining int                `json:"priorityCapacityRemaining,omitempty"`
+	RegularPricePerUnit       float64            `json:"regularPricePerUnit,omitempty"`
+	PriorityPricePerUnit      float64            `json:"priorityPricePerUnit,omitempty"`
+	Message                   string             `json:"message,omitempty"`
+	Date                      string             `json:"date"`
+	CustomOptionKey           string             `json:"customOptionKey,omitempty"`
+	Mode                      string             `json:"mode,omitempty"`
+	OptionPricing             map[string]float64 `json:"optionPricing,omitempty"`
 }
 
 type EarlyBirdSlotData struct {

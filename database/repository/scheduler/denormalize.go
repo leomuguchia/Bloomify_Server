@@ -5,55 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	"bloomify/database"
 	"bloomify/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// UpdateTimeSlotAggregates updates the denormalized booking counts for a specific timeslot
-// on a provider document using optimistic concurrency.
-// Parameters:
-// - providerID: the ID of the provider.
-// - ts: the TimeSlot template we are updating.
-// - date: the date of the slot (in "2006-01-02" format).
-// - units: number of units to increment (can be negative for cancellation).
-// - isPriority: true if the update is for the priority sub-bucket; false for standard.
-// - expectedVersion: the current version of the timeslot (must match to update).
+// UpdateTimeSlotAggregates atomically increments booking aggregates for a timeslot.
+// It updates the provider's timeSlots array element that matches the given criteria.
 func (repo *MongoSchedulerRepo) UpdateTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Build the filter to match the provider document and the specific timeslot within the time_slots array.
-	filter := bson.M{
-		"id": providerID,
-		"time_slots": bson.M{
-			"$elemMatch": bson.M{
-				"start":   ts.Start,
-				"end":     ts.End,
-				"date":    date,
-				"version": expectedVersion,
-			},
-		},
-	}
-
-	// Determine which field to increment.
-	field := "time_slots.$[elem].booked_units_standard"
-	if isPriority {
-		field = "time_slots.$[elem].booked_units_priority"
-	}
-
-	// Prepare the update: increment the appropriate aggregate and bump the version.
-	update := bson.M{
-		"$inc": bson.M{
-			field:                        units,
-			"time_slots.$[elem].version": 1,
-		},
-	}
-
-	// Create an array filter to target the matching timeslot element.
-	arrayFilters := options.ArrayFilters{
+	filter := bson.M{"id": providerID}
+	arrayFilters := options.Update().SetArrayFilters(options.ArrayFilters{
 		Filters: []interface{}{
 			bson.M{
 				"elem.start":   ts.Start,
@@ -62,18 +27,76 @@ func (repo *MongoSchedulerRepo) UpdateTimeSlotAggregates(providerID string, ts m
 				"elem.version": expectedVersion,
 			},
 		},
-	}
-	opts := options.Update().SetArrayFilters(arrayFilters)
+	})
 
-	// Update the provider document.
-	db := database.MongoClient.Database("bloomify")
-	providerColl := db.Collection("providers")
-	result, err := providerColl.UpdateOne(ctx, filter, update, opts)
-	if err != nil {
-		return fmt.Errorf("error updating timeslot aggregates: %w", err)
+	var update bson.M
+	if isPriority {
+		update = bson.M{
+			"$inc": bson.M{
+				"timeSlots.$[elem].bookedUnitsPriority": units,
+				"timeSlots.$[elem].version":             1,
+			},
+		}
+	} else {
+		update = bson.M{
+			"$inc": bson.M{
+				"timeSlots.$[elem].bookedUnitsStandard": units,
+				"timeSlots.$[elem].version":             1,
+			},
+		}
 	}
-	if result.ModifiedCount == 0 {
-		return fmt.Errorf("timeslot update failed due to version mismatch")
+
+	res, err := repo.providerColl.UpdateOne(ctx, filter, update, arrayFilters)
+	if err != nil {
+		return fmt.Errorf("update aggregates error: %w", err)
+	}
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("update aggregates failed: no matching document found or version mismatch")
+	}
+	return nil
+}
+
+// RollbackTimeSlotAggregates atomically decrements booking aggregates for a timeslot.
+// This is used when a booking is cancelled (e.g., due to payment failure).
+func (repo *MongoSchedulerRepo) RollbackTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{"id": providerID}
+	arrayFilters := options.Update().SetArrayFilters(options.ArrayFilters{
+		Filters: []interface{}{
+			bson.M{
+				"elem.start":   ts.Start,
+				"elem.end":     ts.End,
+				"elem.date":    date,
+				"elem.version": expectedVersion,
+			},
+		},
+	})
+
+	var update bson.M
+	if isPriority {
+		update = bson.M{
+			"$inc": bson.M{
+				"timeSlots.$[elem].bookedUnitsPriority": -units,
+				"timeSlots.$[elem].version":             1,
+			},
+		}
+	} else {
+		update = bson.M{
+			"$inc": bson.M{
+				"timeSlots.$[elem].bookedUnitsStandard": -units,
+				"timeSlots.$[elem].version":             1,
+			},
+		}
+	}
+
+	res, err := repo.providerColl.UpdateOne(ctx, filter, update, arrayFilters)
+	if err != nil {
+		return fmt.Errorf("rollback update error: %w", err)
+	}
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("rollback failed: no matching document found or version mismatch")
 	}
 	return nil
 }

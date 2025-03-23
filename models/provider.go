@@ -32,11 +32,23 @@ type Profile struct {
 	Address          string `bson:"address" json:"address,omitempty"`
 }
 
+// ServiceCatalogue defines the offerings for a service provider.
 type ServiceCatalogue struct {
-	ServiceType   string                 `bson:"serviceType" json:"serviceType,omitempty"`
-	Mode          string                 `bson:"mode" json:"mode,omitempty"`
-	CustomOptions map[string]interface{} `bson:"customOptions" json:"customOptions,omitempty"`
+	ServiceType   string             `bson:"serviceType" json:"serviceType,omitempty"`
+	Mode          string             `bson:"mode" json:"mode,omitempty"` // e.g., "provider-to-user", "drop-off", "mobile-unit"
+	CustomOptions map[string]float64 `bson:"customOptions" json:"customOptions,omitempty"`
 }
+
+// example:
+// ServiceCatalogue{
+// ServiceType: "cleaning",
+// Mode: "provider-to-user",
+// CustomOptions: map[string]float64{
+// "standard": 1.0,
+// "luxury":   1.2,
+// "eco":      1.1,
+// },
+// }
 
 type Provider struct {
 	ID                     string             `bson:"id" json:"id,omitempty"`

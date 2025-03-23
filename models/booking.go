@@ -26,3 +26,10 @@ type Service struct {
 	Name string `json:"name"`
 	Icon string `json:"icon"`
 }
+
+// BookingConfirmation represents the result of a successful booking validation.
+type BookingConfirmation struct {
+	BookingID  string  `bson:"bookingId" json:"bookingId"`
+	TotalPrice float64 `bson:"totalPrice" json:"totalPrice"`
+	Message    string  `bson:"message,omitempty" json:"message,omitempty"`
+}

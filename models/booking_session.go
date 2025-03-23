@@ -1,15 +1,16 @@
 package models
 
+// BookingSession represents an active booking session.
 type BookingSession struct {
-	SessionID        string          `json:"sessionId"`
-	ServicePlan      ServicePlan     `json:"servicePlan"`
-	MatchedProviders []ProviderDTO   `json:"matchedProviders"`
-	SelectedProvider string          `json:"selectedProviderId,omitempty"`
-	Availability     []AvailableSlot `json:"availability,omitempty"`
-	UserID           string          `json:"userId"`
-	PaymentMethod    string          `json:"paymentMethod"`
-	DeviceID         string          `json:"deviceId,omitempty"`
-	UserAgent        string          `json:"userAgent,omitempty"`
+	SessionID           string              `json:"sessionID"`
+	ServicePlan         ServicePlan         `json:"servicePlan"`
+	MatchedProviders    []ProviderDTO       `json:"matchedProviders"`
+	SelectedProvider    string              `json:"selectedProvider,omitempty"`
+	Availability        []AvailableSlot     `json:"availability,omitempty"`
+	FullTimeSlotMapping map[string]TimeSlot `json:"-"` // Map availableSlot.ID -> full TimeSlot (do not expose externally)
+	UserID              string              `json:"userID"`
+	DeviceID            string              `json:"deviceID"`
+	DeviceName          string              `json:"deviceName"`
 }
 
 type BookingResponse struct {

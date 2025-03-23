@@ -1,132 +1,201 @@
-// File: migrate_provider_timeslots.go
 package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"time"
 
-	providerRepo "bloomify/database/repository/provider"
+	"bloomify/database"
 	"bloomify/models"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson"
+	"golang.org/x/crypto/bcrypt"
 )
-
-// We'll use the previous DB setup code:
-var MongoClient *mongo.Client
-
-// InitDB initializes the MongoDB connection with a hardcoded URI.
-func InitDB() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
-	client, err := mongo.Connect(ctx, clientOptions)
-	if err != nil {
-		log.Fatalf("failed to connect to MongoDB: %v", err)
-	}
-	if err := client.Ping(ctx, nil); err != nil {
-		log.Fatalf("failed to ping MongoDB: %v", err)
-	}
-	MongoClient = client
-	log.Println("Connected to MongoDB successfully!")
-}
-
-// generateTimeslots creates two timeslots per day for the next 'days' days based on provider type.
-// For individuals, capacity is fixed at 1; for businesses, capacity is randomized between minCap and maxCap.
-func generateTimeslots(providerType string, days int, minCap, maxCap int) []models.TimeSlot {
-	var timeslots []models.TimeSlot
-	now := time.Now()
-	for i := 0; i < days; i++ {
-		day := now.AddDate(0, 0, i)
-		dateStr := day.Format("2006-01-02")
-
-		var capacityMorning, capacityAfternoon int
-		if providerType == "business" {
-			capacityMorning = rand.Intn(maxCap-minCap+1) + minCap
-			capacityAfternoon = rand.Intn(maxCap-minCap+1) + minCap
-		} else {
-			capacityMorning = 1
-			capacityAfternoon = 1
-		}
-
-		// Morning timeslot: 7:00 AM (420 minutes) to 12:00 PM (720 minutes)
-		morning := models.TimeSlot{
-			Start:     420,
-			End:       720,
-			Capacity:  capacityMorning,
-			SlotModel: "flatrate",
-			UnitType:  "child", // adjust as needed
-			Date:      dateStr,
-			Flatrate:  &models.FlatrateSlotData{BasePrice: 25.0},
-			Version:   1,
-		}
-
-		// Afternoon timeslot: 2:00 PM (840 minutes) to 5:00 PM (1020 minutes)
-		afternoon := models.TimeSlot{
-			Start:     840,
-			End:       1020,
-			Capacity:  capacityAfternoon,
-			SlotModel: "flatrate",
-			UnitType:  "child", // adjust as needed
-			Date:      dateStr,
-			Flatrate:  &models.FlatrateSlotData{BasePrice: 20.0},
-			Version:   1,
-		}
-
-		timeslots = append(timeslots, morning, afternoon)
-	}
-	return timeslots
-}
 
 func main() {
 	// Initialize the database connection.
-	InitDB()
-	_, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	database.InitDB()
+	client := database.MongoClient
+	db := client.Database("bloomify")
+	providerColl := db.Collection("providers")
+
+	// Clear existing providers.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-
-	// Get the providers repository.
-	repo := providerRepo.NewMongoProviderRepo()
-
-	// Fetch all providers.
-	providers, err := repo.GetAll()
-	if err != nil {
-		log.Fatalf("Failed to fetch providers: %v", err)
+	if _, err := providerColl.DeleteMany(ctx, bson.M{}); err != nil {
+		log.Fatalf("Failed to clear providers collection: %v", err)
 	}
-	log.Printf("Found %d providers", len(providers))
 
-	// Iterate over each provider.
-	for _, prov := range providers {
-		// Randomly assign provider type if not already set.
-		if prov.ProviderType == "" {
-			if rand.Float32() < 0.5 {
-				prov.ProviderType = "individual"
-			} else {
-				prov.ProviderType = "business"
+	// Fixed user point for simulation (Bangalore).
+	userLon, userLat := 77.5946, 12.9716
+
+	// Simulation parameters.
+	serviceTypes := []string{"cleaning", "laundry", "chauffeur"}
+	providersPerService := 10
+	totalProviders := len(serviceTypes) * providersPerService
+
+	// Custom options: always "standard": 1.0 plus an extra option.
+	extraOptions := []struct {
+		Key        string
+		Multiplier float64
+	}{
+		{"luxury", 1.2},
+		{"eco", 1.1},
+	}
+
+	// Generate dates for the next 7 days.
+	var weekDates []string
+	today := time.Now()
+	for i := 0; i < 7; i++ {
+		weekDates = append(weekDates, today.AddDate(0, 0, i).Format("2006-01-02"))
+	}
+
+	var providers []interface{}
+	rand.Seed(time.Now().UnixNano())
+	providerCounter := 1
+
+	// We'll linearly assign distances so that the furthest provider is at 5 km and the closest at ~0.01 km.
+	maxDistance := 5.0
+	minDistance := 0.01
+	spacing := (maxDistance - minDistance) / float64(totalProviders-1)
+
+	// For each service type.
+	for _, service := range serviceTypes {
+		for i := 1; i <= providersPerService; i++ {
+			// Global index for linear distance (0-based).
+			globalIndex := float64(providerCounter - 1)
+			distanceKm := maxDistance - spacing*globalIndex
+
+			// Random angle (0 to 2π) for positioning within the circle.
+			angle := rand.Float64() * 2 * math.Pi
+
+			// Convert radial distance to degree offsets.
+			// Approximate: 1 km ≈ 0.00922° longitude and 1 km ≈ 0.009° latitude at this latitude.
+			deltaLon := distanceKm * 0.00922 * math.Cos(angle)
+			deltaLat := distanceKm * 0.009 * math.Sin(angle)
+
+			locationGeo := models.GeoPoint{
+				Type:        "Point",
+				Coordinates: []float64{userLon + deltaLon, userLat + deltaLat},
 			}
-		}
 
-		// Choose capacity range for business providers.
-		minCapacity := 10
-		maxCapacity := 50
+			// Determine mode: first half "provider-to-user", second half "drop-off".
+			var mode string
+			if i <= providersPerService/2 {
+				mode = "provider-to-user"
+			} else {
+				mode = "drop-off"
+			}
 
-		// Generate timeslots for 7 days.
-		ts := generateTimeslots(prov.ProviderType, 7, minCapacity, maxCapacity)
-		prov.TimeSlots = ts
+			// Randomly choose extra custom option.
+			extra := extraOptions[rand.Intn(len(extraOptions))]
+			customOptions := map[string]float64{
+				"standard": 1.0,
+				extra.Key:  extra.Multiplier,
+			}
 
-		// Update provider status to active if timeslots are set.
-		// For this migration, we'll update the status under the profile.
-		prov.Profile.Status = "active"
+			// Build provider profile.
+			profile := models.Profile{
+				ProviderName: fmt.Sprintf("%s Provider %d", service, providerCounter),
+				Email:        fmt.Sprintf("%s_provider_%d@example.com", service, providerCounter),
+				PhoneNumber:  fmt.Sprintf("900000%04d", providerCounter),
+				Address:      "123 Sample Street, Sample City",
+			}
 
-		// Update the provider document.
-		if err := repo.Update(&prov); err != nil {
-			log.Printf("Failed to update provider %s: %v", prov.ID, err)
-		} else {
-			log.Printf("Provider %s updated with provider_type '%s' and %d timeslots", prov.ID, prov.ProviderType, len(ts))
+			// Build service catalogue.
+			// Note: Ensure serviceType and mode values match those expected by your matching logic.
+			serviceCatalogue := models.ServiceCatalogue{
+				ServiceType:   service,
+				Mode:          mode,
+				CustomOptions: customOptions,
+			}
+
+			// Generate weekly timeslots.
+			var timeSlots []models.TimeSlot
+			for _, dateStr := range weekDates {
+				// Earlybird timeslot uses the extra option.
+				tsEarly := models.TimeSlot{
+					ID:        fmt.Sprintf("ts-%d-%s-early", providerCounter, dateStr),
+					Start:     480,  // 8:00 AM
+					End:       1020, // 5:00 PM
+					Capacity:  30,
+					SlotModel: "earlybird",
+					UnitType:  "child",
+					Date:      dateStr,
+					EarlyBird: &models.EarlyBirdSlotData{
+						BasePrice:             10.0,
+						EarlyBirdDiscountRate: 0.25,
+						LateSurchargeRate:     0.10,
+					},
+					BookedUnitsStandard: 0,
+					BookedUnitsPriority: 0,
+					Version:             1,
+					CustomOptionKey:     extra.Key, // use the extra option key for earlybird
+					Mode:                mode,
+				}
+				// Urgency timeslot uses the "standard" option.
+				tsUrgency := models.TimeSlot{
+					ID:        fmt.Sprintf("ts-%d-%s-urgency", providerCounter, dateStr),
+					Start:     1020, // 5:00 PM
+					End:       1380, // 11:00 PM
+					Capacity:  20,
+					SlotModel: "urgency",
+					UnitType:  "child",
+					Date:      dateStr,
+					Urgency: &models.UrgencySlotData{
+						BasePrice:             15.0,
+						PrioritySurchargeRate: 0.50,
+						ReservedPriority:      5,
+						PriorityActive:        true,
+					},
+					BookedUnitsStandard: 0,
+					BookedUnitsPriority: 0,
+					Version:             1,
+					CustomOptionKey:     "standard",
+					Mode:                mode,
+				}
+				timeSlots = append(timeSlots, tsEarly, tsUrgency)
+			}
+
+			// Simulate password hashing.
+			pass := "$Password1234"
+			hashed, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+			if err != nil {
+				log.Fatalf("failed to hash password: %v", err)
+			}
+
+			// Assemble the provider document following registration standards.
+			provider := models.Provider{
+				ID:                     fmt.Sprintf("prov-%d", providerCounter),
+				Profile:                profile,
+				LegalName:              profile.ProviderName,
+				Password:               "", // Do not store raw password
+				PasswordHash:           string(hashed),
+				ServiceCatalogue:       serviceCatalogue,
+				Location:               "Sample City",
+				LocationGeo:            locationGeo,
+				Rating:                 0,
+				CompletedBookings:      0,
+				TimeSlots:              timeSlots,
+				AcceptedPaymentMethods: []string{"inApp", "cash"},
+				PrePaymentRequired:     false,
+				CreatedAt:              time.Now(),
+				UpdatedAt:              time.Now(),
+				Devices:                []models.Device{}, // Assume no devices at registration time
+			}
+
+			providers = append(providers, provider)
+			providerCounter++
 		}
 	}
 
-	log.Println("Provider timeslot migration complete.")
+	// Insert all providers into MongoDB.
+	insertResult, err := providerColl.InsertMany(ctx, providers)
+	if err != nil {
+		log.Fatalf("Failed to insert providers: %v", err)
+	}
+	fmt.Printf("Inserted provider IDs: %v\n", insertResult.InsertedIDs)
 }

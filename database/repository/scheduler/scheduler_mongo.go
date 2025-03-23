@@ -9,7 +9,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // MongoSchedulerRepo implements SchedulerRepository using MongoDB.
@@ -68,8 +67,30 @@ func (repo *MongoSchedulerRepo) GetBlockedIntervals(providerID, date string) ([]
 	return blocked, nil
 }
 
-// SumOverlappingBookings sums the total booked units (regardless of priority) for a provider on a given date and time range.
-// A booking is considered overlapping if its "start" is before slotEnd and its "end" is after slotStart.
+// GetAvailableTimeSlots fetches available timeslots for a provider for a given date.
+// We assume each provider document contains a "timeSlots" array field.
+func (repo *MongoSchedulerRepo) GetAvailableTimeSlots(providerID, date string) ([]models.TimeSlot, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var provider models.Provider
+	filter := bson.M{"id": providerID}
+	if err := repo.providerColl.FindOne(ctx, filter).Decode(&provider); err != nil {
+		return nil, fmt.Errorf("error fetching provider with id %s: %w", providerID, err)
+	}
+
+	// Filter the provider's timeslots by the given date.
+	var available []models.TimeSlot
+	for _, ts := range provider.TimeSlots {
+		if ts.Date == date {
+			available = append(available, ts)
+		}
+	}
+	return available, nil
+}
+
+// SumOverlappingBookings aggregates the total booked units (regardless of priority)
+// for a provider on a given date and time range.
 func (repo *MongoSchedulerRepo) SumOverlappingBookings(providerID, date string, slotStart, slotEnd int) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -98,7 +119,7 @@ func (repo *MongoSchedulerRepo) SumOverlappingBookings(providerID, date string, 
 	return totalUnits, nil
 }
 
-// SumOverlappingBookingsForStandard sums booked units for non-priority bookings.
+// SumOverlappingBookingsForStandard aggregates booked units for non-priority bookings.
 func (repo *MongoSchedulerRepo) SumOverlappingBookingsForStandard(providerID, date string, slotStart, slotEnd int) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -128,7 +149,7 @@ func (repo *MongoSchedulerRepo) SumOverlappingBookingsForStandard(providerID, da
 	return totalUnits, nil
 }
 
-// SumOverlappingBookingsForPriority sums booked units for priority bookings.
+// SumOverlappingBookingsForPriority aggregates booked units for priority bookings.
 func (repo *MongoSchedulerRepo) SumOverlappingBookingsForPriority(providerID, date string, slotStart, slotEnd int) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -170,6 +191,67 @@ func (repo *MongoSchedulerRepo) CreateBooking(booking *models.Booking) error {
 	return nil
 }
 
+// UpdateBooking modifies an existing booking document.
+func (repo *MongoSchedulerRepo) UpdateBooking(bookingID string, updatedBooking *models.Booking) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{"id": bookingID}
+	update := bson.M{"$set": updatedBooking}
+	_, err := repo.bookingColl.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("error updating booking %s: %w", bookingID, err)
+	}
+	return nil
+}
+
+// CancelBooking removes a booking record from the database.
+func (repo *MongoSchedulerRepo) CancelBooking(bookingID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var booking models.Booking
+	filter := bson.M{"id": bookingID}
+	if err := repo.bookingColl.FindOne(ctx, filter).Decode(&booking); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return fmt.Errorf("booking with id %s not found", bookingID)
+		}
+		return fmt.Errorf("error fetching booking with id %s: %w", bookingID, err)
+	}
+
+	bookingDate, err := time.Parse("2006-01-02", booking.Date)
+	if err != nil {
+		return fmt.Errorf("invalid booking date %q: %w", booking.Date, err)
+	}
+	bookingStartTime := time.Date(bookingDate.Year(), bookingDate.Month(), bookingDate.Day(), 0, 0, 0, 0, time.Local).
+		Add(time.Duration(booking.Start) * time.Minute)
+	if time.Now().After(bookingStartTime) {
+		return fmt.Errorf("cannot cancel booking %s: timeslot has already started", bookingID)
+	}
+
+	delResult, err := repo.bookingColl.DeleteOne(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("error deleting booking %s: %w", bookingID, err)
+	}
+	if delResult.DeletedCount == 0 {
+		return fmt.Errorf("booking %s could not be deleted", bookingID)
+	}
+
+	blockFilter := bson.M{
+		"provider_id": booking.ProviderID,
+		"date":        booking.Date,
+		"start":       booking.Start,
+		"end":         booking.End,
+		"reason":      "capacity reached",
+	}
+	_, err = repo.blockedColl.DeleteMany(ctx, blockFilter)
+	if err != nil {
+		fmt.Printf("warning: failed to clear blocked intervals for booking %s: %v\n", bookingID, err)
+	}
+
+	return nil
+}
+
 // CreateBlockedInterval inserts a new blocked interval document.
 func (repo *MongoSchedulerRepo) CreateBlockedInterval(blocked *models.Blocked) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -182,104 +264,15 @@ func (repo *MongoSchedulerRepo) CreateBlockedInterval(blocked *models.Blocked) e
 	return nil
 }
 
-func (repo *MongoSchedulerRepo) CancelBooking(bookingID string) error {
+// RemoveBlockedInterval removes a blocked interval record.
+func (repo *MongoSchedulerRepo) RemoveBlockedInterval(blockedID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Step 1: Retrieve the booking document.
-	var booking models.Booking
-	filter := bson.M{"id": bookingID}
-	if err := repo.bookingColl.FindOne(ctx, filter).Decode(&booking); err != nil {
-		if err == mongo.ErrNoDocuments {
-			return fmt.Errorf("booking with id %s not found", bookingID)
-		}
-		return fmt.Errorf("error fetching booking with id %s: %w", bookingID, err)
-	}
-
-	// Step 2: Check if the timeslot has already started.
-	// Parse the booking date (assumed to be in "2006-01-02" format).
-	bookingDate, err := time.Parse("2006-01-02", booking.Date)
+	filter := bson.M{"id": blockedID}
+	_, err := repo.blockedColl.DeleteOne(ctx, filter)
 	if err != nil {
-		return fmt.Errorf("invalid booking date %q: %w", booking.Date, err)
-	}
-	// Compute the absolute start time of the booking by adding booking.Start minutes to midnight.
-	bookingStartTime := time.Date(bookingDate.Year(), bookingDate.Month(), bookingDate.Day(), 0, 0, 0, 0, time.Local).
-		Add(time.Duration(booking.Start) * time.Minute)
-	if time.Now().After(bookingStartTime) {
-		return fmt.Errorf("cannot cancel booking %s: timeslot has already started", bookingID)
-	}
-
-	// Step 3: Delete the booking from the bookings collection.
-	delResult, err := repo.bookingColl.DeleteOne(ctx, filter)
-	if err != nil {
-		return fmt.Errorf("error deleting booking %s: %w", bookingID, err)
-	}
-	if delResult.DeletedCount == 0 {
-		return fmt.Errorf("booking %s could not be deleted", bookingID)
-	}
-
-	// Step 4: Clear the provider schedule.
-	// For example, remove any blocked intervals for the same provider and timeslot that
-	// were created with reason "capacity reached". This helps free up the slot.
-	blockFilter := bson.M{
-		"provider_id": booking.ProviderID,
-		"date":        booking.Date,
-		"start":       booking.Start,
-		"end":         booking.End,
-		"reason":      "capacity reached",
-	}
-	_, err = repo.blockedColl.DeleteMany(ctx, blockFilter)
-	if err != nil {
-		// Log a warning (do not fail the cancellation if cleanup fails).
-		fmt.Printf("warning: failed to clear blocked intervals for booking %s: %v\n", bookingID, err)
-	}
-
-	return nil
-}
-
-// RollbackTimeSlotAggregates decrements the stored aggregate values for a TimeSlot.
-// This is used when a booking is cancelled due to payment failure.
-func (repo *MongoSchedulerRepo) RollbackTimeSlotAggregates(providerID string, ts models.TimeSlot, date string, units int, isPriority bool, expectedVersion int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// We assume that the provider document stores the TimeSlots in an array "time_slots".
-	// We use an array filter to target the specific slot.
-	filter := bson.M{"id": providerID}
-	arrayFilters := options.Update().SetArrayFilters(options.ArrayFilters{
-		Filters: []interface{}{
-			bson.M{
-				"elem.start":   ts.Start,
-				"elem.end":     ts.End,
-				"elem.date":    date,
-				"elem.version": expectedVersion,
-			},
-		},
-	})
-
-	var update bson.M
-	if isPriority {
-		update = bson.M{
-			"$inc": bson.M{
-				"time_slots.$[elem].booked_units_priority": -units,
-				"time_slots.$[elem].version":               1,
-			},
-		}
-	} else {
-		update = bson.M{
-			"$inc": bson.M{
-				"time_slots.$[elem].booked_units_standard": -units,
-				"time_slots.$[elem].version":               1,
-			},
-		}
-	}
-
-	res, err := repo.providerColl.UpdateOne(ctx, filter, update, arrayFilters)
-	if err != nil {
-		return fmt.Errorf("rollback update error: %w", err)
-	}
-	if res.MatchedCount == 0 {
-		return fmt.Errorf("rollback failed: no matching document found or version mismatch")
+		return fmt.Errorf("error removing blocked interval with id %s: %w", blockedID, err)
 	}
 	return nil
 }

@@ -74,7 +74,7 @@ func (s *DefaultUserService) VerifyRegistrationOTP(sessionID string, deviceID st
 	sessionClient := utils.GetAuthCacheClient()
 	regSession, err := GetUserRegistrationSession(sessionClient, sessionID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve registration session: %w", err)
+		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
 	if err := utils.VerifyDeviceOTPRecord(regSession.BasicData.Email, deviceID, providedOTP); err != nil {
@@ -97,7 +97,7 @@ func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences 
 	sessionClient := utils.GetAuthCacheClient()
 	regSession, err := GetUserRegistrationSession(sessionClient, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve registration session: %w", err)
+		return nil, fmt.Errorf("failed to retrieve registration session")
 	}
 	if regSession.OTPStatus != "verified" {
 		return nil, fmt.Errorf("OTP not verified")

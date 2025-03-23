@@ -15,8 +15,8 @@ import (
 // RegisterBasic handles Step 1: Basic Registration + OTP initiation.
 // It accepts basic registration data and device details; the device's DeviceID is used for OTP.
 func (s *DefaultProviderService) RegisterBasic(basicReq models.ProviderBasicRegistrationData, device models.Device) (string, int, error) {
-	if basicReq.Email == "" || basicReq.Password == "" || basicReq.PhoneNumber == "" {
-		return "", 0, fmt.Errorf("email, password, and phone number are required")
+	if basicReq.Email == "" || basicReq.Password == "" || basicReq.PhoneNumber == "" || basicReq.Address == "" {
+		return "", 0, fmt.Errorf("all fields are required are required")
 	}
 
 	available, err := s.Repo.IsProviderAvailable(basicReq)
@@ -59,7 +59,7 @@ func (s *DefaultProviderService) VerifyOTP(sessionID string, deviceID string, pr
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve registration session: %w", err)
+		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
 	if err := utils.VerifyDeviceOTPRecord(sessionID, deviceID, providedOTP); err != nil {
@@ -82,7 +82,7 @@ func (s *DefaultProviderService) VerifyKYP(sessionID string, kypData models.KYPV
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve registration session: %w", err)
+		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
 	session.KYPData = kypData
@@ -105,7 +105,7 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve registration session: %w", err)
+		return nil, fmt.Errorf(": %w", err)
 	}
 
 	if catalogueData.ServiceType == "" || catalogueData.Mode == "" {
