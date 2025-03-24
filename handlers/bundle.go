@@ -65,7 +65,9 @@ type HandlerBundle struct {
 	AdminHandler *AdminHandler
 
 	// Storage endpoints
-	StorageHandler        *StorageHandler
-	UploadFileHandler     gin.HandlerFunc
-	GetDownloadURLHandler gin.HandlerFunc
+	StorageHandler           *StorageHandler
+	UploadFileHandler        gin.HandlerFunc
+	GetDownloadURLHandler    gin.HandlerFunc
+	KYPUploadFileHandler     gin.HandlerFunc
+	KYPGetDownloadURLHandler gin.HandlerFunc
 }

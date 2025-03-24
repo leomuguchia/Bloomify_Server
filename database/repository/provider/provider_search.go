@@ -39,16 +39,10 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 		}
 	}
 
-	// Filter by location if provided.
-	if criteria.Location != "" {
-		filter["location"] = bson.M{
-			"$regex":   criteria.Location,
-			"$options": "i",
-		}
-	}
+	// Adjusted filter: use provider's profile for geo-location.
 	if criteria.MaxDistanceKm > 0 {
 		maxDistanceMeters := criteria.MaxDistanceKm * 1000
-		filter["locationGeo"] = bson.M{
+		filter["profile.locationGeo"] = bson.M{
 			"$nearSphere": bson.M{
 				"$geometry": bson.M{
 					"type":        "Point",
@@ -60,7 +54,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	}
 
 	// Ensure provider status is active or online.
-	filter["status"] = bson.M{"$in": []string{"active", "online"}}
+	filter["profile.status"] = bson.M{"$in": []string{"active", "online"}}
 
 	logger.Debug("AdvancedSearch: constructed filter", zap.Any("filter", filter))
 

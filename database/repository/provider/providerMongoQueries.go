@@ -34,39 +34,17 @@ func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), timeout)
 }
 
-// ensureIndexes creates indexes for fields that are frequently used in queries.
-func (r *MongoProviderRepo) ensureIndexes() error {
-	ctx, cancel := newContext(10 * time.Second)
-	defer cancel()
-
-	indexModels := []mongo.IndexModel{
-		{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "service_type", Value: 1}}},
-		{Keys: bson.D{{Key: "location", Value: 1}}},
-		// Create a 2dsphere index on the location_geo field for geospatial queries.
-		{Keys: bson.D{{Key: "location_geo", Value: "2dsphere"}}},
-		{Keys: bson.D{{Key: "status", Value: 1}}},
-	}
-
-	_, err := r.coll.Indexes().CreateMany(ctx, indexModels)
-	if err != nil {
-		return fmt.Errorf("failed to create indexes: %w", err)
-	}
-	return nil
-}
-
-// GetByTokenHash retrieves a provider by its token_hash using a projection.
+// GetByTokenHash retrieves a provider by its tokenHash using a projection.
 func (r *MongoProviderRepo) GetByTokenHash(tokenHash string) (*models.Provider, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
-	opts := options.FindOne().SetProjection(bson.M{"token_hash": 1, "id": 1})
+	opts := options.FindOne().SetProjection(bson.M{"tokenHash": 1, "id": 1})
 	var result struct {
 		ID        string `bson:"id"`
-		TokenHash string `bson:"token_hash"`
+		TokenHash string `bson:"tokenHash"`
 	}
-	if err := r.coll.FindOne(ctx, bson.M{"token_hash": tokenHash}, opts).Decode(&result); err != nil {
+	if err := r.coll.FindOne(ctx, bson.M{"tokenHash": tokenHash}, opts).Decode(&result); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -85,8 +63,8 @@ func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) 
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -114,8 +92,8 @@ func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bs
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -123,7 +101,7 @@ func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bs
 
 	opts := options.FindOne().SetProjection(proj)
 	var provider models.Provider
-	if err := r.coll.FindOne(ctx, bson.M{"email": email}, opts).Decode(&provider); err != nil {
+	if err := r.coll.FindOne(ctx, bson.M{"profile.email": email}, opts).Decode(&provider); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -146,8 +124,8 @@ func (r *MongoProviderRepo) GetAllWithProjection(projection bson.M) ([]models.Pr
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -180,12 +158,13 @@ func (r *MongoProviderRepo) GetByServiceTypeWithProjection(service string, proje
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
-	filter := bson.M{"service_type": bson.M{"$regex": service, "$options": "i"}}
+	// Adjust filter to refer to serviceCatalogue.serviceType.
+	filter := bson.M{"serviceCatalogue.serviceType": bson.M{"$regex": service, "$options": "i"}}
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -239,11 +218,11 @@ func (r *MongoProviderRepo) IsProviderAvailable(basicReq models.ProviderBasicReg
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
-	// Filter for existing provider by email or username.
+	// Adjusted filter: check within profile for email and providerName.
 	filter := bson.M{
 		"$or": []bson.M{
-			{"email": basicReq.Email},
-			{"username": basicReq.Username},
+			{"profile.email": basicReq.Email},
+			{"profile.providerName": basicReq.Username},
 		},
 	}
 

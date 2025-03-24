@@ -26,7 +26,7 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 	}
 	if v, ok := updates["legalName"].(string); ok && v != "" {
 		updateFields["legalName"] = v
-		existing.LegalName = v
+		existing.BasicVerification.LegalName = v
 	}
 	if v, ok := updates["phoneNumber"].(string); ok && v != "" {
 		updateFields["profile.phoneNumber"] = v
@@ -35,10 +35,6 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 	if v, ok := updates["profileImage"].(string); ok && v != "" {
 		updateFields["profile.profileImage"] = v
 		existing.Profile.ProfileImage = v
-	}
-	if v, ok := updates["location"].(string); ok && v != "" {
-		updateFields["location"] = v
-		existing.Location = v
 	}
 	if v, ok := updates["serviceType"].(string); ok && v != "" {
 		updateFields["serviceCatalogue.serviceType"] = v
@@ -84,7 +80,7 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 						Coordinates: newCoords,
 					}
 					updateFields["locationGeo"] = geoPoint
-					existing.LocationGeo = geoPoint
+					existing.Profile.LocationGeo = geoPoint
 				}
 			}
 		}

@@ -34,7 +34,7 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 	}
 
 	// 2. Verify the password.
-	if err := bcrypt.CompareHashAndPassword([]byte(provider.PasswordHash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(provider.Security.PasswordHash), []byte(password)); err != nil {
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
@@ -147,12 +147,10 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 
 	// 12. Build and return the enriched authentication response.
 	return &models.ProviderAuthResponse{
-		ID:           provider.ID,
-		Token:        token,
-		Profile:      provider.Profile,
-		CreatedAt:    provider.CreatedAt,
-		ProviderType: provider.ProviderType,
-		ServiceType:  provider.ServiceCatalogue.ServiceType,
-		Rating:       provider.Rating,
+		ID:          provider.ID,
+		Token:       token,
+		Profile:     provider.Profile,
+		CreatedAt:   provider.CreatedAt,
+		ServiceType: provider.ServiceCatalogue.ServiceType,
 	}, nil
 }

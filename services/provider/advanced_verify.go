@@ -42,8 +42,8 @@ func (s *DefaultProviderService) AdvanceVerifyProvider(c *gin.Context, providerI
 	}
 
 	// Update provider record with advanced verification details.
-	provider.TaxPIN = advReq.TaxPIN
-	provider.InsuranceDocs = advReq.InsuranceDocs
+	provider.AdvancedVerification.TaxPIN = advReq.TaxPIN
+	provider.AdvancedVerification.InsuranceDocs = advReq.InsuranceDocs
 	provider.Profile.AdvancedVerified = true
 	provider.VerificationLevel = "advanced"
 	provider.UpdatedAt = time.Now()

@@ -46,7 +46,7 @@ func (repo *MongoSchedulerRepo) GetBlockedIntervals(providerID, date string) ([]
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	filter := bson.M{"provider_id": providerID, "date": date}
+	filter := bson.M{"providerId": providerID, "date": date}
 	cursor, err := repo.blockedColl.Find(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching blocked intervals: %w", err)
@@ -96,9 +96,9 @@ func (repo *MongoSchedulerRepo) SumOverlappingBookings(providerID, date string, 
 	defer cancel()
 
 	filter := bson.M{
-		"provider_id": providerID,
-		"date":        date,
-		"start":       bson.M{"$lt": slotEnd},
+		"providerId": providerID,
+		"date":       date,
+		"start":      bson.M{"$lt": slotEnd},
 	}
 	cursor, err := repo.bookingColl.Find(ctx, filter)
 	if err != nil {
@@ -125,10 +125,10 @@ func (repo *MongoSchedulerRepo) SumOverlappingBookingsForStandard(providerID, da
 	defer cancel()
 
 	filter := bson.M{
-		"provider_id": providerID,
-		"date":        date,
-		"start":       bson.M{"$lt": slotEnd},
-		"priority":    false,
+		"providerId": providerID,
+		"date":       date,
+		"start":      bson.M{"$lt": slotEnd},
+		"priority":   false,
 	}
 	cursor, err := repo.bookingColl.Find(ctx, filter)
 	if err != nil {
@@ -155,10 +155,10 @@ func (repo *MongoSchedulerRepo) SumOverlappingBookingsForPriority(providerID, da
 	defer cancel()
 
 	filter := bson.M{
-		"provider_id": providerID,
-		"date":        date,
-		"start":       bson.M{"$lt": slotEnd},
-		"priority":    true,
+		"providerId": providerID,
+		"date":       date,
+		"start":      bson.M{"$lt": slotEnd},
+		"priority":   true,
 	}
 	cursor, err := repo.bookingColl.Find(ctx, filter)
 	if err != nil {
@@ -238,11 +238,11 @@ func (repo *MongoSchedulerRepo) CancelBooking(bookingID string) error {
 	}
 
 	blockFilter := bson.M{
-		"provider_id": booking.ProviderID,
-		"date":        booking.Date,
-		"start":       booking.Start,
-		"end":         booking.End,
-		"reason":      "capacity reached",
+		"providerId": booking.ProviderID,
+		"date":       booking.Date,
+		"start":      booking.Start,
+		"end":        booking.End,
+		"reason":     "user cancelled",
 	}
 	_, err = repo.blockedColl.DeleteMany(ctx, blockFilter)
 	if err != nil {

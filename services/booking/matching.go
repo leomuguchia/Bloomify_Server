@@ -3,6 +3,7 @@ package booking
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"sync"
@@ -26,6 +27,7 @@ type DefaultMatchingService struct {
 }
 
 func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error) {
+	log.Printf("Received ServicePlan: %+v", plan)
 	criteria := repository.ProviderSearchCriteria{
 		ServiceType:   plan.ServiceType,
 		Mode:          plan.Mode,
@@ -94,9 +96,9 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 		go func(p models.Provider) {
 			defer wg.Done()
 			var provLat, provLon float64
-			if len(p.LocationGeo.Coordinates) >= 2 {
-				provLon = p.LocationGeo.Coordinates[0]
-				provLat = p.LocationGeo.Coordinates[1]
+			if len(p.Profile.LocationGeo.Coordinates) >= 2 {
+				provLon = p.Profile.LocationGeo.Coordinates[0]
+				provLat = p.Profile.LocationGeo.Coordinates[1]
 			}
 			distanceKm := haversine(centerLat, centerLon, provLat, provLon)
 			locScore := computeLocationScore(distanceKm)
@@ -105,7 +107,7 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 				verifiedScore = VerifiedBonus
 			}
 			compScore := computeCompletedScore(p.CompletedBookings)
-			ratingScore := computeRatingScore(p.Rating)
+			ratingScore := computeRatingScore(p.Profile.Rating)
 			totalScore := locScore + verifiedScore + compScore + ratingScore
 
 			resultsCh <- scoreData{
@@ -165,7 +167,7 @@ func extractProvidersDTO(ranked []RankedProvider) []models.ProviderDTO {
 			ID:               rp.Provider.ID,
 			Profile:          rp.Provider.Profile,
 			ServiceCatalogue: rp.Provider.ServiceCatalogue,
-			LocationGeo:      rp.Provider.LocationGeo,
+			LocationGeo:      rp.Provider.Profile.LocationGeo,
 			Preferred:        rp.Preferred,
 		}
 		dtos = append(dtos, dto)

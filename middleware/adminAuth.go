@@ -1,4 +1,3 @@
-// File: middleware/jwt_auth_admin.go
 package middleware
 
 import (
@@ -8,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const adminStaticToken = "admin-secret-token-1234"
+const adminStaticToken = "MUGUCHIA_aDMIN"
 
 func JWTAuthAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -25,7 +24,7 @@ func JWTAuthAdminMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Optionally, set an admin flag in context.
+		c.Set("adminToken", tokenString)
 		c.Set("isAdmin", true)
 		c.Next()
 	}

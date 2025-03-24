@@ -1,4 +1,3 @@
-// camel case naming.
 package models
 
 import (
@@ -23,13 +22,16 @@ type GeoPoint struct {
 }
 
 type Profile struct {
-	ProviderName     string `bson:"providerName" json:"providerName,omitempty"`
-	Email            string `bson:"email" json:"email,omitempty"`
-	PhoneNumber      string `bson:"phoneNumber" json:"phoneNumber,omitempty"`
-	Status           string `bson:"status" json:"status,omitempty"`
-	AdvancedVerified bool   `bson:"advancedVerified" json:"advancedVerified,omitempty"`
-	ProfileImage     string `bson:"profileImage" json:"profileImage,omitempty"`
-	Address          string `bson:"address" json:"address,omitempty"`
+	ProviderName     string   `bson:"providerName" json:"providerName,omitempty"`
+	ProviderType     string   `bson:"providerType" json:"providerType,omitempty"`
+	Email            string   `bson:"email" json:"email,omitempty"`
+	PhoneNumber      string   `bson:"phoneNumber" json:"phoneNumber,omitempty"`
+	Status           string   `bson:"status" json:"status,omitempty"`
+	AdvancedVerified bool     `bson:"advancedVerified" json:"advancedVerified,omitempty"`
+	ProfileImage     string   `bson:"profileImage" json:"profileImage,omitempty"`
+	Address          string   `bson:"address" json:"address,omitempty"`
+	Rating           float64  `bson:"rating" json:"rating,omitempty"`
+	LocationGeo      GeoPoint `bson:"locationGeo" json:"locationGeo"`
 }
 
 // ServiceCatalogue defines the offerings for a service provider.
@@ -50,33 +52,45 @@ type ServiceCatalogue struct {
 // },
 // }
 
+type AdvancedVerification struct {
+	InsuranceDocs []string `bson:"insuranceDocs,omitempty" json:"insuranceDocs,omitempty"`
+	TaxPIN        string   `bson:"taxPin,omitempty" json:"taxPin,omitempty"`
+}
+
+type Security struct {
+	Password     string `bson:"-" json:"password,omitempty"`
+	PasswordHash string `bson:"passwordHash" json:"-"`
+	Token        string `bson:"-" json:"token,omitempty"`
+	TokenHash    string `bson:"tokenHash" json:"-"`
+}
+
+type BasicVerification struct {
+	KYPDocument        string `bson:"kypDocument" json:"kypDocument,omitempty"`
+	VerificationStatus string `bson:"verificationStatus" json:"verificationStatus,omitempty"`
+	LegalName          string `bson:"legalName" json:"legalName,omitempty"`
+	VerificationCode   string `bson:"verificationCode" json:"verificationCode,omitempty"`
+}
+
+type PaymentDetails struct {
+	AcceptedPaymentMethods []string `bson:"acceptedPaymentMethods" json:"acceptedPaymentMethods,omitempty"`
+	PrePaymentRequired     bool     `bson:"prePaymentRequired" json:"prePaymentRequired,omitempty"`
+}
+
 type Provider struct {
-	ID                     string             `bson:"id" json:"id,omitempty"`
-	Profile                Profile            `bson:"profile" json:"profile"`
-	LegalName              string             `bson:"legalName" json:"legalName,omitempty"`
-	Password               string             `bson:"-" json:"password,omitempty"`
-	PasswordHash           string             `bson:"passwordHash" json:"-"`
-	Token                  string             `bson:"-" json:"token,omitempty"`
-	TokenHash              string             `bson:"tokenHash" json:"-"`
-	ProviderType           string             `bson:"providerType" json:"providerType,omitempty"`
-	ServiceCatalogue       ServiceCatalogue   `bson:"serviceCatalogue" json:"serviceCatalogue,omitempty"`
-	Location               string             `bson:"location" json:"location,omitempty"`
-	LocationGeo            GeoPoint           `bson:"locationGeo" json:"locationGeo"`
-	KYPDocument            string             `bson:"kypDocument" json:"kypDocument,omitempty"`
-	VerificationStatus     string             `bson:"verificationStatus" json:"verificationStatus,omitempty"`
-	VerificationLevel      string             `bson:"verificationLevel" json:"verificationLevel,omitempty"`
-	KYPVerificationCode    string             `bson:"kypVerificationCode" json:"kypVerificationCode,omitempty"`
-	InsuranceDocs          []string           `bson:"insuranceDocs,omitempty" json:"insuranceDocs,omitempty"`
-	TaxPIN                 string             `bson:"taxPin,omitempty" json:"taxPin,omitempty"`
-	Rating                 float64            `bson:"rating" json:"rating,omitempty"`
-	CompletedBookings      int                `bson:"completedBookings" json:"completedBookings,omitempty"`
-	HistoricalRecords      []HistoricalRecord `bson:"historicalRecords" json:"historicalRecords,omitempty"`
-	TimeSlots              []TimeSlot         `bson:"timeSlots" json:"timeSlots,omitempty"`
-	AcceptedPaymentMethods []string           `bson:"acceptedPaymentMethods" json:"acceptedPaymentMethods,omitempty"`
-	PrePaymentRequired     bool               `bson:"prePaymentRequired" json:"prePaymentRequired,omitempty"`
-	CreatedAt              time.Time          `bson:"createdAt" json:"createdAt,omitempty"`
-	UpdatedAt              time.Time          `bson:"updatedAt" json:"updatedAt,omitempty"`
-	Devices                []Device           `bson:"devices,omitempty" json:"devices,omitempty"`
+	ID                   string               `bson:"id" json:"id,omitempty"`
+	Profile              Profile              `bson:"profile" json:"profile"`
+	Security             Security             `bson:"security" json:"security,omitzero"`
+	ServiceCatalogue     ServiceCatalogue     `bson:"serviceCatalogue" json:"serviceCatalogue,omitzero"`
+	VerificationLevel    string               `bson:"verificationLevel" json:"verificationLevel,omitempty"`
+	BasicVerification    BasicVerification    `bson:"verification" json:"verification,omitzero"`
+	AdvancedVerification AdvancedVerification `bson:"advancedVerification" json:"advancedVerification,omitzero"`
+	HistoricalRecords    []HistoricalRecord   `bson:"historicalRecords" json:"historicalRecords,omitempty"`
+	TimeSlots            []TimeSlot           `bson:"timeSlots" json:"timeSlots,omitempty"`
+	PaymentDetails       PaymentDetails       `bson:"paymentDetails" json:"paymentDetails,omitzero"`
+	CompletedBookings    int                  `bson:"completedBookings" json:"completedBookings,omitempty"`
+	CreatedAt            time.Time            `bson:"createdAt" json:"createdAt,omitzero"`
+	UpdatedAt            time.Time            `bson:"updatedAt" json:"updatedAt,omitzero"`
+	Devices              []Device             `bson:"devices,omitempty" json:"devices,omitempty"`
 }
 
 type ProviderDTO struct {
@@ -88,11 +102,9 @@ type ProviderDTO struct {
 }
 
 type ProviderAuthResponse struct {
-	ID           string    `json:"id"`
-	Token        string    `json:"token"`
-	Profile      Profile   `json:"profile"`
-	CreatedAt    time.Time `json:"created_at"`
-	ProviderType string    `json:"provider_type,omitempty"`
-	ServiceType  string    `json:"service_type,omitempty"`
-	Rating       float64   `json:"rating,omitempty"`
+	ID          string    `json:"id"`
+	Token       string    `json:"token"`
+	Profile     Profile   `json:"profile"`
+	CreatedAt   time.Time `json:"created_at"`
+	ServiceType string    `json:"service_type,omitempty"`
 }

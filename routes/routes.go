@@ -111,11 +111,23 @@ func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	}
 }
 
+// RegisterStorageRoutes registers all storage-related routes.
 func RegisterStorageRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
-	storageGroup := r.Group("/storage")
+	// Public routes (all use DeviceDetailsMiddleware).
+	public := r.Group("/storage")
+	public.Use(middleware.DeviceDetailsMiddleware())
 	{
-		storageGroup.POST("/:type/:bucket/upload", hb.UploadFileHandler)
-		storageGroup.GET("/:type/:bucket/:filename", hb.GetDownloadURLHandler)
+		// General file endpoints (with :type and :bucket).
+		public.POST("/:type/:bucket/upload", hb.UploadFileHandler)
+		public.GET("/:type/:bucket/:filename", hb.GetDownloadURLHandler)
+		// KYP file uploads (no :type parameter).
+		public.POST("/:bucket/upload", hb.KYPUploadFileHandler)
+	}
+	// Protected routes for KYP file downloads (admin-only).
+	protected := r.Group("/storage")
+	protected.Use(middleware.DeviceDetailsMiddleware(), middleware.JWTAuthAdminMiddleware())
+	{
+		protected.GET("/:bucket/:filename", hb.KYPGetDownloadURLHandler)
 	}
 }
 

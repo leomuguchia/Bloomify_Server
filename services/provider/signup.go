@@ -85,8 +85,13 @@ func (s *DefaultProviderService) VerifyKYP(sessionID string, kypData models.KYPV
 		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
+	if kypData.DocumentURL == "" || kypData.LegalName == "" || kypData.SelfieURL == "" {
+		return 0, fmt.Errorf("missing verification details")
+	}
+
 	session.KYPData = kypData
 	session.VerificationStatus = "verified"
+	session.VerificationLevel = "basic"
 	session.LastUpdatedAt = time.Now()
 
 	if err := SaveRegistrationSession(authCacheClient, sessionID, session, 30*time.Minute); err != nil {
@@ -124,8 +129,8 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
-	provider.PasswordHash = string(hashedPassword)
-	provider.Password = ""
+	provider.Security.PasswordHash = string(hashedPassword)
+	provider.Security.Password = ""
 
 	registrationDevice := session.Devices[0]
 	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, registrationDevice.DeviceID)
@@ -158,13 +163,11 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 	}
 
 	resp := &models.ProviderAuthResponse{
-		ID:           provider.ID,
-		Token:        token,
-		Profile:      provider.Profile,
-		CreatedAt:    provider.CreatedAt,
-		ProviderType: provider.ProviderType,
-		ServiceType:  provider.ServiceCatalogue.ServiceType,
-		Rating:       provider.Rating,
+		ID:          provider.ID,
+		Token:       token,
+		Profile:     provider.Profile,
+		CreatedAt:   provider.CreatedAt,
+		ServiceType: provider.ServiceCatalogue.ServiceType,
 	}
 	return resp, nil
 }

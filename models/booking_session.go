@@ -20,9 +20,8 @@ type BookingResponse struct {
 	Booking      *Booking        `json:"booking,omitempty"`
 }
 
-// InitiateSessionRequest defines the expected JSON payload for initiating a booking session.
 type InitiateSessionRequest struct {
-	ServicePlan
-	DeviceID  string `json:"deviceId" binding:"required"`
-	UserAgent string `json:"userAgent" binding:"required"`
+	ServicePlan ServicePlan `json:"servicePlan" binding:"required"`
+	DeviceID    string      `json:"deviceId" binding:"required"`
+	DeviceName  string      `json:"deviceName" binding:"required"`
 }

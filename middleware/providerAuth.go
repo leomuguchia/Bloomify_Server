@@ -202,7 +202,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 			return
 		}
 
-		if computedHash != prov.TokenHash {
+		if computedHash != prov.Security.TokenHash {
 			logger.Error("JWTAuthProviderMiddleware: token hash mismatch from DB", zap.String("providerID", providerID))
 			if !optional {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{

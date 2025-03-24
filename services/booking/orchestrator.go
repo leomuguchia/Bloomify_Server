@@ -16,6 +16,12 @@ import (
 
 // InitiateSession creates a new booking session.
 func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, userID, deviceID, userAgent string) (string, []models.ProviderDTO, error) {
+	// Validate the ServicePlan using the separate function.
+	if err := validateServicePlan(plan); err != nil {
+		log.Printf("ServicePlan validation error: %v", err)
+		return "", nil, err
+	}
+
 	ctx := context.Background()
 	sessionID := uuid.New().String()
 
@@ -47,6 +53,7 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 		return "", nil, fmt.Errorf("failed to store booking session: %w", err)
 	}
 
+	log.Printf("Successfully initiated session: %s", sessionID)
 	return sessionID, matchedProviders, nil
 }
 
@@ -86,7 +93,6 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	selectedProvider := models.Provider{
 		ID:               selectedDTO.ID,
 		ServiceCatalogue: selectedDTO.ServiceCatalogue,
-		LocationGeo:      selectedDTO.LocationGeo,
 		Profile:          selectedDTO.Profile,
 	}
 
@@ -147,7 +153,6 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 	selectedProvider := models.Provider{
 		ID:               selectedDTO.ID,
 		ServiceCatalogue: selectedDTO.ServiceCatalogue,
-		LocationGeo:      selectedDTO.LocationGeo,
 		Profile:          selectedDTO.Profile,
 	}
 

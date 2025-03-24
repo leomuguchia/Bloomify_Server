@@ -146,9 +146,11 @@ func main() {
 		AdminHandler: adminHandler,
 
 		// Storage endpoints.
-		StorageHandler:        storageHandler,
-		UploadFileHandler:     storageHandler.UploadFileHandler,
-		GetDownloadURLHandler: storageHandler.GetDownloadURLHandler,
+		StorageHandler:           storageHandler,
+		UploadFileHandler:        storageHandler.UploadFileHandler,
+		GetDownloadURLHandler:    storageHandler.GetDownloadURLHandler,
+		KYPUploadFileHandler:     storageHandler.KYPUploadFileHandler,
+		KYPGetDownloadURLHandler: storageHandler.KYPGetDownloadURLHandler,
 	}
 
 	// Register routes with the assembled handler bundle.

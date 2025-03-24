@@ -143,7 +143,7 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, date strin
 	}
 
 	// Process payment for pre-payment providers.
-	if provider.PrePaymentRequired {
+	if provider.PaymentDetails.PrePaymentRequired {
 		invoiceCh := make(chan *models.Invoice)
 		errCh := make(chan error)
 		go func(b models.Booking) {

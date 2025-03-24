@@ -31,7 +31,7 @@ func (s *DefaultProviderService) SetupTimeslots(c *gin.Context, providerID strin
 			return nil, errors.New("each timeslot must have a non-empty date")
 		}
 		// For individual providers, enforce capacity equals 1.
-		if prov.ProviderType == "individual" && ts.Capacity != 1 {
+		if prov.Profile.ProviderType == "individual" && ts.Capacity != 1 {
 			return nil, fmt.Errorf("individual providers must have a capacity of 1 per timeslot; got %d", ts.Capacity)
 		}
 		dateSet[ts.Date] = struct{}{}

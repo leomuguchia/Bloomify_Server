@@ -44,7 +44,7 @@ func (h *BookingHandler) InitiateSession(c *gin.Context) {
 		return
 	}
 
-	sessionID, providers, err := h.BookingSvc.InitiateSession(req.ServicePlan, userID, req.DeviceID, req.UserAgent)
+	sessionID, providers, err := h.BookingSvc.InitiateSession(req.ServicePlan, userID, req.DeviceID, req.DeviceName)
 	if err != nil {
 		h.Logger.Error("InitiateSession: failed to initiate booking session", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate booking session", "details": err.Error()})

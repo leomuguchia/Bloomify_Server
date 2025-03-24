@@ -5,7 +5,7 @@ import (
 
 	"bloomify/services/storage"
 
-	"github.com/cloudinary/cloudinary-go"
+	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/spf13/viper"
 )
 
@@ -19,6 +19,7 @@ func LoadCloudinaryConfig() error {
 	viper.SetDefault("cloudinary.cloudName", "default_cloud_name")
 	viper.SetDefault("cloudinary.apiKey", "default_api_key")
 	viper.SetDefault("cloudinary.apiSecret", "default_api_secret")
+	viper.SetDefault("cloudinary.adminKey", "default_admin_key")
 
 	if err := viper.ReadInConfig(); err != nil {
 		return fmt.Errorf("error reading cloudinary config file: %w", err)
@@ -46,7 +47,7 @@ func Cloudinary() (storage.StorageService, error) {
 		return nil, fmt.Errorf("utils.Cloudinary: failed to initialize Cloudinary: %w", err)
 	}
 
-	// Create the storage service using our Cloudinary client and cloud name.
-	storageSvc := storage.NewStorageService(cld, cloudName)
+	// Create the storage service using our Cloudinary client, cloud name, and apiSecret.
+	storageSvc := storage.NewStorageService(cld, cloudName, apiSecret)
 	return storageSvc, nil
 }

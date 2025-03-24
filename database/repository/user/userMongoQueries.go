@@ -35,24 +35,6 @@ func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), timeout)
 }
 
-// ensureIndexes creates indexes for fields frequently used in queries.
-func (r *MongoUserRepo) ensureIndexes() error {
-	ctx, cancel := newContext(10 * time.Second)
-	defer cancel()
-
-	indexModels := []mongo.IndexModel{
-		{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "email", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "username", Value: 1}}, Options: options.Index().SetUnique(true)},
-	}
-
-	_, err := r.coll.Indexes().CreateMany(ctx, indexModels)
-	if err != nil {
-		return fmt.Errorf("failed to create indexes: %w", err)
-	}
-	return nil
-}
-
 // GetByIDWithProjection retrieves a user by its ID with an optional projection.
 func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*models.User, error) {
 	ctx, cancel := newContext(5 * time.Second)

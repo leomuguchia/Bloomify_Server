@@ -29,6 +29,7 @@ type ProviderRegistrationSession struct {
 	ServiceCatalogue   ServiceCatalogue              `json:"serviceCatalogue,omitempty"` // Data from Step 3.
 	OTPStatus          string                        `json:"otpStatus"`                  // e.g., "pending", "verified"
 	VerificationStatus string                        `json:"verificationStatus"`         // e.g., "pending", "verified"
+	VerificationLevel  string                        ` json:"verificationLevel,omitempty"`
 	CreatedAt          time.Time                     `json:"createdAt"`
 	LastUpdatedAt      time.Time                     `json:"lastUpdatedAt"`
 	Devices            []Device                      `json:"devices,omitempty"` // Captured device(s) during registration.
@@ -42,23 +43,25 @@ func (rs *ProviderRegistrationSession) ToProviderModel() Provider {
 		ProviderName: "", // Can be updated later.
 		Status:       "active",
 		ProfileImage: "https://example.com/default_profile.png",
+		LocationGeo: GeoPoint{
+			Type:        "Point",
+			Coordinates: []float64{rs.BasicData.Longitude, rs.BasicData.Latitude},
+		},
 	}
-	geo := GeoPoint{
-		Type:        "Point",
-		Coordinates: []float64{rs.BasicData.Longitude, rs.BasicData.Latitude},
-	}
+
 	return Provider{
-		ID:                 "", // Will be assigned when persisting.
-		Profile:            profile,
-		LegalName:          rs.KYPData.LegalName,
-		KYPDocument:        rs.KYPData.DocumentURL,
-		VerificationStatus: rs.VerificationStatus,
-		VerificationLevel:  "basic",
-		Devices:            rs.Devices,
-		LocationGeo:        geo,
-		ServiceCatalogue:   rs.ServiceCatalogue,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
+		ID:               "", // Will be assigned when persisting.
+		Profile:          profile,
+		ServiceCatalogue: rs.ServiceCatalogue,
+		BasicVerification: BasicVerification{
+			LegalName:          rs.KYPData.LegalName,
+			KYPDocument:        rs.KYPData.DocumentURL,
+			VerificationStatus: rs.VerificationStatus,
+		},
+		VerificationLevel: "basic",
+		Devices:           rs.Devices,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 }
 
