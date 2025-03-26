@@ -1,6 +1,8 @@
 package booking
 
-import "bloomify/models"
+import (
+	"bloomify/models"
+)
 
 // BookingSessionService defines the interface for managing a stateful booking session.
 type BookingSessionService interface {

@@ -99,6 +99,7 @@ type ProviderDTO struct {
 	ServiceCatalogue ServiceCatalogue `json:"serviceCatalogue"`
 	LocationGeo      GeoPoint         `json:"locationGeo"`
 	Preferred        bool             `json:"preferred"`
+	Proximity        float64          `json:"proximity"`
 }
 
 type ProviderAuthResponse struct {

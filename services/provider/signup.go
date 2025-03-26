@@ -12,11 +12,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// RegisterBasic handles Step 1: Basic Registration + OTP initiation.
-// It accepts basic registration data and device details; the device's DeviceID is used for OTP.
 func (s *DefaultProviderService) RegisterBasic(basicReq models.ProviderBasicRegistrationData, device models.Device) (string, int, error) {
-	if basicReq.Email == "" || basicReq.Password == "" || basicReq.PhoneNumber == "" || basicReq.Address == "" {
-		return "", 0, fmt.Errorf("all fields are required are required")
+	if err := validateBasicRegistrationData(basicReq); err != nil {
+		return "", 0, fmt.Errorf("validation error: %w", err)
 	}
 
 	available, err := s.Repo.IsProviderAvailable(basicReq)
@@ -110,21 +108,45 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf(": %w", err)
+		return nil, fmt.Errorf("failed to retrieve registration session: %w", err)
 	}
 
 	if catalogueData.ServiceType == "" || catalogueData.Mode == "" {
 		return nil, fmt.Errorf("service type and mode are required")
 	}
 
+	// Update session with the service catalogue details.
 	session.ServiceCatalogue = catalogueData
 	session.LastUpdatedAt = time.Now()
 
-	provider := session.ToProviderModel()
-	provider.ID = GenerateProviderID()
-	provider.CreatedAt = time.Now()
-	provider.UpdatedAt = time.Now()
+	// Directly build the Provider model from the session.
+	provider := models.Provider{
+		ID: GenerateProviderID(),
+		Profile: models.Profile{
+			ProviderName: session.BasicData.ProviderName,
+			// Assuming ProviderType should be set; if not available from BasicData, set a default.
+			ProviderType: "individual",
+			Email:        session.BasicData.Email,
+			PhoneNumber:  session.BasicData.PhoneNumber,
+			Address:      session.BasicData.Address,
+			Status:       "active",
+			ProfileImage: "https://example.com/default_profile.png",
+			LocationGeo:  session.BasicData.LocationGeo,
+			Rating:       0, // default rating; can be updated later.
+		},
+		ServiceCatalogue: session.ServiceCatalogue,
+		BasicVerification: models.BasicVerification{
+			LegalName:          session.KYPData.LegalName,
+			KYPDocument:        session.KYPData.DocumentURL,
+			VerificationStatus: session.VerificationStatus,
+		},
+		VerificationLevel: "basic",
+		Devices:           session.Devices,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+	}
 
+	// Hash the password.
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(session.BasicData.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -132,12 +154,12 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 	provider.Security.PasswordHash = string(hashedPassword)
 	provider.Security.Password = ""
 
+	// Generate a token and update the device's token hash.
 	registrationDevice := session.Devices[0]
 	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, registrationDevice.DeviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth token: %w", err)
 	}
-
 	tokenHash := utils.HashToken(token)
 	deviceUpdated := false
 	for idx, d := range provider.Devices {
@@ -154,14 +176,17 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 		provider.Devices = append(provider.Devices, registrationDevice)
 	}
 
+	// Persist the provider record.
 	if err := s.Repo.Create(&provider); err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
+	// Delete the registration session.
 	if err := DeleteRegistrationSession(authCacheClient, sessionID); err != nil {
 		utils.GetLogger().Error("Failed to delete registration session", zap.String("sessionID", sessionID), zap.Error(err))
 	}
 
+	// Build and return the authentication response.
 	resp := &models.ProviderAuthResponse{
 		ID:          provider.ID,
 		Token:       token,

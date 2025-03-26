@@ -1,0 +1,1075 @@
+[
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Alice Johnson",
+      "providerType": "individual",
+      "email": "alice.johnson@example.com",
+      "phoneNumber": "415-555-0101",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/alice_johnson.jpg",
+      "address": "123 Market St, San Francisco, CA",
+      "rating": 4.2,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4140, 37.7790]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "in_home",
+      "customOptions": {
+        "standard": 1.0,
+        "luxury": 1.2
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/alicejohnson.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Alice Johnson",
+      "verificationCode": "VERIF-A1B2"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "paypal"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 12,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Smith Plumbing Co.",
+      "providerType": "company",
+      "email": "contact@smithplumbing.com",
+      "phoneNumber": "415-555-0102",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/smith_plumbing.jpg",
+      "address": "456 Mission St, San Francisco, CA",
+      "rating": 4.7,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4260, 37.7700]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "plumbing",
+      "mode": "provider-to-user",
+      "customOptions": {
+        "premium": 1.3,
+        "executive": 1.5
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/smithplumbingco.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Smith Plumbing Co.",
+      "verificationCode": "VERIF-C3D4"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 25,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Carol Martinez",
+      "providerType": "individual",
+      "email": "carol.martinez@example.com",
+      "phoneNumber": "415-555-0103",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/carol_martinez.jpg",
+      "address": "789 Howard St, San Francisco, CA",
+      "rating": 3.9,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4250, 37.7800]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "electrician",
+      "mode": "mobile-unit",
+      "customOptions": {
+        "standard": 1.0,
+        "ecofriendly": 1.1
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/carolmartinez.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Carol Martinez",
+      "verificationCode": "VERIF-E5F6"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "bank_transfer", "paypal"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 8,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Delta Cleaning Services",
+      "providerType": "company",
+      "email": "info@deltacleaning.com",
+      "phoneNumber": "415-555-0104",
+      "status": "active",
+      "advancedVerified": true,
+      "profileImage": "http://example.com/images/delta_cleaning.jpg",
+      "address": "101 Van Ness Ave, San Francisco, CA",
+      "rating": 4.5,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4100, 37.7680]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "pickup_delivery",
+      "customOptions": {
+        "standard": 1.0,
+        "luxury": 1.2,
+        "premium": 1.4
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/deltacleaningservices.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Delta Cleaning Services",
+      "verificationCode": "VERIF-G7H8"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [
+        "http://example.com/insurance/delta_cleaning-doc.pdf"
+      ],
+      "taxPin": "TAX-8473"
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 30,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Ethan Brown",
+      "providerType": "individual",
+      "email": "ethan.brown@example.com",
+      "phoneNumber": "415-555-0105",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/ethan_brown.jpg",
+      "address": "202 Folsom St, San Francisco, CA",
+      "rating": 4.0,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4300, 37.7760]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "gardening",
+      "mode": "provider-to-user",
+      "customOptions": {
+        "executive": 1.5,
+        "ecofriendly": 1.1
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/ethanbrown.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Ethan Brown",
+      "verificationCode": "VERIF-I9J0"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 5,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Fiona Davis",
+      "providerType": "individual",
+      "email": "fiona.davis@example.com",
+      "phoneNumber": "415-555-0106",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/fiona_davis.jpg",
+      "address": "303 Pine St, San Francisco, CA",
+      "rating": 4.3,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4180, 37.7810]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "in_store",
+      "customOptions": {
+        "standard": 1.0,
+        "luxury": 1.3
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/fionadavis.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Fiona Davis",
+      "verificationCode": "VERIF-K1L2"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "bank_transfer", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 18,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Global Electric",
+      "providerType": "company",
+      "email": "support@globalelectric.com",
+      "phoneNumber": "415-555-0107",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/global_electric.jpg",
+      "address": "404 Battery St, San Francisco, CA",
+      "rating": 4.1,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4230, 37.7675]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "electrician",
+      "mode": "drop-off",
+      "customOptions": {
+        "premium": 1.4,
+        "executive": 1.6
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/globalelectric.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Global Electric",
+      "verificationCode": "VERIF-M3N4"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 22,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Helen Lee",
+      "providerType": "individual",
+      "email": "helen.lee@example.com",
+      "phoneNumber": "415-555-0108",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/helen_lee.jpg",
+      "address": "505 Embarcadero, San Francisco, CA",
+      "rating": 3.8,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4120, 37.7730]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "delivery",
+      "mode": "mobile-unit",
+      "customOptions": {
+        "standard": 1.0,
+        "ecofriendly": 1.2
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/helenlee.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Helen Lee",
+      "verificationCode": "VERIF-O5P6"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 14,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Innovative Gardening",
+      "providerType": "company",
+      "email": "info@innovativegardening.com",
+      "phoneNumber": "415-555-0109",
+      "status": "active",
+      "advancedVerified": true,
+      "profileImage": "http://example.com/images/innovative_gardening.jpg",
+      "address": "606 Divisadero St, San Francisco, CA",
+      "rating": 4.4,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4280, 37.7750]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "in_home",
+      "customOptions": {
+        "luxury": 1.2,
+        "premium": 1.4
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/innovativegardening.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Innovative Gardening",
+      "verificationCode": "VERIF-Q7R8"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [
+        "http://example.com/insurance/innovative_gardening-doc.pdf"
+      ],
+      "taxPin": "TAX-5621"
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 28,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Jack Wilson",
+      "providerType": "individual",
+      "email": "jack.wilson@example.com",
+      "phoneNumber": "415-555-0110",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/jack_wilson.jpg",
+      "address": "707 Geary St, San Francisco, CA",
+      "rating": 4.0,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4205, 37.7805]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "plumbing",
+      "mode": "provider-to-user",
+      "customOptions": {
+        "standard": 1.0,
+        "executive": 1.5
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/jackwilson.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Jack Wilson",
+      "verificationCode": "VERIF-S9T0"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "bank_transfer", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 10,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Kathy Nguyen",
+      "providerType": "individual",
+      "email": "kathy.nguyen@example.com",
+      "phoneNumber": "415-555-0111",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/kathy_nguyen.jpg",
+      "address": "808 California St, San Francisco, CA",
+      "rating": 4.6,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4170, 37.7720]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "in_store",
+      "customOptions": {
+        "standard": 1.0,
+        "luxury": 1.2,
+        "ecofriendly": 1.1
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/kathynguyen.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Kathy Nguyen",
+      "verificationCode": "VERIF-U1V2"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 16,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Luxe Delivery",
+      "providerType": "company",
+      "email": "service@luxedelivery.com",
+      "phoneNumber": "415-555-0112",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/luxe_delivery.jpg",
+      "address": "909 Harrison St, San Francisco, CA",
+      "rating": 4.8,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4265, 37.7765]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "delivery",
+      "mode": "drop-off",
+      "customOptions": {
+        "premium": 1.3,
+        "executive": 1.5
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/luxedelivery.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Luxe Delivery",
+      "verificationCode": "VERIF-W3X4"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 20,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Michael Chen",
+      "providerType": "individual",
+      "email": "michael.chen@example.com",
+      "phoneNumber": "415-555-0113",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/michael_chen.jpg",
+      "address": "1010 Sutter St, San Francisco, CA",
+      "rating": 4.2,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4155, 37.7795]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "electrician",
+      "mode": "mobile-unit",
+      "customOptions": {
+        "standard": 1.0,
+        "luxury": 1.2
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/michaelchen.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Michael Chen",
+      "verificationCode": "VERIF-Y5Z6"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 11,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Nina Patel",
+      "providerType": "individual",
+      "email": "nina.patel@example.com",
+      "phoneNumber": "415-555-0114",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/nina_patel.jpg",
+      "address": "1111 Powell St, San Francisco, CA",
+      "rating": 4.3,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4225, 37.7705]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "in_store",
+      "customOptions": {
+        "ecofriendly": 1.1,
+        "premium": 1.4
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/ninapatel.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Nina Patel",
+      "verificationCode": "VERIF-A7B8"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "bank_transfer", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 19,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Optimal Cleaning",
+      "providerType": "company",
+      "email": "contact@optimalcleaning.com",
+      "phoneNumber": "415-555-0115",
+      "status": "active",
+      "advancedVerified": true,
+      "profileImage": "http://example.com/images/optimal_cleaning.jpg",
+      "address": "1212 Post St, San Francisco, CA",
+      "rating": 4.7,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4090, 37.7740]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "pickup_delivery",
+      "customOptions": {
+        "standard": 1.0,
+        "executive": 1.5,
+        "luxury": 1.3
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/optimalcleaning.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Optimal Cleaning",
+      "verificationCode": "VERIF-C9D0"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [
+        "http://example.com/insurance/optimal_cleaning-doc.pdf"
+      ],
+      "taxPin": "TAX-3912"
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 27,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Peter Gomez",
+      "providerType": "individual",
+      "email": "peter.gomez@example.com",
+      "phoneNumber": "415-555-0116",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/peter_gomez.jpg",
+      "address": "1313 Bush St, San Francisco, CA",
+      "rating": 4.0,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4310, 37.7775]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "plumbing",
+      "mode": "provider-to-user",
+      "customOptions": {
+        "standard": 1.0,
+        "premium": 1.4
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/petergomez.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Peter Gomez",
+      "verificationCode": "VERIF-E1F2"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 9,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Queen Roberts",
+      "providerType": "individual",
+      "email": "queen.roberts@example.com",
+      "phoneNumber": "415-555-0117",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/queen_roberts.jpg",
+      "address": "1414 Lombard St, San Francisco, CA",
+      "rating": 4.1,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4190, 37.7710]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "delivery",
+      "mode": "mobile-unit",
+      "customOptions": {
+        "luxury": 1.2,
+        "ecofriendly": 1.1
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/queenroberts.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Queen Roberts",
+      "verificationCode": "VERIF-G3H4"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 13,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Rapid Repairs",
+      "providerType": "company",
+      "email": "support@rapidrepairs.com",
+      "phoneNumber": "415-555-0118",
+      "status": "active",
+      "advancedVerified": true,
+      "profileImage": "http://example.com/images/rapid_repairs.jpg",
+      "address": "1515 Mission Bay, San Francisco, CA",
+      "rating": 4.5,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4130, 37.7800]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "electrician",
+      "mode": "drop-off",
+      "customOptions": {
+        "standard": 1.0,
+        "premium": 1.3,
+        "executive": 1.6
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/rapidrepairs.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Rapid Repairs",
+      "verificationCode": "VERIF-I3J4"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [
+        "http://example.com/insurance/rapid_repairs-doc.pdf"
+      ],
+      "taxPin": "TAX-2745"
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "bank_transfer", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 21,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Sara Lopez",
+      "providerType": "individual",
+      "email": "sara.lopez@example.com",
+      "phoneNumber": "415-555-0119",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/sara_lopez.jpg",
+      "address": "1616 Castro St, San Francisco, CA",
+      "rating": 4.4,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4245, 37.7735]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "gardening",
+      "mode": "provider-to-user",
+      "customOptions": {
+        "standard": 1.0,
+        "luxury": 1.2
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/saralopez.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Sara Lopez",
+      "verificationCode": "VERIF-K5L6"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["bank_transfer", "cash"],
+      "prePaymentRequired": true
+    },
+    "completedBookings": 7,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  },
+  {
+    "id": "",
+    "profile": {
+      "providerName": "Tom Anderson",
+      "providerType": "individual",
+      "email": "tom.anderson@example.com",
+      "phoneNumber": "415-555-0120",
+      "status": "active",
+      "advancedVerified": false,
+      "profileImage": "http://example.com/images/tom_anderson.jpg",
+      "address": "1717 Lombard St, San Francisco, CA",
+      "rating": 4.0,
+      "locationGeo": {
+        "type": "Point",
+        "coordinates": [-122.4175, 37.7755]
+      }
+    },
+    "security": {
+      "password": "$Muguchia1",
+      "passwordHash": "",
+      "token": "",
+      "tokenHash": ""
+    },
+    "serviceCatalogue": {
+      "serviceType": "cleaning",
+      "mode": "in_home",
+      "customOptions": {
+        "ecofriendly": 1.1,
+        "premium": 1.4,
+        "executive": 1.5
+      }
+    },
+    "verificationLevel": "basic",
+    "verification": {
+      "kypDocument": "http://example.com/kyp/tomanderson.pdf",
+      "verificationStatus": "basic",
+      "legalName": "Tom Anderson",
+      "verificationCode": "VERIF-M7N8"
+    },
+    "advancedVerification": {
+      "insuranceDocs": [],
+      "taxPin": ""
+    },
+    "historicalRecords": [],
+    "timeSlots": [],
+    "paymentDetails": {
+      "acceptedPaymentMethods": ["credit_card", "paypal"],
+      "prePaymentRequired": false
+    },
+    "completedBookings": 15,
+    "createdAt": "2023-03-26T00:00:00Z",
+    "updatedAt": "2023-03-26T00:00:00Z",
+    "devices": []
+  }
+]

@@ -12,20 +12,26 @@ import (
 	"bloomify/models"
 )
 
+// RankedProvider holds provider data along with computed score and proximity.
 type RankedProvider struct {
 	Provider   models.Provider
 	RankPoints float64
 	Preferred  bool
+	Proximity  float64
 }
 
+// MatchingService defines the interface for matching providers.
 type MatchingService interface {
 	MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error)
 }
 
+// DefaultMatchingService implements MatchingService.
 type DefaultMatchingService struct {
 	ProviderRepo repository.ProviderRepository
 }
 
+// MatchProviders receives a service plan, performs matching and returns provider DTOs.
+// When no providers match, it returns an empty list rather than an error.
 func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error) {
 	log.Printf("Received ServicePlan: %+v", plan)
 	criteria := repository.ProviderSearchCriteria{
@@ -38,16 +44,23 @@ func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]mode
 	if err != nil {
 		return nil, fmt.Errorf("failed to match providers: %w", err)
 	}
+	// If no providers are matched, return an empty list.
+	if len(rankedProviders) == 0 {
+		log.Printf("No providers matched for service '%s'", plan.ServiceType)
+		return []models.ProviderDTO{}, nil
+	}
 	return extractProvidersDTO(rankedProviders), nil
 }
 
+// matchProviders performs the actual provider search, scoring and ranking.
 func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSearchCriteria, ctx context.Context) ([]RankedProvider, error) {
 	providers, err := s.ProviderRepo.AdvancedSearch(criteria)
 	if err != nil {
 		return nil, fmt.Errorf("advanced search failed: %w", err)
 	}
+	// If no providers are found at all, return an empty slice.
 	if len(providers) == 0 {
-		return nil, fmt.Errorf("no providers found for service '%s'", criteria.ServiceType)
+		return []RankedProvider{}, nil
 	}
 
 	if len(criteria.LocationGeo.Coordinates) < 2 {
@@ -79,6 +92,7 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 		return (rating / 5) * MaxRatingPts
 	}
 
+	// scoreData holds temporary scoring details.
 	type scoreData struct {
 		Provider       models.Provider
 		TotalScore     float64
@@ -86,6 +100,7 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 		VerifiedScore  float64
 		CompletedScore float64
 		RatingScore    float64
+		DistanceKm     float64 // distance in km
 	}
 
 	resultsCh := make(chan scoreData, len(providers))
@@ -100,6 +115,7 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 				provLon = p.Profile.LocationGeo.Coordinates[0]
 				provLat = p.Profile.LocationGeo.Coordinates[1]
 			}
+			// Compute distance in km.
 			distanceKm := haversine(centerLat, centerLon, provLat, provLon)
 			locScore := computeLocationScore(distanceKm)
 			var verifiedScore float64
@@ -117,6 +133,7 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 				VerifiedScore:  verifiedScore,
 				CompletedScore: compScore,
 				RatingScore:    ratingScore,
+				DistanceKm:     distanceKm,
 			}
 		}(p)
 	}
@@ -139,6 +156,8 @@ func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSear
 			Provider:   sd.Provider,
 			RankPoints: sd.TotalScore,
 			Preferred:  i == 0,
+			// Convert km to metres.
+			Proximity: sd.DistanceKm * 1000,
 		})
 	}
 	if len(ranked) > 20 {
@@ -169,6 +188,7 @@ func extractProvidersDTO(ranked []RankedProvider) []models.ProviderDTO {
 			ServiceCatalogue: rp.Provider.ServiceCatalogue,
 			LocationGeo:      rp.Provider.Profile.LocationGeo,
 			Preferred:        rp.Preferred,
+			Proximity:        rp.Proximity,
 		}
 		dtos = append(dtos, dto)
 	}

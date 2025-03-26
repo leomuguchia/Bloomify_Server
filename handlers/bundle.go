@@ -19,6 +19,7 @@ type HandlerBundle struct {
 	DeleteProviderHandler          gin.HandlerFunc
 	AuthenticateProviderHandler    gin.HandlerFunc
 	AdvanceVerifyProviderHandler   gin.HandlerFunc
+	UpdateProviderPasswordHandler  gin.HandlerFunc
 	RevokeProviderAuthTokenHandler gin.HandlerFunc
 	SetupTimeslotsHandler          gin.HandlerFunc
 
@@ -32,6 +33,7 @@ type HandlerBundle struct {
 	ConfirmBooking       gin.HandlerFunc
 	CancelSession        gin.HandlerFunc
 	GetAvailableServices gin.HandlerFunc
+	GetDirections        gin.HandlerFunc
 
 	// AI endpoints
 	AIRecommendHandler gin.HandlerFunc

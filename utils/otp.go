@@ -38,7 +38,7 @@ func SendWhatsAppMessage(phoneNumber, message string) error {
 }
 
 // InitiateDeviceOTP generates an OTP, stores it in Redis with a 5-minute TTL,
-// and sends it to the provided phone number via WhatsApp.
+// sends it via WhatsApp, and also stores the OTP in the Test Redis with a key based on sessionID.
 func InitiateDeviceOTP(userID, deviceID, phoneNumber string) error {
 	// Generate a secure 6-character OTP.
 	otp, err := generateSecureOTP(6)
@@ -54,7 +54,7 @@ func InitiateDeviceOTP(userID, deviceID, phoneNumber string) error {
 		return fmt.Errorf("OTP cache client not initialized")
 	}
 
-	// Store the OTP in Redis with a TTL of 5 minutes.
+	// Store the OTP in the normal OTP cache with a TTL of 5 minutes.
 	if err := client.Set(ctx, otpKey, otp, ttl).Err(); err != nil {
 		GetLogger().Error("Failed to cache OTP", zap.Error(err))
 		return fmt.Errorf("failed to initiate device OTP")
@@ -66,6 +66,19 @@ func InitiateDeviceOTP(userID, deviceID, phoneNumber string) error {
 	if err := SendWhatsAppMessage(phoneNumber, message); err != nil {
 		GetLogger().Error("Failed to send OTP via WhatsApp", zap.Error(err))
 		return fmt.Errorf("failed to send OTP")
+	}
+
+	// Additionally, store the OTP in the Test Redis using sessionID as key.
+	testKey := fmt.Sprintf("session:%s", userID)
+	testClient := GetTestCacheClient()
+	if testClient == nil {
+		GetLogger().Error("Test cache client not initialized")
+	} else {
+		if err := testClient.Set(ctx, testKey, otp, ttl).Err(); err != nil {
+			GetLogger().Error("Failed to cache OTP in Test Redis", zap.Error(err))
+		} else {
+			GetLogger().Sugar().Infof("Stored OTP %s in Test Redis under key %s", otp, testKey)
+		}
 	}
 
 	GetLogger().Sugar().Infof("Sent OTP %s to phone %s for user %s, device %s (expires in %v)", otp, phoneNumber, userID, deviceID, ttl)

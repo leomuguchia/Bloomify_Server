@@ -30,10 +30,9 @@ func main() {
 	config.LoadConfig()
 	logger := utils.GetLogger()
 
-	// Initialize the database and caches.
+	// Initialize the database and redis.
 	database.InitDB()
-	utils.InitCache()
-	utils.InitAuthCache()
+	utils.InitRedis()
 
 	// Initialize Cloudinary Storage Service.
 	cloudinaryStorageService, err := utils.Cloudinary()
@@ -102,6 +101,7 @@ func main() {
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
 		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler,
+		UpdateProviderPasswordHandler:  providerHandler.UpdateProviderPasswordHandler,
 
 		// Provider device endpoints.
 		GetProviderDevicesHandler:          ProviderDeviceHandler.GetProviderDevicesHandler,
@@ -113,6 +113,7 @@ func main() {
 		ConfirmBooking:       bookingHandler.ConfirmBooking,
 		CancelSession:        bookingHandler.CancelSession,
 		GetAvailableServices: bookingHandler.GetAvailableServices,
+		GetDirections:        bookingHandler.GetDirections,
 
 		// AI endpoints.
 		AIRecommendHandler: handlers.AIRecommendHandler,

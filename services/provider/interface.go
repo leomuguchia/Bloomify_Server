@@ -25,6 +25,7 @@ type ProviderService interface {
 	GetProviderByID(c *gin.Context, id string) (*models.Provider, error)
 	GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error)
 	UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error)
+	UpdateProviderPassword(providerID, currentPassword, newPassword, currentDeviceID string) (*models.Provider, error)
 	DeleteProvider(id string) error
 	AdvanceVerifyProvider(c *gin.Context, id string, advReq AdvanceVerifyRequest) (*models.Provider, error)
 	SetupTimeslots(c *gin.Context, providerID string, req models.SetupTimeslotsRequest) (*models.ProviderTimeslotDTO, error)

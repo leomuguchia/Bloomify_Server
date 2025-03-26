@@ -63,6 +63,7 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 			protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
 			protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
 			protected.PUT("/create-timeslots/:id", hb.SetupTimeslotsHandler)
+			protected.PUT("/password/:id", hb.UpdateProviderPasswordHandler)
 			// Provider device endpoints
 			protected.GET("/devices", hb.GetProviderDevicesHandler)
 			protected.DELETE("/devices", hb.SignOutOtherProviderDevicesHandler)
@@ -99,6 +100,7 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		bookingGroup.POST("/confirm", hb.ConfirmBooking)
 		bookingGroup.DELETE("/session/:sessionID", hb.CancelSession)
 		bookingGroup.GET("/services", hb.GetAvailableServices)
+		bookingGroup.GET("/directions", hb.GetDirections)
 	}
 }
 
@@ -111,23 +113,20 @@ func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	}
 }
 
-// RegisterStorageRoutes registers all storage-related routes.
 func RegisterStorageRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
-	// Public routes (all use DeviceDetailsMiddleware).
 	public := r.Group("/storage")
 	public.Use(middleware.DeviceDetailsMiddleware())
 	{
-		// General file endpoints (with :type and :bucket).
 		public.POST("/:type/:bucket/upload", hb.UploadFileHandler)
 		public.GET("/:type/:bucket/:filename", hb.GetDownloadURLHandler)
-		// KYP file uploads (no :type parameter).
-		public.POST("/:bucket/upload", hb.KYPUploadFileHandler)
+		public.POST("/kyp/:bucket/upload", hb.KYPUploadFileHandler)
 	}
-	// Protected routes for KYP file downloads (admin-only).
+
+	// Protected routes for KYP downloads (admin-only).
 	protected := r.Group("/storage")
 	protected.Use(middleware.DeviceDetailsMiddleware(), middleware.JWTAuthAdminMiddleware())
 	{
-		protected.GET("/:bucket/:filename", hb.KYPGetDownloadURLHandler)
+		protected.GET("/kyp/:bucket/:publicID", hb.KYPGetDownloadURLHandler)
 	}
 }
 

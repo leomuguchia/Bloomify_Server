@@ -1,17 +1,19 @@
 package provider
 
 import (
+	"bloomify/services/user"
+	"context"
 	"fmt"
 	"time"
 
 	"bloomify/models"
+	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"golang.org/x/crypto/bcrypt"
 )
 
-// UpdateProvider merges allowed updates and returns the updated provider record (full access view).
-// It implements patch-style updates using camelCase keys.
 func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error) {
 	existing, err := s.Repo.GetByIDWithProjection(id, nil)
 	if err != nil {
@@ -25,7 +27,7 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 		existing.Profile.ProviderName = v
 	}
 	if v, ok := updates["legalName"].(string); ok && v != "" {
-		updateFields["legalName"] = v
+		updateFields["verification.legalName"] = v
 		existing.BasicVerification.LegalName = v
 	}
 	if v, ok := updates["phoneNumber"].(string); ok && v != "" {
@@ -45,7 +47,6 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 		existing.ServiceCatalogue.Mode = v
 	}
 	if v, ok := updates["customOptions"]; ok {
-		// Expecting a map[string]interface{}; convert it to map[string]float64.
 		if opts, ok := v.(map[string]interface{}); ok {
 			newOpts := make(map[string]float64)
 			for key, val := range opts {
@@ -79,7 +80,7 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 						Type:        "Point",
 						Coordinates: newCoords,
 					}
-					updateFields["locationGeo"] = geoPoint
+					updateFields["profile.locationGeo"] = geoPoint
 					existing.Profile.LocationGeo = geoPoint
 				}
 			}
@@ -100,10 +101,66 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 	return s.GetProviderByID(c, id)
 }
 
-// DeleteProvider removes a provider record by its ID.
 func (s *DefaultProviderService) DeleteProvider(providerID string) error {
 	if err := s.Repo.Delete(providerID); err != nil {
 		return fmt.Errorf("failed to delete provider with id %s: %w", providerID, err)
 	}
 	return nil
+}
+
+func (s *DefaultProviderService) UpdateProviderPassword(providerID, currentPassword, newPassword, currentDeviceID string) (*models.Provider, error) {
+	existing, err := s.Repo.GetByIDWithProjection(providerID, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("provider not found: %w", err)
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("provider not found")
+	}
+
+	if len(existing.Security.PasswordHash) > 0 {
+		if err := bcrypt.CompareHashAndPassword([]byte(existing.Security.PasswordHash), []byte(currentPassword)); err != nil {
+			return nil, fmt.Errorf("current password is incorrect")
+		}
+	} else {
+		utils.GetLogger().Warn("Stored password hash is empty; proceeding with password update")
+	}
+
+	if err := user.VerifyPasswordComplexity(newPassword); err != nil {
+		return nil, err
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash new password: %w", err)
+	}
+
+	existing.Security.PasswordHash = string(newHash)
+	existing.UpdatedAt = time.Now()
+
+	var retainedDevices []models.Device
+	authCache := utils.GetAuthCacheClient()
+	if len(existing.Devices) > 1 {
+		for _, d := range existing.Devices {
+			if d.DeviceID == currentDeviceID {
+				retainedDevices = append(retainedDevices, d)
+			} else {
+				cacheKey := utils.AuthCachePrefix + providerID + ":" + d.DeviceID
+				_ = authCache.Del(context.Background(), cacheKey).Err()
+			}
+		}
+		existing.Devices = retainedDevices
+	}
+
+	updateDoc := bson.M{
+		"$set": bson.M{
+			"password_hash": existing.Security.PasswordHash,
+			"updated_at":    existing.UpdatedAt,
+			"devices":       existing.Devices,
+		},
+	}
+
+	if err := s.Repo.UpdateWithDocument(providerID, updateDoc); err != nil {
+		return nil, fmt.Errorf("failed to update provider password: %w", err)
+	}
+	return s.Repo.GetByIDWithProjection(providerID, nil)
 }

@@ -131,3 +131,36 @@ func (h *ProviderHandler) SetupTimeslotsHandler(c *gin.Context) {
 		"provider": dto,
 	})
 }
+
+// UpdateProviderPasswordHandler handles PUT /providers/password/:id.
+// It expects a JSON payload with "currentPassword" and "newPassword".
+func (h *ProviderHandler) UpdateProviderPasswordHandler(c *gin.Context) {
+	logger := utils.GetLogger()
+	providerID := c.Param("id")
+
+	// Extract device details from context (set by DeviceDetailsMiddleware).
+	deviceID, ok := c.Get("deviceID")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device ID"})
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"currentPassword" binding:"required"`
+		NewPassword     string `json:"newPassword" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("Invalid update password request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updatedProvider, err := providerService.UpdateProviderPassword(providerID, req.CurrentPassword, req.NewPassword, deviceID.(string))
+	if err != nil {
+		logger.Error("Failed to update provider password", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedProvider)
+}

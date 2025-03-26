@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 
 	"bloomify/models"
@@ -24,30 +26,61 @@ func NewBookingHandler(svc booking.BookingSessionService, logger *zap.Logger) *B
 	}
 }
 
-// InitiateSession handles POST /api/booking/session.
 func (h *BookingHandler) InitiateSession(c *gin.Context) {
-	var req models.InitiateSessionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
+	var servicePlan models.ServicePlan
+	if err := c.ShouldBindJSON(&servicePlan); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid request payload",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if servicePlan.ServiceType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "serviceType is required",
+		})
 		return
 	}
 
 	userIDValue, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "user not authenticated",
+		})
 		return
 	}
-
 	userID, ok := userIDValue.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid userID in context"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "invalid userID in context",
+		})
 		return
 	}
 
-	sessionID, providers, err := h.BookingSvc.InitiateSession(req.ServicePlan, userID, req.DeviceID, req.DeviceName)
+	deviceID, deviceName, err := GetDeviceDetails(c)
 	if err != nil {
-		h.Logger.Error("InitiateSession: failed to initiate booking session", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initiate booking session", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	sessionID, providers, err := h.BookingSvc.InitiateSession(servicePlan, userID, deviceID, deviceName)
+	if err != nil {
+		var matchErr *booking.MatchError
+		if errors.As(err, &matchErr) {
+			c.JSON(http.StatusOK, gin.H{
+				"error":     matchErr.Code,
+				"details":   fmt.Sprintf("No providers available for %s in your location", servicePlan.ServiceType),
+				"providers": []models.ProviderDTO{},
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to initiate booking session",
+			"details": err.Error(),
+		})
 		return
 	}
 

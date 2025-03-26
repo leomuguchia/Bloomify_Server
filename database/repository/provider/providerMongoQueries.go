@@ -222,7 +222,7 @@ func (r *MongoProviderRepo) IsProviderAvailable(basicReq models.ProviderBasicReg
 	filter := bson.M{
 		"$or": []bson.M{
 			{"profile.email": basicReq.Email},
-			{"profile.providerName": basicReq.Username},
+			{"profile.providerName": basicReq.ProviderName},
 		},
 	}
 

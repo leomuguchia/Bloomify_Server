@@ -16,7 +16,6 @@ import (
 
 // InitiateSession creates a new booking session.
 func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, userID, deviceID, userAgent string) (string, []models.ProviderDTO, error) {
-	// Validate the ServicePlan using the separate function.
 	if err := validateServicePlan(plan); err != nil {
 		log.Printf("ServicePlan validation error: %v", err)
 		return "", nil, err
@@ -29,6 +28,10 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 	if err != nil {
 		log.Printf("Error matching providers: %v", err)
 		return "", nil, fmt.Errorf("failed to match providers: %w", err)
+	}
+
+	if len(matchedProviders) == 0 {
+		return "", nil, NewMatchError("no providers found matching criteria")
 	}
 
 	session := models.BookingSession{

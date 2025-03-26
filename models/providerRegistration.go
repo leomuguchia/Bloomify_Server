@@ -2,19 +2,15 @@ package models
 
 import "time"
 
-// BasicRegistrationData represents the minimal registration details.
-// Used for both the request payload and the session data.
 type ProviderBasicRegistrationData struct {
-	Username    string  `json:"username"`
-	Email       string  `json:"email"`
-	Password    string  `json:"password"`
-	PhoneNumber string  `json:"phoneNumber"`
-	Latitude    float64 `json:"latitude,omitempty"`
-	Longitude   float64 `json:"longitude,omitempty"`
-	Address     string  `json:"address,omitempty"`
+	ProviderName string   `json:"providerName"`
+	Email        string   `json:"email"`
+	Password     string   `json:"password"`
+	PhoneNumber  string   `json:"phoneNumber"`
+	Address      string   `json:"address,omitempty"`
+	LocationGeo  GeoPoint `json:"locationGeo"`
 }
 
-// KYPVerificationData represents the KYP details.
 type KYPVerificationData struct {
 	LegalName   string `json:"legalName"`
 	DocumentURL string `json:"documentUrl"`
@@ -33,36 +29,6 @@ type ProviderRegistrationSession struct {
 	CreatedAt          time.Time                     `json:"createdAt"`
 	LastUpdatedAt      time.Time                     `json:"lastUpdatedAt"`
 	Devices            []Device                      `json:"devices,omitempty"` // Captured device(s) during registration.
-}
-
-// ToProviderModel converts the completed registration session into a full Provider model.
-func (rs *ProviderRegistrationSession) ToProviderModel() Provider {
-	profile := Profile{
-		Email:        rs.BasicData.Email,
-		PhoneNumber:  rs.BasicData.PhoneNumber,
-		ProviderName: "", // Can be updated later.
-		Status:       "active",
-		ProfileImage: "https://example.com/default_profile.png",
-		LocationGeo: GeoPoint{
-			Type:        "Point",
-			Coordinates: []float64{rs.BasicData.Longitude, rs.BasicData.Latitude},
-		},
-	}
-
-	return Provider{
-		ID:               "", // Will be assigned when persisting.
-		Profile:          profile,
-		ServiceCatalogue: rs.ServiceCatalogue,
-		BasicVerification: BasicVerification{
-			LegalName:          rs.KYPData.LegalName,
-			KYPDocument:        rs.KYPData.DocumentURL,
-			VerificationStatus: rs.VerificationStatus,
-		},
-		VerificationLevel: "basic",
-		Devices:           rs.Devices,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
-	}
 }
 
 // RegistrationRequest is the composite request payload for multi‑step registration.

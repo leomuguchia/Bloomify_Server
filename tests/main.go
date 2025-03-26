@@ -1,223 +1,238 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"math"
 	"math/rand"
-	"os"
+	"net/http"
+	"sync"
 	"time"
 
-	"bloomify/config"
-	"bloomify/database"
-	"bloomify/models"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"golang.org/x/crypto/bcrypt"
+	"bloomify/utils"
 )
 
-func main() {
-	// Ensure configuration is loaded so that DATABASE_URL is set.
-	config.LoadConfig()
-	// Optionally, force the environment variable if config isn't loading in tests:
-	if os.Getenv("DATABASE_URL") == "" {
-		os.Setenv("DATABASE_URL", "mongodb://localhost:27017")
-		config.LoadConfig()
-	}
+// ProviderJSON represents the complete provider details from the JSON file.
+type ProviderJSON struct {
+	Profile struct {
+		ProviderName     string  `json:"providerName"`
+		ProviderType     string  `json:"providerType"`
+		Email            string  `json:"email"`
+		PhoneNumber      string  `json:"phoneNumber"`
+		Status           string  `json:"status"`
+		AdvancedVerified bool    `json:"advancedVerified"`
+		ProfileImage     string  `json:"profileImage"`
+		Address          string  `json:"address"`
+		Rating           float64 `json:"rating"`
+		LocationGeo      struct {
+			Type        string    `json:"type"`
+			Coordinates []float64 `json:"coordinates"`
+		} `json:"locationGeo"`
+	} `json:"profile"`
+	Security struct {
+		Password string `json:"password"` // Should be "$Muguchia1"
+	} `json:"security"`
+	ServiceCatalogue struct {
+		ServiceType   string                 `json:"serviceType"`
+		Mode          string                 `json:"mode"`
+		CustomOptions map[string]interface{} `json:"customOptions"`
+	} `json:"serviceCatalogue"`
+	Verification struct {
+		KYPDocument        string `json:"kypDocument"`
+		VerificationStatus string `json:"verificationStatus"`
+		LegalName          string `json:"legalName"`
+		VerificationCode   string `json:"verificationCode"`
+	} `json:"verification"`
+}
 
-	// Initialize the database connection.
-	database.InitDB()
-	client := database.MongoClient
-	db := client.Database("bloomify")
-	providerColl := db.Collection("providers")
+// ProviderRegistrationRequest represents the payload for each registration step.
+type ProviderRegistrationRequest struct {
+	Step             string                 `json:"step"`
+	SessionID        string                 `json:"sessionID,omitempty"`
+	OTP              string                 `json:"otp,omitempty"`
+	BasicData        map[string]interface{} `json:"basicData,omitempty"`
+	KYPData          map[string]interface{} `json:"kypData,omitempty"`
+	ServiceCatalogue map[string]interface{} `json:"serviceCatalogue,omitempty"`
+}
 
-	// Clear existing providers for a clean simulation.
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if _, err := providerColl.DeleteMany(ctx, bson.M{}); err != nil {
-		log.Fatalf("Failed to clear providers collection: %v", err)
-	}
+const registrationURL = "http://192.168.100.19:8080/api/providers/register"
 
-	// Fixed user point for simulation (Bangalore).
-	userLon, userLat := 77.5946, 12.9716
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
-	// Simulation parameters.
-	serviceTypes := []string{"cleaning", "laundry", "chauffeur"}
-	providersPerService := 10
-	totalProviders := len(serviceTypes) * providersPerService
-
-	// Custom options: every provider always has "standard":1.0, plus one extra option.
-	extraOptions := []struct {
-		Key        string
-		Multiplier float64
-	}{
-		{"luxury", 1.2},
-		{"eco", 1.1},
-	}
-
-	// Generate dates for the next 7 days.
-	var weekDates []string
-	today := time.Now()
-	for i := 0; i < 7; i++ {
-		weekDates = append(weekDates, today.AddDate(0, 0, i).Format("2006-01-02"))
-	}
-
-	var providers []interface{}
-	rand.Seed(time.Now().UnixNano())
-	providerCounter := 1
-
-	// We'll linearly assign distances so that the furthest provider is at 5 km and the closest at ~0.01 km.
-	maxDistance := 5.0
-	minDistance := 0.01
-	spacing := (maxDistance - minDistance) / float64(totalProviders-1)
-
-	// Loop over each service type.
-	for _, service := range serviceTypes {
-		for i := 1; i <= providersPerService; i++ {
-			// Global index (0-based) for distance.
-			globalIndex := float64(providerCounter - 1)
-			distanceKm := maxDistance - spacing*globalIndex
-
-			// Random angle (0 to 2π) to distribute providers around the user.
-			angle := rand.Float64() * 2 * math.Pi
-
-			// Convert radial distance (km) to degree offsets.
-			// At Bangalore, approximately 1 km ≈ 0.00922° longitude and ≈ 0.009° latitude.
-			deltaLon := distanceKm * 0.00922 * math.Cos(angle)
-			deltaLat := distanceKm * 0.009 * math.Sin(angle)
-
-			// Geo-location stored inside the provider's Profile.
-			locationGeo := models.GeoPoint{
-				Type:        "Point",
-				Coordinates: []float64{userLon + deltaLon, userLat + deltaLat},
-			}
-
-			// Determine mode: first half "provider-to-user", second half "drop-off".
-			var mode string
-			if i <= providersPerService/2 {
-				mode = "provider-to-user"
-			} else {
-				mode = "drop-off"
-			}
-
-			// Randomly choose an extra custom option.
-			extra := extraOptions[rand.Intn(len(extraOptions))]
-			customOptions := map[string]float64{
-				"standard": 1.0,
-				extra.Key:  extra.Multiplier,
-			}
-
-			// Build provider profile.
-			profile := models.Profile{
-				ProviderName: fmt.Sprintf("%s Provider %d", service, providerCounter),
-				Email:        fmt.Sprintf("%s_provider_%d@example.com", service, providerCounter),
-				PhoneNumber:  fmt.Sprintf("900000%04d", providerCounter),
-				Address:      "123 Sample Street, Sample City",
-				Status:       "active",
-				ProfileImage: "https://example.com/default_profile.png",
-				LocationGeo:  locationGeo,
-			}
-
-			// Build service catalogue.
-			serviceCatalogue := models.ServiceCatalogue{
-				ServiceType:   service,
-				Mode:          mode,
-				CustomOptions: customOptions,
-			}
-
-			// Generate weekly timeslots.
-			var timeSlots []models.TimeSlot
-			for _, dateStr := range weekDates {
-				// Earlybird timeslot uses the extra option.
-				tsEarly := models.TimeSlot{
-					ID:        fmt.Sprintf("ts-%d-%s-early", providerCounter, dateStr),
-					Start:     480,  // 8:00 AM
-					End:       1020, // 5:00 PM
-					Capacity:  30,
-					SlotModel: "earlybird",
-					UnitType:  "child",
-					Date:      dateStr,
-					EarlyBird: &models.EarlyBirdSlotData{
-						BasePrice:             10.0,
-						EarlyBirdDiscountRate: 0.25,
-						LateSurchargeRate:     0.10,
-					},
-					BookedUnitsStandard: 0,
-					BookedUnitsPriority: 0,
-					Version:             1,
-					CustomOptionKey:     extra.Key, // extra option for earlybird
-					Mode:                mode,
-				}
-				// Urgency timeslot uses "standard".
-				tsUrgency := models.TimeSlot{
-					ID:        fmt.Sprintf("ts-%d-%s-urgency", providerCounter, dateStr),
-					Start:     1020, // 5:00 PM
-					End:       1380, // 11:00 PM
-					Capacity:  20,
-					SlotModel: "urgency",
-					UnitType:  "child",
-					Date:      dateStr,
-					Urgency: &models.UrgencySlotData{
-						BasePrice:             15.0,
-						PrioritySurchargeRate: 0.50,
-						ReservedPriority:      5,
-						PriorityActive:        true,
-					},
-					BookedUnitsStandard: 0,
-					BookedUnitsPriority: 0,
-					Version:             1,
-					CustomOptionKey:     "standard",
-					Mode:                mode,
-				}
-				timeSlots = append(timeSlots, tsEarly, tsUrgency)
-			}
-
-			// Hash the provider password.
-			rawPassword := "$Password1234"
-			hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
-			if err != nil {
-				log.Fatalf("Failed to hash password: %v", err)
-			}
-
-			// Assemble the provider document using the updated models.
-			provider := models.Provider{
-				ID:      fmt.Sprintf("prov-%d", providerCounter),
-				Profile: profile,
-				// Security details are now encapsulated in the Security struct.
-				Security: models.Security{
-					PasswordHash: string(hashed),
-				},
-				ServiceCatalogue: serviceCatalogue,
-				// Basic verification details are moved into the BasicVerification struct.
-				BasicVerification: models.BasicVerification{
-					LegalName:          profile.ProviderName,
-					KYPDocument:        "",
-					VerificationStatus: "unverified",
-				},
-				VerificationLevel:    "",                            // e.g., "basic" or "advanced" as needed.
-				AdvancedVerification: models.AdvancedVerification{}, // Empty for now.
-				HistoricalRecords:    nil,
-				TimeSlots:            timeSlots,
-				PaymentDetails: models.PaymentDetails{
-					AcceptedPaymentMethods: []string{"inApp", "cash"},
-					PrePaymentRequired:     false,
-				},
-				CompletedBookings: 0,
-				CreatedAt:         time.Now(),
-				UpdatedAt:         time.Now(),
-				Devices:           []models.Device{},
-			}
-
-			providers = append(providers, provider)
-			providerCounter++
-		}
-	}
-
-	// Insert all providers into MongoDB.
-	insertResult, err := providerColl.InsertMany(ctx, providers)
+// postJSON sends a POST request with the provided JSON payload and custom headers.
+func postJSON(url string, payload interface{}, headers map[string]string) (map[string]interface{}, error) {
+	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		log.Fatalf("Failed to insert providers: %v", err)
+		return nil, fmt.Errorf("json marshal failed: %w", err)
 	}
-	fmt.Printf("Inserted provider IDs: %v\n", insertResult.InsertedIDs)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, val := range headers {
+		req.Header.Set(key, val)
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+	return result, nil
+}
+
+func getOTP(sessionID string) (string, error) {
+	testKey := fmt.Sprintf("session:%s", sessionID)
+	ctx := context.Background()
+	client := utils.GetTestCacheClient()
+	// Poll for up to 10 seconds.
+	for i := 0; i < 10; i++ {
+		otp, err := client.Get(ctx, testKey).Result()
+		if err == nil && otp != "" {
+			return otp, nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return "", fmt.Errorf("OTP not found for key %s", testKey)
+}
+
+func registerProvider(prov ProviderJSON, deviceID string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	// Introduce a random delay (0-500ms) to reduce simultaneous collisions.
+	time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
+
+	// Device headers for this provider registration.
+	deviceHeaders := map[string]string{
+		"X-Device-ID":   deviceID,
+		"X-Device-Name": "SimDevice_" + deviceID,
+	}
+
+	log.Printf("[%s] Starting registration...", prov.Profile.ProviderName)
+
+	// STEP 1: Basic Registration.
+	basicData := map[string]interface{}{
+		"providerName": prov.Profile.ProviderName,
+		"providerType": prov.Profile.ProviderType,
+		"email":        prov.Profile.Email,
+		"phoneNumber":  prov.Profile.PhoneNumber,
+		"password":     prov.Security.Password,
+		"address":      prov.Profile.Address,
+		"profileImage": prov.Profile.ProfileImage,
+		"rating":       prov.Profile.Rating,
+		"locationGeo":  prov.Profile.LocationGeo,
+	}
+	basicReq := ProviderRegistrationRequest{
+		Step:      "basic",
+		BasicData: basicData,
+	}
+	log.Printf("[%s] Basic registration payload: %+v", prov.Profile.ProviderName, basicData)
+	basicResp, err := postJSON(registrationURL, basicReq, deviceHeaders)
+	if err != nil {
+		log.Printf("[%s] Basic registration failed: %v", prov.Profile.ProviderName, err)
+		return
+	}
+	sessionID, ok := basicResp["sessionID"].(string)
+	if !ok || sessionID == "" {
+		log.Printf("[%s] No sessionID returned. Response: %+v", prov.Profile.ProviderName, basicResp)
+		return
+	}
+	log.Printf("[%s] Received sessionID: %s", prov.Profile.ProviderName, sessionID)
+
+	// STEP 2: Retrieve OTP from Redis.
+	log.Printf("[%s] Waiting for OTP...", prov.Profile.ProviderName)
+	otp, err := getOTP(sessionID)
+	if err != nil {
+		log.Printf("[%s] OTP retrieval failed: %v", prov.Profile.ProviderName, err)
+		return
+	}
+	log.Printf("[%s] Retrieved OTP: %s", prov.Profile.ProviderName, otp)
+
+	// STEP 3: OTP Verification.
+	otpReq := ProviderRegistrationRequest{
+		Step:      "otp",
+		SessionID: sessionID,
+		OTP:       otp,
+	}
+	otpResp, err := postJSON(registrationURL, otpReq, deviceHeaders)
+	if err != nil {
+		log.Printf("[%s] OTP verification failed: %v", prov.Profile.ProviderName, err)
+		return
+	}
+	log.Printf("[%s] OTP verification response: %+v", prov.Profile.ProviderName, otpResp)
+
+	// STEP 4: KYP Verification.
+	kypData := map[string]interface{}{
+		"documentURL": prov.Verification.KYPDocument,
+		"legalName":   prov.Verification.LegalName,
+		"selfieURL":   fmt.Sprintf("http://example.com/selfie/%s.jpg", prov.Profile.ProviderName),
+	}
+	kypReq := ProviderRegistrationRequest{
+		Step:      "kyp",
+		SessionID: sessionID,
+		KYPData:   kypData,
+	}
+	kypResp, err := postJSON(registrationURL, kypReq, deviceHeaders)
+	if err != nil {
+		log.Printf("[%s] KYP verification failed: %v", prov.Profile.ProviderName, err)
+		return
+	}
+	log.Printf("[%s] KYP verification response: %+v", prov.Profile.ProviderName, kypResp)
+
+	// STEP 5: Finalize Registration with Service Catalogue.
+	serviceCatalogue := map[string]interface{}{
+		"serviceType":   prov.ServiceCatalogue.ServiceType,
+		"mode":          prov.ServiceCatalogue.Mode,
+		"customOptions": prov.ServiceCatalogue.CustomOptions,
+	}
+	catalogueReq := ProviderRegistrationRequest{
+		Step:             "catalogue",
+		SessionID:        sessionID,
+		ServiceCatalogue: serviceCatalogue,
+	}
+	catalogueResp, err := postJSON(registrationURL, catalogueReq, deviceHeaders)
+	if err != nil {
+		log.Printf("[%s] Finalization failed: %v", prov.Profile.ProviderName, err)
+		return
+	}
+	log.Printf("[%s] Final registration response: %+v", prov.Profile.ProviderName, catalogueResp)
+}
+
+func test() {
+	rand.Seed(time.Now().UnixNano())
+
+	// Open and read the providers JSON file.
+	filePath := "providers.json"
+	fileData, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Fatalf("Failed to read JSON file: %v", err)
+	}
+
+	var providers []ProviderJSON
+	if err := json.Unmarshal(fileData, &providers); err != nil {
+		log.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	log.Printf("Found %d providers in the JSON file.", len(providers))
+
+	// Use a WaitGroup to spawn a goroutine for each provider.
+	var wg sync.WaitGroup
+	for i, prov := range providers {
+		wg.Add(1)
+		deviceID := fmt.Sprintf("device_%d", i+1)
+		go registerProvider(prov, deviceID, &wg)
+	}
+
+	wg.Wait()
+	log.Println("All provider registrations complete.")
 }

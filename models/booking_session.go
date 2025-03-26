@@ -19,9 +19,3 @@ type BookingResponse struct {
 	Availability []AvailableSlot `json:"availability,omitempty"`
 	Booking      *Booking        `json:"booking,omitempty"`
 }
-
-type InitiateSessionRequest struct {
-	ServicePlan ServicePlan `json:"servicePlan" binding:"required"`
-	DeviceID    string      `json:"deviceId" binding:"required"`
-	DeviceName  string      `json:"deviceName" binding:"required"`
-}

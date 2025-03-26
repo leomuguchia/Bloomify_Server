@@ -2,7 +2,6 @@ package providerRepo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -23,7 +22,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 
 	filter := bson.M{}
 
-	// Filter by baseline service type within the service catalogue.
+	// Filter by service type using a case-insensitive regex.
 	if criteria.ServiceType != "" {
 		filter["serviceCatalogue.serviceType"] = bson.M{
 			"$regex":   criteria.ServiceType,
@@ -31,15 +30,11 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 		}
 	}
 
-	// Filter by service mode within the service catalogue.
-	if criteria.ServiceMode != "" {
-		filter["serviceCatalogue.mode"] = bson.M{
-			"$regex":   criteria.ServiceMode,
-			"$options": "i",
-		}
+	if criteria.Mode != "" {
+		filter["serviceCatalogue.mode"] = criteria.Mode
 	}
 
-	// Adjusted filter: use provider's profile for geo-location.
+	// Filter by geo-location if a max distance is provided.
 	if criteria.MaxDistanceKm > 0 {
 		maxDistanceMeters := criteria.MaxDistanceKm * 1000
 		filter["profile.locationGeo"] = bson.M{
@@ -59,7 +54,6 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	logger.Debug("AdvancedSearch: constructed filter", zap.Any("filter", filter))
 
 	opts := options.Find()
-
 	cursor, err := r.coll.Find(ctx, filter, opts)
 	if err != nil {
 		logger.Error("AdvancedSearch: query failed", zap.Error(err))
@@ -82,9 +76,8 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 	}
 
 	if len(providers) == 0 {
-		errMsg := "no providers found matching criteria"
 		logger.Warn("AdvancedSearch: no providers found", zap.Any("filter", filter))
-		return nil, errors.New(errMsg)
+		return []models.Provider{}, nil
 	}
 
 	logger.Debug("AdvancedSearch: found providers", zap.Int("count", len(providers)))

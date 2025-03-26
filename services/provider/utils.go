@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 
 	"bloomify/models"
@@ -122,6 +123,61 @@ func (s *DefaultProviderService) RevokeProviderAuthToken(providerID, deviceID st
 	authCache := utils.GetAuthCacheClient()
 	if err := authCache.Del(context.Background(), cacheKey).Err(); err != nil {
 		zap.L().Error("Failed to clear auth cache on revoke", zap.Error(err))
+	}
+
+	return nil
+}
+
+func validateBasicRegistrationData(basicReq models.ProviderBasicRegistrationData) error {
+	// Validate ProviderName.
+	if basicReq.ProviderName == "" {
+		return fmt.Errorf("username is required")
+	}
+
+	// Validate Email.
+	if basicReq.Email == "" {
+		return fmt.Errorf("email is required")
+	}
+	emailRegex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
+	reEmail := regexp.MustCompile(emailRegex)
+	if !reEmail.MatchString(basicReq.Email) {
+		return fmt.Errorf("invalid email format")
+	}
+
+	// Validate Password.
+	if basicReq.Password == "" {
+		return fmt.Errorf("password is required")
+	}
+	if len(basicReq.Password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters long")
+	}
+
+	// Validate Phone Number.
+	if basicReq.PhoneNumber == "" {
+		return fmt.Errorf("phone number is required")
+	}
+
+	// Validate Address.
+	if basicReq.Address == "" {
+		return fmt.Errorf("address is required")
+	}
+	addressRegex := `^\d+\s+[a-zA-Z0-9\s,.-]+$`
+	reAddress := regexp.MustCompile(addressRegex)
+	if !reAddress.MatchString(basicReq.Address) {
+		return fmt.Errorf("invalid address format")
+	}
+
+	// Validate LocationGeo.
+	if basicReq.LocationGeo.Type != "Point" || len(basicReq.LocationGeo.Coordinates) < 2 {
+		return fmt.Errorf("invalid locationGeo data")
+	}
+	longitude := basicReq.LocationGeo.Coordinates[0]
+	latitude := basicReq.LocationGeo.Coordinates[1]
+	if latitude < -90 || latitude > 90 {
+		return fmt.Errorf("latitude must be between -90 and 90")
+	}
+	if longitude < -180 || longitude > 180 {
+		return fmt.Errorf("longitude must be between -180 and 180")
 	}
 
 	return nil

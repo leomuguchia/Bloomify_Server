@@ -20,19 +20,24 @@ type Config struct {
 	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
 	RedisCacheDB  int    `mapstructure:"REDIS_CACHE_DB"`
 	RedisAuthDB   int    `mapstructure:"REDIS_AUTH_DB"`
-	RedisOTPDB    int    `mapstructure:"REDIS_OTP_DB"` // New OTP database configuration
+	RedisOTPDB    int    `mapstructure:"REDIS_OTP_DB"`
+
+	// Google Maps API Key.
+	GoogleAPIKey string `mapstructure:"GOOGLE_API_KEY"`
 }
 
 var AppConfig Config
 
 func LoadConfig() {
+	// Look for a config file named "config.yaml" in the current and "config" directory.
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("./config")
+	// Automatically use environment variables where available.
 	viper.AutomaticEnv()
 
-	// Set defaults.
+	// Set default values.
 	viper.SetDefault("APP_PORT", "8080")
 	viper.SetDefault("ENV", "development")
 	viper.SetDefault("LOG_LEVEL", "info")
@@ -41,8 +46,10 @@ func LoadConfig() {
 	viper.SetDefault("REDIS_PASSWORD", "")
 	viper.SetDefault("REDIS_CACHE_DB", 0)
 	viper.SetDefault("REDIS_AUTH_DB", 1)
-	viper.SetDefault("REDIS_OTP_DB", 2) // Default OTP DB index
+	viper.SetDefault("REDIS_OTP_DB", 2)
 	viper.SetDefault("DATABASE_URL", "mongodb://localhost:27017")
+	// Default GOOGLE_API_KEY is empty (should be overridden by your .env or environment)
+	viper.SetDefault("GOOGLE_API_KEY", "")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Println("No config file found, using environment variables only")

@@ -9,7 +9,6 @@ import (
 // ProviderSearchCriteria defines criteria for an advanced provider search.
 type ProviderSearchCriteria struct {
 	ServiceType   string
-	ServiceMode   string
 	Location      string
 	MaxDistanceKm float64
 	LocationGeo   models.GeoPoint

@@ -22,9 +22,11 @@ type Booking struct {
 }
 
 type Service struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	UnitType     string `json:"unitType"`
+	ProviderTerm string `json:"providerTerm"`
 }
 
 // BookingConfirmation represents the result of a successful booking validation.

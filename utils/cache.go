@@ -18,11 +18,13 @@ var (
 	AuthCacheClient *redis.Client
 	// OTPCacheClient is the dedicated client for caching OTPs.
 	OTPCacheClient *redis.Client
+	// TestCacheClient is used for testing OTP retrieval.
+	TestCacheClient *redis.Client
 )
 
-// InitCache initializes the generic Redis cache client using the DB from AppConfig for general caching.
-func InitCache() {
-	log.Printf("Attempting to connect to Redis (Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisCacheDB)
+// InitBookingCache initializes the generic Redis cache client using the DB from AppConfig for general caching.
+func InitBookingCache() {
+	log.Printf("Attempting to connect to Redis (Booking Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisCacheDB)
 	BookingCacheClient = redis.NewClient(&redis.Options{
 		Addr:     config.AppConfig.RedisAddr,
 		Password: config.AppConfig.RedisPassword,
@@ -32,15 +34,15 @@ func InitCache() {
 	defer cancel()
 	_, err := BookingCacheClient.Ping(ctx).Result()
 	if err != nil {
-		log.Fatalf("Failed to connect to Redis (Cache): %v", err)
+		log.Fatalf("Failed to connect to Redis (Booking Cache): %v", err)
 	}
-	log.Println("Connected to Redis (Cache) successfully.")
+	log.Println("Connected to Redis (Booking Cache) successfully.")
 }
 
 // GetBookingCacheClient returns the generic cache client.
 func GetBookingCacheClient() *redis.Client {
 	if BookingCacheClient == nil {
-		InitCache()
+		InitBookingCache()
 	}
 	return BookingCacheClient
 }
@@ -93,4 +95,42 @@ func GetOTPCacheClient() *redis.Client {
 		InitOTPCache()
 	}
 	return OTPCacheClient
+}
+
+// InitTestCache initializes the Redis client for testing purposes using hard-coded values.
+func InitTestCache() {
+	const (
+		testAddr = "localhost:6379"
+		testDB   = 5
+	)
+	log.Printf("Attempting to connect to Redis (Test Cache) at %s using DB %d", testAddr, testDB)
+	TestCacheClient = redis.NewClient(&redis.Options{
+		Addr:     testAddr,
+		Password: "", // No password
+		DB:       testDB,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := TestCacheClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis (Test Cache): %v", err)
+	}
+	log.Println("Connected to Redis (Test Cache) successfully.")
+}
+
+// GetTestCacheClient returns the Redis client for testing purposes.
+func GetTestCacheClient() *redis.Client {
+	if TestCacheClient == nil {
+		InitTestCache()
+	}
+	return TestCacheClient
+}
+
+// InitRedis initializes all Redis clients at once.
+func InitRedis() {
+	InitBookingCache()
+	InitAuthCache()
+	InitOTPCache()
+	InitTestCache()
+	GetLogger().Sugar().Info("All Redis clients have been successfully initialized.")
 }
