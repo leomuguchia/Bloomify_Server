@@ -23,7 +23,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	// Protected routes
 	api.Use(
 		middleware.JWTAuthUserMiddleware(hb.UserRepo),
-		middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
+		// middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
 	)
 	{
 		api.GET("/id/:id", hb.GetUserByIDHandler)
@@ -55,7 +55,7 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		protected := api.Group("")
 		protected.Use(
 			middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, false),
-			middleware.DeviceAuthMiddlewareProvider(hb.ProviderRepo),
+			// middleware.DeviceAuthMiddlewareProvider(hb.ProviderRepo),
 		)
 		{
 			protected.PATCH("/update/:id", hb.UpdateProviderHandler)
@@ -92,7 +92,7 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	bookingGroup.Use(
 		middleware.DeviceDetailsMiddleware(),
 		middleware.JWTAuthUserMiddleware(hb.UserRepo),
-		middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
+		// middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
 	)
 	{
 		bookingGroup.POST("/session", hb.InitiateSession)

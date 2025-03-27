@@ -26,12 +26,13 @@ func NewBookingHandler(svc booking.BookingSessionService, logger *zap.Logger) *B
 	}
 }
 
+// InitiateSession handles POST /api/booking/session.
 func (h *BookingHandler) InitiateSession(c *gin.Context) {
 	var servicePlan models.ServicePlan
 	if err := c.ShouldBindJSON(&servicePlan); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid request payload",
-			"details": err.Error(),
+			"message": err.Error(),
 		})
 		return
 	}
@@ -52,7 +53,7 @@ func (h *BookingHandler) InitiateSession(c *gin.Context) {
 	}
 	userID, ok := userIDValue.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid userID in context",
 		})
 		return
@@ -72,14 +73,15 @@ func (h *BookingHandler) InitiateSession(c *gin.Context) {
 		if errors.As(err, &matchErr) {
 			c.JSON(http.StatusOK, gin.H{
 				"error":     matchErr.Code,
-				"details":   fmt.Sprintf("No providers available for %s in your location", servicePlan.ServiceType),
+				"message":   fmt.Sprintf("No providers available for %s in your location", servicePlan.ServiceType),
 				"providers": []models.ProviderDTO{},
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to initiate booking session",
-			"details": err.Error(),
+		// For service layer errors that aren't internal server issues, return HTTP 400.
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   err.Error(),
+			"message": "failed to initiate booking session",
 		})
 		return
 	}
@@ -98,14 +100,15 @@ func (h *BookingHandler) UpdateSession(c *gin.Context) {
 		SelectedProviderID string `json:"selectedProviderID" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "message": err.Error()})
 		return
 	}
 
 	session, err := h.BookingSvc.UpdateSession(sessionID, req.SelectedProviderID)
 	if err != nil {
 		h.Logger.Error("UpdateSession: failed to update booking session", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update booking session", "details": err.Error()})
+		// Map non-critical errors from service layer to HTTP 400.
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -123,14 +126,15 @@ func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 		ConfirmedSlot models.AvailableSlot `json:"confirmedSlot" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "message": err.Error()})
 		return
 	}
 
 	bookingResult, err := h.BookingSvc.ConfirmBooking(req.SessionID, req.ConfirmedSlot)
 	if err != nil {
 		h.Logger.Error("ConfirmBooking: failed to confirm booking", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to confirm booking", "details": err.Error()})
+		// Return a 400 status for service errors
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -146,7 +150,8 @@ func (h *BookingHandler) CancelSession(c *gin.Context) {
 	}
 	if err := h.BookingSvc.CancelSession(sessionID); err != nil {
 		h.Logger.Error("CancelSession: failed to cancel booking session", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking session", "details": err.Error()})
+		// For cancellation failures, return HTTP 500.
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel booking session", "message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "booking session cancelled"})
@@ -159,7 +164,7 @@ func (h *BookingHandler) GetAvailableServices(c *gin.Context) {
 		h.Logger.Error("GetAvailableServices: failed to fetch services", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "failed to fetch services",
-			"details": err.Error(),
+			"message": err.Error(),
 		})
 		return
 	}

@@ -48,7 +48,6 @@ func LoadConfig() {
 	viper.SetDefault("REDIS_AUTH_DB", 1)
 	viper.SetDefault("REDIS_OTP_DB", 2)
 	viper.SetDefault("DATABASE_URL", "mongodb://localhost:27017")
-	// Default GOOGLE_API_KEY is empty (should be overridden by your .env or environment)
 	viper.SetDefault("GOOGLE_API_KEY", "")
 
 	if err := viper.ReadInConfig(); err != nil {

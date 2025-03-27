@@ -117,7 +117,7 @@ func AIRecommendHandler(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "AI service error",
-			"details": errResp,
+			"message": errResp,
 		})
 		return
 	}
@@ -166,7 +166,7 @@ func AISuggestHandler(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "AI service error",
-			"details": errResp,
+			"message": errResp,
 		})
 		return
 	}
@@ -215,7 +215,7 @@ func AutoBookHandler(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "AI service error",
-			"details": errResp,
+			"message": errResp,
 		})
 		return
 	}

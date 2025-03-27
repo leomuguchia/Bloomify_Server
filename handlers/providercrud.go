@@ -115,14 +115,14 @@ func (h *ProviderHandler) SetupTimeslotsHandler(c *gin.Context) {
 	var req models.SetupTimeslotsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Error("Invalid timeslot setup request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload", "message": err.Error()})
 		return
 	}
 
 	dto, err := h.Service.SetupTimeslots(c, providerID, req)
 	if err != nil {
 		logger.Error("Failed to set up timeslots", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set up timeslots", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set up timeslots", "message": err.Error()})
 		return
 	}
 

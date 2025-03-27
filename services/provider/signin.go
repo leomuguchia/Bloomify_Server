@@ -106,6 +106,12 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 	}
 
 	// 8. Generate a new JWT token for this device (including the device ID).
+	// Clear any stale token hash for this device.
+	cacheKey := utils.AuthCachePrefix + provider.ID + ":" + currentDevice.DeviceID
+	if err := sessionClient.Del(ctx, cacheKey).Err(); err != nil {
+		utils.GetLogger().Error("AuthenticateUser: Failed to clear old token cache", zap.Error(err))
+	}
+
 	token, err := utils.GenerateToken(provider.ID, provider.Profile.Email, currentDevice.DeviceID)
 	if err != nil {
 		utils.GetLogger().Error("Failed to generate token", zap.Error(err))

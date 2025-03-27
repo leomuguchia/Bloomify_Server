@@ -2,6 +2,7 @@ APP_PORT: "8080"
 ENV: "development"
 DATABASE_URL: "mongodb://localhost:27017"
 JWT_SECRET: "leomuguchia"
+GOOGLE_API_KEY: "AIzaSyBQVGiUZNhuiuHdTIPwKLTrfx0IlwH7Ums"
 LOG_LEVEL: "info"
 MAX_REQUESTS_PER_MIN: 100
 

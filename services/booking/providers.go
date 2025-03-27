@@ -2,21 +2,24 @@ package booking
 
 import (
 	"fmt"
+	"log"
 
 	providerRepo "bloomify/database/repository/provider"
 	"bloomify/models"
 )
 
-// GetEnrichedTimeslots retrieves and enriches the provider's timeslots with the mode from the service catalogue.
 func GetEnrichedTimeslots(repo providerRepo.ProviderRepository, providerID string) ([]models.TimeSlot, error) {
-	prov, err := repo.GetByID(providerID)
+	log.Printf("DEBUG: GetEnrichedTimeslots: Calling repo for providerID: %s", providerID)
+	prov, err := repo.GetByIDWithProjection(providerID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("provider not found: %w", err)
+		fmt.Printf("INFO: Provider %s not found: %v. Returning empty timeslot list.\n", providerID, err)
+		return []models.TimeSlot{}, nil
 	}
-	// Enrich timeslots: attach the delivery mode from the ServiceCatalogue.
-	for i := range prov.TimeSlots {
-		prov.TimeSlots[i].Mode = prov.ServiceCatalogue.Mode
-		// Leave CustomOptionKey intact for pricing lookup.
+	// Enrich timeslots: if ServiceCatalogue.Mode is set, assign it to each timeslot.
+	if prov.ServiceCatalogue.ServiceType != "" {
+		for i := range prov.TimeSlots {
+			prov.TimeSlots[i].Mode = prov.ServiceCatalogue.Mode
+		}
 	}
 	return prov.TimeSlots, nil
 }

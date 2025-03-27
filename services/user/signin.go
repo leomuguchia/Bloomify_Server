@@ -94,6 +94,12 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 		userRec.Devices = append(userRec.Devices, currentDevice)
 	}
 
+	// Clear any stale token hash for this device.
+	cacheKey := utils.AuthCachePrefix + userRec.ID + ":" + currentDevice.DeviceID
+	if err := sessionClient.Del(ctx, cacheKey).Err(); err != nil {
+		utils.GetLogger().Error("AuthenticateUser: Failed to clear old token cache", zap.Error(err))
+	}
+
 	// Generate a new JWT token for this device.
 	token, err := utils.GenerateToken(userRec.ID, userRec.Email, currentDevice.DeviceID)
 	if err != nil {

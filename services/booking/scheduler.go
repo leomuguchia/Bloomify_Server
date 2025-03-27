@@ -3,6 +3,7 @@ package booking
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	providerRepo "bloomify/database/repository/provider"
@@ -25,10 +26,27 @@ type AvailableSlotsResult struct {
 
 // GetAvailableTimeSlots returns enriched available slots and a mapping from each slot's ID to its full TimeSlot.
 func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provider, weekIndex int) (AvailableSlotsResult, error) {
-	// Retrieve enriched full TimeSlot objects (using ProviderRepo, etc.)
+	log.Printf("DEBUG: GetAvailableTimeSlots: Starting for providerID: %s, weekIndex: %d", provider.ID, weekIndex)
+
 	enrichedSlots, err := GetEnrichedTimeslots(se.ProviderRepo, provider.ID)
 	if err != nil {
-		return AvailableSlotsResult{}, fmt.Errorf("failed to enrich timeslots: %w", err)
+		if err.Error() == "no rows" {
+			fmt.Printf("INFO: Provider %s has no timeslot data available.\n", provider.ID)
+			enrichedSlots = []models.TimeSlot{}
+		} else {
+			log.Printf("ERROR: GetAvailableTimeSlots: failed to enrich timeslots: %v", err)
+			return AvailableSlotsResult{}, fmt.Errorf("failed to enrich timeslots: %w", err)
+		}
+	}
+	log.Printf("DEBUG: GetAvailableTimeSlots: Retrieved %d enriched slots", len(enrichedSlots))
+
+	// If there are no enriched timeslots, return an empty result gracefully.
+	if len(enrichedSlots) == 0 {
+		fmt.Printf("INFO: Provider %s has no timeslot data available (empty result).\n", provider.ID)
+		return AvailableSlotsResult{
+			Slots:   []models.AvailableSlot{},
+			Mapping: map[string]models.TimeSlot{},
+		}, nil
 	}
 
 	// Determine the booking window.
@@ -36,6 +54,7 @@ func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provide
 	for i, ts := range enrichedSlots {
 		d, err := time.Parse("2006-01-02", ts.Date)
 		if err != nil {
+			log.Printf("DEBUG: GetAvailableTimeSlots: Unable to parse date '%s' for timeslot ID: %s", ts.Date, ts.ID)
 			continue
 		}
 		if i == 0 || d.Before(minDate) {
@@ -45,8 +64,14 @@ func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provide
 			maxDate = d
 		}
 	}
+	log.Printf("DEBUG: GetAvailableTimeSlots: minDate=%v, maxDate=%v", minDate, maxDate)
+
 	if minDate.IsZero() || maxDate.IsZero() {
-		return AvailableSlotsResult{}, fmt.Errorf("provider has no valid timeslot dates")
+		fmt.Printf("INFO: Provider %s has timeslot data but no valid dates found.\n", provider.ID)
+		return AvailableSlotsResult{
+			Slots:   []models.AvailableSlot{},
+			Mapping: map[string]models.TimeSlot{},
+		}, nil
 	}
 
 	now := time.Now()
@@ -60,12 +85,16 @@ func (se *DefaultSchedulingEngine) GetAvailableTimeSlots(provider models.Provide
 	if weekEnd.After(maxDate.AddDate(0, 0, 1)) {
 		weekEnd = maxDate.AddDate(0, 0, 1)
 	}
+	log.Printf("DEBUG: GetAvailableTimeSlots: weekStart=%v, weekEnd=%v", weekStart, weekEnd)
 
 	// Build available slots and mapping.
+	log.Printf("DEBUG: GetAvailableTimeSlots: Calling buildAvailableSlots with %d enriched slots", len(enrichedSlots))
 	slots, mapping, err := buildAvailableSlots(enrichedSlots, provider.ServiceCatalogue, weekStart, weekEnd, now)
 	if err != nil {
+		log.Printf("ERROR: GetAvailableTimeSlots: buildAvailableSlots returned error: %v", err)
 		return AvailableSlotsResult{}, fmt.Errorf("failed to build available slots: %w", err)
 	}
+	log.Printf("DEBUG: GetAvailableTimeSlots: buildAvailableSlots returned %d slots", len(slots))
 
 	return AvailableSlotsResult{
 		Slots:   slots,

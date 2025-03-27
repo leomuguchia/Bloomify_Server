@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Missing or invalid Authorization header",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -40,7 +41,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -50,7 +51,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		userID, tokenDeviceID, err := utils.ExtractIDsFromToken(tokenString)
 		if err != nil || userID == "" || tokenDeviceID == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token or missing user/device ID",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -60,7 +61,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		ctxDeviceIDVal, exists := c.Get("deviceID")
 		if !exists {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Missing device details in context",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -68,7 +69,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		ctxDeviceID, ok := ctxDeviceIDVal.(string)
 		if !ok || ctxDeviceID == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid device details in context",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -77,7 +78,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		// Compare the deviceID from the token with the one set in context.
 		if tokenDeviceID != ctxDeviceID {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Device mismatch",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -87,7 +88,7 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 		computedHash := utils.HashToken(tokenString)
 		if computedHash == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token",
+				"error": "Insufficient authorization",
 				"code":  0,
 			})
 			return
@@ -98,32 +99,33 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 
 		// Get the dedicated auth cache client.
 		authCache := utils.GetAuthCacheClient()
+		cacheEnabled := true
 		if authCache == nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error": "Internal authentication error",
-				"code":  0,
-			})
-			return
+			// Instead of aborting, log and treat it as a cache miss.
+			log.Printf("WARNING: Auth cache client not available. Falling back to DB lookup.")
+			cacheEnabled = false
 		}
 
-		// Attempt to retrieve the token hash from Redis.
-		cachedHash, err := authCache.Get(ctx, cacheKey).Result()
-		if err == nil {
-			// If found and valid, refresh TTL (1 hour) and continue.
-			if cachedHash == computedHash {
-				_ = authCache.Expire(ctx, cacheKey, time.Hour).Err()
-				c.Set("userID", userID)
-				// No need to re-set "deviceID" as it's already in context.
-				c.Next()
+		// Attempt to retrieve the token hash from Redis if cache is enabled.
+		if cacheEnabled {
+			cachedHash, err := authCache.Get(ctx, cacheKey).Result()
+			if err == nil {
+				// If found and valid, refresh TTL (1 hour) and continue.
+				if cachedHash == computedHash {
+					_ = authCache.Expire(ctx, cacheKey, time.Hour).Err()
+					c.Set("userID", userID)
+					c.Next()
+					return
+				}
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "Token mismatch",
+					"code":  0,
+				})
 				return
+			} else if err != redis.Nil {
+				// Log any other error and proceed to DB lookup.
+				log.Printf("WARNING: Error retrieving auth cache key: %v. Falling back to DB lookup.", err)
 			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Token mismatch",
-				"code":  0,
-			})
-			return
-		} else if err != redis.Nil {
-			// For errors other than key not found, you may choose to log and continue.
 		}
 
 		// Cache miss: Query the database.
@@ -156,10 +158,10 @@ func JWTAuthUserMiddleware(userRepo userRepo.UserRepository) gin.HandlerFunc {
 			return
 		}
 
-		// Successful DB validation: Save token hash to cache with 1-hour TTL.
-		_ = authCache.Set(ctx, cacheKey, computedHash, time.Hour).Err()
+		if cacheEnabled {
+			_ = authCache.Set(ctx, cacheKey, computedHash, time.Hour).Err()
+		}
 
-		// Set userID in context and proceed.
 		c.Set("userID", userID)
 		c.Next()
 	}
