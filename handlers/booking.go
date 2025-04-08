@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"bloomify/models"
 	"bloomify/services/booking"
@@ -104,7 +105,19 @@ func (h *BookingHandler) UpdateSession(c *gin.Context) {
 		return
 	}
 
-	session, err := h.BookingSvc.UpdateSession(sessionID, req.SelectedProviderID)
+	// Parse weekIndex from query parameters; default to 0 if not provided.
+	weekIndexStr := c.Query("weekIndex")
+	weekIndex := 0
+	if weekIndexStr != "" {
+		if wi, err := strconv.Atoi(weekIndexStr); err == nil {
+			weekIndex = wi
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid weekIndex parameter", "message": err.Error()})
+			return
+		}
+	}
+
+	session, err := h.BookingSvc.UpdateSession(sessionID, req.SelectedProviderID, weekIndex)
 	if err != nil {
 		h.Logger.Error("UpdateSession: failed to update booking session", zap.Error(err))
 		// Map non-critical errors from service layer to HTTP 400.
@@ -112,33 +125,42 @@ func (h *BookingHandler) UpdateSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"sessionID":        session.SessionID,
 		"selectedProvider": session.SelectedProvider,
 		"availability":     session.Availability,
-	})
+	}
+
+	if session.AvailabilityError != "" {
+		response["availabilityError"] = session.AvailabilityError
+	}
+	if session.MaxAvailableDate != "" {
+		response["maxAvailableDate"] = session.MaxAvailableDate
+	}
+
+	c.JSON(http.StatusOK, response)
+
 }
 
 // ConfirmBooking handles POST /api/booking/confirm.
 func (h *BookingHandler) ConfirmBooking(c *gin.Context) {
 	var req struct {
-		SessionID     string               `json:"sessionID" binding:"required"`
-		ConfirmedSlot models.AvailableSlot `json:"confirmedSlot" binding:"required"`
+		SessionID     string                       `json:"sessionID" binding:"required"`
+		ConfirmedSlot models.AvailableSlotResponse `json:"confirmedSlot" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload", "message": err.Error()})
+		c.JSON(400, gin.H{"error": "invalid request payload", "message": err.Error()})
 		return
 	}
 
 	bookingResult, err := h.BookingSvc.ConfirmBooking(req.SessionID, req.ConfirmedSlot)
 	if err != nil {
 		h.Logger.Error("ConfirmBooking: failed to confirm booking", zap.Error(err))
-		// Return a 400 status for service errors
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, bookingResult)
+	c.JSON(200, bookingResult)
 }
 
 // CancelSession handles DELETE /api/booking/session/:sessionID.

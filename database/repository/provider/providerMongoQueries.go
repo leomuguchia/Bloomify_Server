@@ -34,26 +34,6 @@ func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), timeout)
 }
 
-// GetByTokenHash retrieves a provider by its tokenHash using a projection.
-func (r *MongoProviderRepo) GetByTokenHash(tokenHash string) (*models.Provider, error) {
-	ctx, cancel := newContext(5 * time.Second)
-	defer cancel()
-
-	opts := options.FindOne().SetProjection(bson.M{"tokenHash": 1, "id": 1})
-	var result struct {
-		ID        string `bson:"id"`
-		TokenHash string `bson:"tokenHash"`
-	}
-	if err := r.coll.FindOne(ctx, bson.M{"tokenHash": tokenHash}, opts).Decode(&result); err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to retrieve provider by token hash: %w", err)
-	}
-
-	return r.GetByID(result.ID)
-}
-
 // GetByIDWithProjection retrieves a provider by its unique ID using a projection.
 // Pass nil for projection if you want the full document with sensitive fields omitted by default.
 func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) (*models.Provider, error) {
@@ -63,8 +43,9 @@ func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) 
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"passwordHash": 0,
-			"tokenHash":    0,
+			"security":          0,
+			"timeSlots":         0,
+			"historicalRecords": 0,
 		}
 	} else {
 		proj = projection
@@ -92,8 +73,9 @@ func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bs
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"passwordHash": 0,
-			"tokenHash":    0,
+			"security":          0,
+			"timeSlots":         0,
+			"historicalRecords": 0,
 		}
 	} else {
 		proj = projection
@@ -124,8 +106,9 @@ func (r *MongoProviderRepo) GetAllWithProjection(projection bson.M) ([]models.Pr
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"passwordHash": 0,
-			"tokenHash":    0,
+			"security":          0,
+			"timeSlots":         0,
+			"historicalRecords": 0,
 		}
 	} else {
 		proj = projection
@@ -163,8 +146,9 @@ func (r *MongoProviderRepo) GetByServiceTypeWithProjection(service string, proje
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"passwordHash": 0,
-			"tokenHash":    0,
+			"security":          0,
+			"timeSlots":         0,
+			"historicalRecords": 0,
 		}
 	} else {
 		proj = projection

@@ -2,18 +2,64 @@ package booking
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
 	"bloomify/models"
+	"bloomify/utils"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
-// buildAvailableSlotsWithMapping constructs AvailableSlot objects and returns a mapping to full TimeSlot objects.
-func buildAvailableSlots(enrichedSlots []models.TimeSlot, catalogue models.ServiceCatalogue, weekStart, weekEnd, now time.Time) ([]models.AvailableSlot, map[string]models.TimeSlot, error) {
+func EnrichTimeslots(rawSlots []models.TimeSlot, catalogue models.ServiceCatalogue, logger *zap.Logger) []models.TimeSlot {
+	var enriched []models.TimeSlot
+	for _, ts := range rawSlots {
+		if ts.ID == "" {
+			logger.Warn("skipping timeslot with empty ID")
+			continue
+		}
+		enrichedTs, ok := enrichTimeSlot(ts, catalogue, logger)
+		if !ok {
+			logger.Warn("enrichment failed", zap.String("timeslotID", ts.ID))
+			continue
+		}
+		enriched = append(enriched, enrichedTs)
+	}
+	return enriched
+}
+
+func enrichTimeSlot(ts models.TimeSlot, catalogue models.ServiceCatalogue, logger *zap.Logger) (models.TimeSlot, bool) {
+	switch ts.SlotModel {
+	case "urgency":
+		if ts.Urgency == nil {
+			logger.Warn("missing urgency data", zap.String("timeslotID", ts.ID))
+			return ts, false
+		}
+	case "earlybird":
+		if ts.EarlyBird == nil {
+			logger.Warn("missing earlybird data", zap.String("timeslotID", ts.ID))
+			return ts, false
+		}
+	case "flatrate":
+		if ts.Flatrate == nil {
+			logger.Warn("missing flatrate data", zap.String("timeslotID", ts.ID))
+			return ts, false
+		}
+	default:
+		logger.Warn("unknown slot model", zap.String("timeslotID", ts.ID))
+		return ts, false
+	}
+	// Set the catalogue for pricing and options.
+	ts.Catalogue = catalogue
+	return ts, true
+}
+
+func BuildAvailableSlots(enrichedSlots []models.TimeSlot, catalogue models.ServiceCatalogue, weekStart, weekEnd, now time.Time) ([]models.AvailableSlot, map[string]models.TimeSlot, error) {
 	var availableSlots []models.AvailableSlot
 	mapping := make(map[string]models.TimeSlot)
+	logger := utils.GetLogger()
 
 	for d := weekStart; d.Before(weekEnd); d = d.AddDate(0, 0, 1) {
 		dayStr := d.Format("2006-01-02")
@@ -21,78 +67,93 @@ func buildAvailableSlots(enrichedSlots []models.TimeSlot, catalogue models.Servi
 			if ts.Date != dayStr {
 				continue
 			}
-			dayMidnight := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
-			absEnd := dayMidnight.Add(time.Duration(ts.End) * time.Minute)
-			if dayStr == now.Format("2006-01-02") && absEnd.Before(now) {
+			// Skip timeslots that are blocked.
+			if ts.Blocked {
 				continue
 			}
+			func(ts models.TimeSlot) {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Error("panic processing timeslot", zap.Any("recover", r), zap.Any("timeslot", ts))
+					}
+				}()
+				dayMidnight := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
+				absEnd := dayMidnight.Add(time.Duration(ts.End) * time.Minute)
+				if dayStr == now.Format("2006-01-02") && absEnd.Before(now) {
+					return
+				}
 
-			// Create an AvailableSlot with a unique ID.
-			slotID := uuid.New().String()
-			slot := models.AvailableSlot{
-				ID:              slotID,
-				Start:           ts.Start,
-				End:             ts.End,
-				UnitType:        ts.UnitType,
-				Date:            dayStr,
-				CustomOptionKey: ts.CustomOptionKey,
-				Mode:            ts.Mode,
-			}
-
-			switch ts.SlotModel {
-			case "urgency":
-				if ts.Urgency == nil {
-					continue
+				slotID := uuid.New().String()
+				slot := models.AvailableSlot{
+					ID:            slotID,
+					Start:         ts.Start,
+					End:           ts.End,
+					UnitType:      ts.UnitType,
+					Date:          dayStr,
+					Catalogue:     ts.Catalogue,
+					OptionPricing: make(map[string]float64),
 				}
-				normalCapacity := ts.Capacity - ts.Urgency.ReservedPriority
-				remaining := normalCapacity - ts.BookedUnitsStandard
-				slot.RegularCapacityRemaining = remaining
-				slot.RegularPricePerUnit = ts.Urgency.BasePrice
-				slot.OptionPricing = make(map[string]float64)
-				for key, modifier := range catalogue.CustomOptions {
-					slot.OptionPricing[key] = ts.Urgency.BasePrice * modifier
+				switch ts.SlotModel {
+				case "urgency":
+					if ts.Urgency == nil {
+						return
+					}
+					normalCapacity := ts.Capacity - ts.Urgency.ReservedPriority
+					remaining := normalCapacity - ts.BookedUnitsStandard
+					if remaining <= 0 {
+						return
+					}
+					slot.RegularCapacityRemaining = remaining
+					slot.RegularPricePerUnit = ts.Urgency.BasePrice
+					for key, modifier := range catalogue.CustomOptions {
+						price := ts.Urgency.BasePrice * modifier
+						slot.OptionPricing[key] = math.Round(price*100) / 100
+					}
+					if normalCapacity > 0 && float64(remaining)/float64(normalCapacity) < 0.3 {
+						slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
+					}
+				case "earlybird":
+					if ts.EarlyBird == nil {
+						return
+					}
+					remaining := ts.Capacity - ts.BookedUnitsStandard
+					if remaining <= 0 {
+						return
+					}
+					nextPrice := GetEarlyBirdNextUnitPrice(*ts.EarlyBird, ts.Capacity, ts.BookedUnitsStandard)
+					slot.RegularCapacityRemaining = remaining
+					slot.RegularPricePerUnit = nextPrice
+					for key, modifier := range catalogue.CustomOptions {
+						price := nextPrice * modifier
+						slot.OptionPricing[key] = math.Round(price*100) / 100
+					}
+					if ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
+						slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
+					}
+				default: // flatrate or standard.
+					if ts.Flatrate == nil {
+						return
+					}
+					remaining := ts.Capacity - ts.BookedUnitsStandard
+					if remaining <= 0 {
+						return
+					}
+					slot.RegularCapacityRemaining = remaining
+					slot.RegularPricePerUnit = ts.Flatrate.BasePrice
+					for key, modifier := range catalogue.CustomOptions {
+						price := ts.Flatrate.BasePrice * modifier
+						slot.OptionPricing[key] = math.Round(price*100) / 100
+					}
+					if ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
+						slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
+					}
 				}
-				if normalCapacity > 0 && float64(remaining)/float64(normalCapacity) < 0.3 {
-					slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
-				}
-			case "earlybird":
-				if ts.EarlyBird == nil {
-					continue
-				}
-				usage := ts.BookedUnitsStandard
-				remaining := ts.Capacity - usage
-				nextPrice := GetEarlyBirdNextUnitPrice(*ts.EarlyBird, ts.Capacity, usage)
-				slot.RegularCapacityRemaining = remaining
-				slot.RegularPricePerUnit = nextPrice
-				slot.OptionPricing = make(map[string]float64)
-				for key, modifier := range catalogue.CustomOptions {
-					slot.OptionPricing[key] = nextPrice * modifier
-				}
-				if ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
-					slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
-				}
-			default: // flatrate
-				if ts.Flatrate == nil {
-					continue
-				}
-				usage := ts.BookedUnitsStandard
-				remaining := ts.Capacity - usage
-				slot.RegularCapacityRemaining = remaining
-				slot.RegularPricePerUnit = ts.Flatrate.BasePrice
-				slot.OptionPricing = make(map[string]float64)
-				for key, modifier := range catalogue.CustomOptions {
-					slot.OptionPricing[key] = ts.Flatrate.BasePrice * modifier
-				}
-				if ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
-					slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
-				}
-			}
-			availableSlots = append(availableSlots, slot)
-			// Save the mapping from AvailableSlot ID to the full TimeSlot.
-			mapping[slotID] = ts
+				availableSlots = append(availableSlots, slot)
+				// Map the generated available slot ID to the full timeslot.
+				mapping[slotID] = ts
+			}(ts)
 		}
 	}
-
 	sort.Slice(availableSlots, func(i, j int) bool {
 		if availableSlots[i].Date == availableSlots[j].Date {
 			return availableSlots[i].Start < availableSlots[j].Start
@@ -100,45 +161,4 @@ func buildAvailableSlots(enrichedSlots []models.TimeSlot, catalogue models.Servi
 		return availableSlots[i].Date < availableSlots[j].Date
 	})
 	return availableSlots, mapping, nil
-}
-
-// ValidateAndBook validates the booking, applies the custom pricing multiplier,
-// calculates the final price, and returns a BookingConfirmation.
-func ValidateAndBook(providerID string, slot models.TimeSlot, booking models.Booking, catalogue models.ServiceCatalogue) (*models.BookingConfirmation, error) {
-	if booking.Start < slot.Start || booking.End > slot.End {
-		return nil, fmt.Errorf("booking time [%d, %d] is not within slot [%d, %d]", booking.Start, booking.End, slot.Start, slot.End)
-	}
-
-	modifier := 1.0
-	if catalogue.CustomOptions != nil {
-		if m, ok := catalogue.CustomOptions[slot.CustomOptionKey]; ok {
-			modifier = m
-		}
-	}
-
-	var basePrice float64
-	switch slot.SlotModel {
-	case "urgency":
-		if slot.Urgency == nil {
-			return nil, fmt.Errorf("urgency slot data missing")
-		}
-		if booking.Priority {
-			basePrice = CalculateUrgencyPrice(*slot.Urgency, booking.Units, true)
-		} else {
-			basePrice = CalculateUrgencyPrice(*slot.Urgency, booking.Units, false)
-		}
-	case "earlybird":
-		basePrice = CalculateEarlyBirdPrice(*slot.EarlyBird, slot.Capacity, slot.BookedUnitsStandard, booking.Units)
-	default:
-		basePrice = CalculateFlatratePrice(*slot.Flatrate, booking.Units)
-	}
-
-	totalPrice := basePrice * modifier
-	bookingID := uuid.New().String()
-	confirmation := &models.BookingConfirmation{
-		BookingID:  bookingID,
-		TotalPrice: totalPrice,
-		Message:    getCapacityMessage(slot),
-	}
-	return confirmation, nil
 }

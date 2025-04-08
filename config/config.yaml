@@ -5,6 +5,8 @@ JWT_SECRET: "leomuguchia"
 GOOGLE_API_KEY: "AIzaSyBQVGiUZNhuiuHdTIPwKLTrfx0IlwH7Ums"
 LOG_LEVEL: "info"
 MAX_REQUESTS_PER_MIN: 100
+GOOGLE_SERVICE_ACCOUNT_FILE: "config/campus.json"
+
 
 # Redis configuration
 REDIS_ADDR: "localhost:6379"

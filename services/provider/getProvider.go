@@ -10,9 +10,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// GetProviderByID returns a provider by ID with fields based on access level.
 func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID string) (*models.Provider, error) {
 	fullAccess, exists := c.Get("isProviderFullAccess")
-	// utils.Logger.Info("Checking isProviderFullAccess flag", zap.Any("isProviderFullAccess", fullAccess), zap.Bool("exists", exists))
 
 	access := false
 	if exists {
@@ -30,15 +30,16 @@ func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID stri
 		}
 	} else {
 		// Public access: Return only public details.
+		// Only include the safe subset:
 		projection = bson.M{
-			"id":            1,
-			"provider_name": 1,
-			"phone_number":  1,
-			"service_type":  1,
-			"location":      1,
-			"verified":      1,
-			"rating":        1,
-			"created_at":    1,
+			"id":                       1,
+			"profile.providerName":     1,
+			"profile.providerType":     1,
+			"profile.status":           1,
+			"profile.advancedVerified": 1,
+			"profile.profileImage":     1,
+			"profile.rating":           1,
+			"serviceCatalogue":         1,
 		}
 	}
 
@@ -49,9 +50,9 @@ func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID stri
 	return provider, nil
 }
 
+// GetProviderByEmail returns a provider by email with fields based on access level.
 func (s *DefaultProviderService) GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error) {
 	fullAccess, exists := c.Get("isProviderFullAccess")
-	// utils.Logger.Info("Checking isProviderFullAccess flag", zap.Any("isProviderFullAccess", fullAccess), zap.Bool("exists", exists))
 
 	access := false
 	if exists {
@@ -70,14 +71,14 @@ func (s *DefaultProviderService) GetProviderByEmail(c *gin.Context, email string
 	} else {
 		// Public access: Return only public details.
 		projection = bson.M{
-			"id":            1,
-			"provider_name": 1,
-			"phone_number":  1,
-			"service_type":  1,
-			"location":      1,
-			"verified":      1,
-			"rating":        1,
-			"created_at":    1,
+			"id":                       1,
+			"profile.providerName":     1,
+			"profile.providerType":     1,
+			"profile.status":           1,
+			"profile.advancedVerified": 1,
+			"profile.profileImage":     1,
+			"profile.rating":           1,
+			"serviceCatalogue":         1,
 		}
 	}
 
@@ -90,10 +91,16 @@ func (s *DefaultProviderService) GetProviderByEmail(c *gin.Context, email string
 
 // GetAllProviders retrieves all providers while excluding sensitive fields.
 func (s *DefaultProviderService) GetAllProviders() ([]models.Provider, error) {
-	// Define a safe projection to hide sensitive fields.
+	// For public access we use a safe projection.
 	projection := bson.M{
-		"password_hash": 0,
-		"token_hash":    0,
+		"id":                       1,
+		"profile.providerName":     1,
+		"profile.providerType":     1,
+		"profile.status":           1,
+		"profile.advancedVerified": 1,
+		"profile.profileImage":     1,
+		"profile.rating":           1,
+		"serviceCatalogue":         1,
 	}
 	providers, err := s.Repo.GetAllWithProjection(projection)
 	if err != nil {

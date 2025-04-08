@@ -47,14 +47,14 @@ func (hb *BookingHandler) GetDirections(c *gin.Context) {
 	// Make the API request.
 	resp, err := http.Get(url)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Please try again later"})
 		return
 	}
 	defer resp.Body.Close()
 
 	var directions DirectionsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&directions); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Please try again later"})
 		return
 	}
 

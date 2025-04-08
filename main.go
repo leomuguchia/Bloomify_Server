@@ -73,6 +73,7 @@ func main() {
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
 		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
 		PaymentHandler: &booking.InAppPaymentProcessor{},
+		ProviderRepo:   provRepo,
 	}
 
 	bookingService := &booking.DefaultBookingSessionService{
@@ -119,6 +120,7 @@ func main() {
 		AIRecommendHandler: handlers.AIRecommendHandler,
 		AISuggestHandler:   handlers.AISuggestHandler,
 		AutoBookHandler:    handlers.AutoBookHandler,
+		AISTTHandler:       handlers.AISTTHandler,
 
 		// User endpoints.
 		RegisterUserHandler:        handlers.RegisterUserHandler,

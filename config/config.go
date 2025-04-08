@@ -23,7 +23,8 @@ type Config struct {
 	RedisOTPDB    int    `mapstructure:"REDIS_OTP_DB"`
 
 	// Google Maps API Key.
-	GoogleAPIKey string `mapstructure:"GOOGLE_API_KEY"`
+	GoogleAPIKey             string `mapstructure:"GOOGLE_API_KEY"`
+	GoogleServiceAccountFile string `mapstructure:"GOOGLE_SERVICE_ACCOUNT_FILE"`
 }
 
 var AppConfig Config

@@ -6,7 +6,7 @@ type TimeSlot struct {
 	Start               int                `bson:"start" json:"start"`                             // minutes from midnight (e.g., 420 for 7:00 AM)
 	End                 int                `bson:"end" json:"end"`                                 // minutes from midnight (e.g., 780 for 1:00 PM)
 	Capacity            int                `bson:"capacity" json:"capacity"`                       // total units for the slot (e.g., 30 kids)
-	SlotModel           string             `bson:"slotModel" json:"slotModel"`                     // indicates pricing model: "earlybird", "urgency", or "flatrate"
+	SlotModel           string             `bson:"slotModel" json:"slotModel"`                     // "earlybird", "urgency", or "flatrate"
 	UnitType            string             `bson:"unitType" json:"unitType"`                       // e.g., "child", "kg", "hour"
 	Date                string             `bson:"date,omitempty" json:"date"`                     // e.g., "2025-02-25"
 	EarlyBird           *EarlyBirdSlotData `bson:"earlyBird,omitempty" json:"earlyBird,omitempty"` // non-nil when SlotModel is "earlybird"
@@ -15,13 +15,30 @@ type TimeSlot struct {
 	BookedUnitsStandard int                `bson:"bookedUnitsStandard,omitempty" json:"bookedUnitsStandard,omitempty"`
 	BookedUnitsPriority int                `bson:"bookedUnitsPriority,omitempty" json:"bookedUnitsPriority,omitempty"`
 	Version             int                `bson:"version" json:"version"`
-	CustomOptionKey     string             `bson:"customOptionKey,omitempty" json:"customOptionKey,omitempty"` // e.g., "luxury", "eco_friendly"
-	Mode                string             `bson:"mode,omitempty" json:"mode,omitempty"`
+	Catalogue           ServiceCatalogue   `bson:"catalogue,omitempty" json:"catalogue,omitzero"`
+	Blocked             bool               `bson:"blocked" json:"blocked"`
+	BlockReason         string             `bson:"blockReason,omitempty" json:"blockReason,omitempty"`
+	BookingIDs          []string           `bson:"bookingIds,omitempty" json:"bookingIds,omitempty"`
 }
 
-// AvailableSlot represents a user‑facing timeslot with computed pricing and capacity.
+// AvailableSlotResponse represents the detailed timeslot information including the user’s selected custom option and units.
+type AvailableSlotResponse struct {
+	ID           string        `json:"id"`
+	Start        int           `json:"start"`
+	End          int           `json:"end"`
+	UnitType     string        `json:"unitType"`
+	Date         string        `json:"date"`
+	Units        int           `json:"units"`
+	CustomOption *CustomOption `json:"customOption,omitempty"`
+}
+
+type CustomOption struct {
+	Option string  `json:"option"`
+	Price  float64 `json:"price"`
+}
+
 type AvailableSlot struct {
-	ID                        string             `json:"id"` // Unique identifier to map back to a full TimeSlot.
+	ID                        string             `json:"id"`
 	Start                     int                `json:"start"`
 	End                       int                `json:"end"`
 	UnitType                  string             `json:"unitType"`
@@ -32,8 +49,9 @@ type AvailableSlot struct {
 	Message                   string             `json:"message,omitempty"`
 	Date                      string             `json:"date"`
 	CustomOptionKey           string             `json:"customOptionKey,omitempty"`
-	Mode                      string             `json:"mode,omitempty"`
+	Catalogue                 ServiceCatalogue   `bson:"catalogue,omitempty" json:"catalogue,omitzero"`
 	OptionPricing             map[string]float64 `json:"optionPricing,omitempty"`
+	CustomOption              *CustomOption      `json:"customOption,omitempty"`
 }
 
 type EarlyBirdSlotData struct {

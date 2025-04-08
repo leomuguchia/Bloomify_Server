@@ -39,6 +39,7 @@ type HandlerBundle struct {
 	AIRecommendHandler gin.HandlerFunc
 	AISuggestHandler   gin.HandlerFunc
 	AutoBookHandler    gin.HandlerFunc
+	AISTTHandler       gin.HandlerFunc
 
 	// User endpoints
 	RegisterUserHandler        gin.HandlerFunc

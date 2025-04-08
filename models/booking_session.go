@@ -7,10 +7,12 @@ type BookingSession struct {
 	MatchedProviders    []ProviderDTO       `json:"matchedProviders"`
 	SelectedProvider    string              `json:"selectedProvider,omitempty"`
 	Availability        []AvailableSlot     `json:"availability,omitempty"`
-	FullTimeSlotMapping map[string]TimeSlot `json:"-"` // Map availableSlot.ID -> full TimeSlot (do not expose externally)
+	FullTimeSlotMapping map[string]TimeSlot `json:"fullTimeSlotMapping"`
 	UserID              string              `json:"userID"`
 	DeviceID            string              `json:"deviceID"`
 	DeviceName          string              `json:"deviceName"`
+	AvailabilityError   string              `json:"availabilityError,omitempty"`
+	MaxAvailableDate    string              `json:"maxAvailableDate,omitempty"`
 }
 
 type BookingResponse struct {

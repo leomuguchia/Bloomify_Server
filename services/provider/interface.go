@@ -3,7 +3,6 @@ package provider
 import (
 	providerRepo "bloomify/database/repository/provider"
 	"bloomify/models"
-	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,9 +11,8 @@ import (
 type DefaultProviderService struct {
 	Repo providerRepo.ProviderRepository
 }
-
 type ProviderService interface {
-	// Multi‑step registration
+	// Core provider methods.
 	RegisterBasic(basicReq models.ProviderBasicRegistrationData, device models.Device) (sessionID string, status int, err error)
 	VerifyOTP(sessionID string, deviceID string, providedOTP string) (status int, err error)
 	VerifyKYP(sessionID string, kypData models.KYPVerificationData) (status int, err error)
@@ -35,22 +33,8 @@ type ProviderService interface {
 	GetProviderDevices(providerID string) ([]models.Device, error)
 	SignOutOtherDevices(providerID, currentDeviceID string) error
 	ResetPassword(email, providedOTP, newPassword, providedSessionID string) error
-}
 
-// OTPPendingError indicates that OTP verification is required.
-type OTPPendingError struct {
-	SessionID string
-}
-
-func (e OTPPendingError) Error() string {
-	return fmt.Sprintf("OTP verification required. SessionID: %s", e.SessionID)
-}
-
-// NewPasswordRequiredError indicates that a new password is required after OTP verification.
-type NewPasswordRequiredError struct {
-	SessionID string
-}
-
-func (e NewPasswordRequiredError) Error() string {
-	return fmt.Sprintf("OTP verified. New password required. SessionID: %s", e.SessionID)
+	EnableSubscription(providerID string) error
+	UpdateSubscriptionSettings(providerID string, settings models.SubscriptionModel) error
+	GetSubscriptionHistory(providerID string) ([]models.SubscriptionBooking, error)
 }

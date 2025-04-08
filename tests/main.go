@@ -209,7 +209,7 @@ func registerProvider(prov ProviderJSON, deviceID string, wg *sync.WaitGroup) {
 	log.Printf("[%s] Final registration response: %+v", prov.Profile.ProviderName, catalogueResp)
 }
 
-func test() {
+func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Open and read the providers JSON file.

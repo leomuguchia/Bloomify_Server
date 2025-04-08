@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"bloomify/models"
 	"bloomify/utils"
-
-	"log"
 
 	"github.com/google/uuid"
 )
@@ -51,7 +50,6 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 	}
 
 	cacheClient := utils.GetBookingCacheClient()
-	// Set TTL to 30 minutes
 	if err := cacheClient.Set(ctx, sessionID, sessionData, 30*time.Minute).Err(); err != nil {
 		log.Printf("Error storing session in cache: %v", err)
 		return "", nil, fmt.Errorf("failed to store booking session: %w", err)
@@ -61,37 +59,26 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 	return sessionID, matchedProviders, nil
 }
 
-// UpdateSession updates the session with the selected provider.
-func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedProviderID string) (*models.BookingSession, error) {
+// UpdateSession retrieves the booking session from cache, validates the selected provider,
+// computes weekly availability, and updates the session.
+func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedProviderID string, weekIndex int) (*models.BookingSession, error) {
 	ctx := context.Background()
 	cacheClient := utils.GetBookingCacheClient()
 
-	log.Printf("UpdateSession: Starting update for sessionID: %s with providerID: %s", sessionID, selectedProviderID)
-
 	if sessionID == "" {
-		errMsg := "booking not initialized"
-		log.Printf("UpdateSession: %s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("booking session not initialized")
 	}
 
-	// Retrieve session data from cache.
 	sessionData, err := cacheClient.Get(ctx, sessionID).Result()
 	if err != nil {
-		errMsg := fmt.Sprintf("booking session not found or expired %s", err)
-		log.Printf("UpdateSession: %s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("booking session not found or expired")
 	}
-	log.Printf("UpdateSession: Retrieved session data for sessionID: %s", sessionID)
 
 	var session models.BookingSession
 	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
-		errMsg := fmt.Sprintf("failed to parse booking session for sessionID %s: %v", sessionID, err)
-		log.Printf("UpdateSession: %s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
-	log.Printf("UpdateSession: Unmarshaled session data successfully for sessionID: %s", sessionID)
 
-	// Validate that the selected provider exists in the matched providers list.
 	var selectedDTO models.ProviderDTO
 	found := false
 	for _, p := range session.MatchedProviders {
@@ -102,88 +89,65 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 		}
 	}
 	if !found {
-		errMsg := fmt.Sprintf("selected provider (%s) is not in the matched providers list", selectedProviderID)
-		log.Printf("UpdateSession: %s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("selected provider is not in the matched providers list")
 	}
-	log.Printf("UpdateSession: Found selected provider with ID: %s", selectedProviderID)
 
-	// Update session with the selected provider.
 	session.SelectedProvider = selectedProviderID
 	session.Availability = nil
 	session.FullTimeSlotMapping = make(map[string]models.TimeSlot)
-	log.Printf("UpdateSession: Cleared availability and full time slot mapping for sessionID: %s", sessionID)
 
-	// Convert provider DTO to minimal Provider.
 	selectedProvider := models.Provider{
 		ID:               selectedDTO.ID,
 		ServiceCatalogue: selectedDTO.ServiceCatalogue,
 		Profile:          selectedDTO.Profile,
 	}
-	log.Printf("UpdateSession: Converted provider DTO to minimal provider for providerID: %s", selectedProvider.ID)
 
-	// Get available slots and mapping from the scheduler.
-	log.Printf("UpdateSession: Calling GetAvailableTimeSlots for providerID: %s", selectedProvider.ID)
-	availabilityResult, err := s.SchedulerEngine.GetAvailableTimeSlots(selectedProvider, 0)
+	availabilityResult, err := s.SchedulerEngine.GetWeeklyAvailableSlots(selectedProvider, weekIndex)
 	if err != nil {
-		log.Printf("UpdateSession: failed to compute availability for provider")
-		return nil, fmt.Errorf("failed to compute availability for provider")
+		return nil, fmt.Errorf("failed to compute availability for provider: %w", err)
 	}
 
-	log.Printf("UpdateSession: finished calling GetAvailableTimeSlots for providerID: %s", selectedProvider.ID)
-	// Validate the mapping keys match the expected available slot IDs.
-	for key, slot := range availabilityResult.Mapping {
-		log.Printf("UpdateSession: Scheduler mapping - Key: %s, Slot ID: %s, Start: %d, End: %d", key, slot.ID, slot.Start, slot.End)
-		if key != slot.ID {
-			log.Printf("WARNING: Mapping key (%s) does not match slot ID (%s). Please verify scheduler contract.", key, slot.ID)
-		}
+	if len(availabilityResult.Slots) == 0 {
+		session.AvailabilityError = availabilityResult.AvailabilityError
+	} else {
+		session.Availability = availabilityResult.Slots
+		session.FullTimeSlotMapping = availabilityResult.Mapping
+		session.MaxAvailableDate = availabilityResult.MaxAvailableDate
 	}
 
-	session.Availability = availabilityResult.Slots
-	session.FullTimeSlotMapping = availabilityResult.Mapping
-	log.Printf("UpdateSession: Computed availability with %d slots for providerID: %s", len(availabilityResult.Slots), selectedProvider.ID)
-
-	// Marshal the updated session.
 	updatedData, err := json.Marshal(session)
 	if err != nil {
-		errMsg := fmt.Sprintf("failed to marshal updated booking session for sessionID %s: %v", sessionID, err)
-		log.Printf("UpdateSession: %s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("failed to marshal updated booking session: %w", err)
 	}
-
-	// Save the updated session back into cache with a TTL of 30 minutes.
 	if err := cacheClient.Set(ctx, sessionID, updatedData, 30*time.Minute).Err(); err != nil {
-		errMsg := fmt.Sprintf("failed to update booking session in cache for sessionID %s: %v", sessionID, err)
-		log.Printf("UpdateSession: %s", errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, fmt.Errorf("failed to update booking session in cache: %w", err)
 	}
-	log.Printf("UpdateSession: Successfully updated booking session in cache for sessionID: %s", sessionID)
 
+	log.Printf("Successfully updated booking session: %s", sessionID)
 	return &session, nil
 }
 
-// ConfirmBooking finalizes the booking by mapping the confirmed AvailableSlot to its full TimeSlot.
-func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlot) (*models.Booking, error) {
+func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlotResponse) (*models.Booking, error) {
 	ctx := context.Background()
 	cacheClient := utils.GetBookingCacheClient()
 
+	// Retrieve the booking session from cache.
 	sessionData, err := cacheClient.Get(ctx, sessionID).Result()
 	if err != nil {
-		return nil, fmt.Errorf("booking session not found or expired: %w", err)
+		return nil, fmt.Errorf("booking session not found or expired")
 	}
 	var session models.BookingSession
 	if err := json.Unmarshal([]byte(sessionData), &session); err != nil {
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
-	// Retrieve the full TimeSlot using the mapping.
+	// Map the confirmed available slot's ID to the full TimeSlot.
 	fullSlot, ok := session.FullTimeSlotMapping[confirmedSlot.ID]
 	if !ok {
 		return nil, fmt.Errorf("full timeslot not found for available slot %s", confirmedSlot.ID)
 	}
 
-	// Validate that the confirmed slot's ID is indeed expected.
-	log.Printf("ConfirmBooking: Confirmed slot ID: %s, Full slot details: Start %d, End %d", confirmedSlot.ID, fullSlot.Start, fullSlot.End)
+	log.Printf("ConfirmBooking: Confirmed slot ID: %s, Full slot: Start %d, End %d", confirmedSlot.ID, fullSlot.Start, fullSlot.End)
 
 	// Locate the selected provider.
 	var selectedDTO models.ProviderDTO
@@ -199,30 +163,38 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		return nil, fmt.Errorf("selected provider not found in booking session")
 	}
 
-	// Convert DTO to minimal Provider.
 	selectedProvider := models.Provider{
 		ID:               selectedDTO.ID,
 		ServiceCatalogue: selectedDTO.ServiceCatalogue,
 		Profile:          selectedDTO.Profile,
 	}
 
-	// Build the booking record.
-	bookingRecord := models.Booking{
-		ProviderID:   selectedProvider.ID,
-		ProviderName: selectedProvider.Profile.ProviderName,
-		UserID:       session.UserID,
-		Date:         session.ServicePlan.Date,
-		Start:        fullSlot.Start,
-		End:          fullSlot.End,
-		CreatedAt:    time.Now(),
+	// Build the BookingRequest using fields from the confirmed slot response.
+	req := models.BookingRequest{
+		ProviderID:    selectedProvider.ID,
+		UserID:        session.UserID,
+		Date:          confirmedSlot.Date,  // Use the date from the confirmed slot.
+		Start:         confirmedSlot.Start, // Use the start time from the confirmed slot.
+		End:           confirmedSlot.End,   // Use the end time from the confirmed slot.
+		Units:         confirmedSlot.Units, // Use the units sent from the frontend.
+		Priority:      false,
+		PaymentMethod: "inApp",
 	}
 
-	// Call BookSlot with the full TimeSlot.
-	if err := s.SchedulerEngine.BookSlot(selectedProvider, session.ServicePlan.Date, fullSlot, bookingRecord); err != nil {
+	// Process the booking using the SchedulerEngine.
+	// Note: For one-off bookings, the result should be a models.Booking.
+	result, err := s.SchedulerEngine.BookSlot(selectedProvider, req)
+	if err != nil {
 		return nil, fmt.Errorf("failed to book slot: %w", err)
 	}
 
-	// Clear session after successful booking.
+	booking, ok := result.(models.Booking)
+	if !ok {
+		return nil, fmt.Errorf("unexpected booking result type")
+	}
+
+	// Clear the session after a successful booking.
 	cacheClient.Del(ctx, sessionID)
-	return &bookingRecord, nil
+
+	return &booking, nil
 }

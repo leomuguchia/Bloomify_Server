@@ -41,8 +41,6 @@ type ProviderRepository interface {
 	GetAllWithProjection(projection bson.M) ([]models.Provider, error)
 	// GetByServiceTypeWithProjection retrieves providers by service type with a projection.
 	GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error)
-	// GetByTokenHash retrieves a provider whose token_hash matches the provided hash.
-	GetByTokenHash(tokenHash string) (*models.Provider, error)
 	// UpdateWithDocument patches a provider document with the specified update document.
 	UpdateWithDocument(id string, updateDoc bson.M) error
 	// IsProviderAvailable checks if a provider with the given basic registration details already exists.

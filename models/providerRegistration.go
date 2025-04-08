@@ -41,3 +41,20 @@ type ProviderRegistrationRequest struct {
 	KYPData          *KYPVerificationData           `json:"kypData,omitempty"`          // For step "kyp"
 	ServiceCatalogue *ServiceCatalogue              `json:"serviceCatalogue,omitempty"` // For step "catalogue"
 }
+
+type ProviderDTO struct {
+	ID               string           `json:"id"`
+	Profile          Profile          `json:"profile"`
+	ServiceCatalogue ServiceCatalogue `json:"serviceCatalogue"`
+	LocationGeo      GeoPoint         `json:"locationGeo"`
+	Preferred        bool             `json:"preferred"`
+	Proximity        float64          `json:"proximity"`
+}
+
+type ProviderAuthResponse struct {
+	ID          string    `json:"id"`
+	Token       string    `json:"token"`
+	Profile     Profile   `json:"profile"`
+	CreatedAt   time.Time `json:"created_at"`
+	ServiceType string    `json:"service_type,omitempty"`
+}
