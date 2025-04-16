@@ -73,15 +73,15 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 
 func RegisterAIRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api/ai")
+	api.POST("/stt", hb.AISTTHandler)
 	api.Use(
-		middleware.DeviceDetailsMiddleware(),
+		// middleware.DeviceDetailsMiddleware(),
 		middleware.JWTAuthUserMiddleware(hb.UserRepo),
 	)
 	{
 		api.POST("/recommend", hb.AIRecommendHandler)
 		api.POST("/suggest", hb.AISuggestHandler)
 		api.POST("/auto-book", hb.AutoBookHandler)
-		api.POST("/stt", hb.AISTTHandler)
 	}
 }
 

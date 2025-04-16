@@ -16,11 +16,11 @@ type Config struct {
 	MaxRequestsPerMin int    `mapstructure:"MAX_REQUESTS_PER_MIN"`
 
 	// Redis configuration.
-	RedisAddr     string `mapstructure:"REDIS_ADDR"`
-	RedisPassword string `mapstructure:"REDIS_PASSWORD"`
-	RedisCacheDB  int    `mapstructure:"REDIS_CACHE_DB"`
-	RedisAuthDB   int    `mapstructure:"REDIS_AUTH_DB"`
-	RedisOTPDB    int    `mapstructure:"REDIS_OTP_DB"`
+	RedisAddr           string `mapstructure:"REDIS_ADDR"`
+	RedisPassword       string `mapstructure:"REDIS_PASSWORD"`
+	RedisBookingCacheDB int    `mapstructure:"REDIS_CACHE_DB"`
+	RedisAuthDB         int    `mapstructure:"REDIS_AUTH_DB"`
+	RedisOTPDB          int    `mapstructure:"REDIS_OTP_DB"`
 
 	// Google Maps API Key.
 	GoogleAPIKey             string `mapstructure:"GOOGLE_API_KEY"`

@@ -24,11 +24,11 @@ var (
 
 // InitBookingCache initializes the generic Redis cache client using the DB from AppConfig for general caching.
 func InitBookingCache() {
-	log.Printf("Attempting to connect to Redis (Booking Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisCacheDB)
+	log.Printf("Attempting to connect to Redis (Booking Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisBookingCacheDB)
 	BookingCacheClient = redis.NewClient(&redis.Options{
 		Addr:     config.AppConfig.RedisAddr,
 		Password: config.AppConfig.RedisPassword,
-		DB:       config.AppConfig.RedisCacheDB,
+		DB:       config.AppConfig.RedisBookingCacheDB,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
