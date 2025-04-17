@@ -12,17 +12,12 @@ import (
 )
 
 var (
-	// BookingCacheClient is the generic cache client.
 	BookingCacheClient *redis.Client
-	// AuthCacheClient is the dedicated client for authorization caching.
-	AuthCacheClient *redis.Client
-	// OTPCacheClient is the dedicated client for caching OTPs.
-	OTPCacheClient *redis.Client
-	// TestCacheClient is used for testing OTP retrieval.
-	TestCacheClient *redis.Client
+	AuthCacheClient    *redis.Client
+	OTPCacheClient     *redis.Client
+	TestCacheClient    *redis.Client
 )
 
-// InitBookingCache initializes the generic Redis cache client using the DB from AppConfig for general caching.
 func InitBookingCache() {
 	log.Printf("Attempting to connect to Redis (Booking Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisBookingCacheDB)
 	BookingCacheClient = redis.NewClient(&redis.Options{
