@@ -27,14 +27,6 @@ func GenerateProviderID() string {
 	return uuid.New().String()
 }
 
-// GetAuthCacheClient returns the Redis client used for registration sessions.
-// Replace with your actual Redis client configuration.
-func GetAuthCacheClient() *redis.Client {
-	return redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-}
-
 // GetLogger returns the application logger. Adjust as needed.
 func GetLogger() *zap.Logger {
 	logger, _ := zap.NewProduction()

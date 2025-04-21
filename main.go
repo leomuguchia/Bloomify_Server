@@ -30,11 +30,9 @@ func main() {
 	config.LoadConfig()
 	logger := utils.GetLogger()
 
-	// Initialize the database and redis.
 	database.InitDB()
 	utils.InitRedis()
 
-	// Initialize Cloudinary Storage Service.
 	cloudinaryStorageService, err := utils.Cloudinary()
 	if err != nil {
 		logger.Sugar().Fatalf("main: failed to initialize cloudinary storage service: %v", err)
@@ -48,11 +46,11 @@ func main() {
 	router.Use(middleware.RateLimitMiddleware())
 	router.Use(middleware.GeolocationMiddleware())
 
-	// Setup repositories.
+	// repositories.
 	provRepo := providerRepo.NewMongoProviderRepo()
 	userRepo := userRepoPkg.NewMongoUserRepo()
 
-	// Setup services.
+	// services.
 	userService := &user.DefaultUserService{
 		Repo: userRepo,
 	}
@@ -65,7 +63,6 @@ func main() {
 	ProviderDeviceHandler := handlers.NewProviderDeviceHandler(providerService)
 	UserDeviceHandler := handlers.NewUserDeviceHandler(userService)
 
-	// Setup booking services.
 	matchingServiceInstance := &booking.DefaultMatchingService{
 		ProviderRepo: provRepo,
 	}
@@ -81,10 +78,7 @@ func main() {
 		SchedulerEngine: schedulingEngineInstance,
 	}
 
-	// Create the booking handler directly using dependency injection.
 	bookingHandler := handlers.NewBookingHandler(bookingService, logger)
-
-	// Setup other handlers.
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
 	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
 

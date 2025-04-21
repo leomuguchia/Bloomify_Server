@@ -213,12 +213,12 @@ func (r *MongoProviderRepo) IsProviderAvailable(basicReq models.ProviderBasicReg
 	var provider models.Provider
 	err := r.coll.FindOne(ctx, filter).Decode(&provider)
 	if err != nil {
-		// If no document is found, then it's available.
+		// If no document is found, then provider unavailable
 		if err.Error() == "mongo: no documents in result" {
-			return true, nil
+			return false, nil
 		}
-		return false, err
+		return true, err
 	}
-	// Document found – provider details are taken.
-	return false, nil
+	// Document found – provider available
+	return true, nil
 }
