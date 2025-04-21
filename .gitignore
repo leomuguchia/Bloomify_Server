@@ -1,1 +1,4 @@
-/config
+/tests
+
+/config/.env
+/config/campus.json
