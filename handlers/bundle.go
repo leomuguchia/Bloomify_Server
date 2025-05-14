@@ -36,10 +36,8 @@ type HandlerBundle struct {
 	GetDirections        gin.HandlerFunc
 
 	// AI endpoints
-	AIRecommendHandler gin.HandlerFunc
-	AISuggestHandler   gin.HandlerFunc
-	AutoBookHandler    gin.HandlerFunc
-	AISTTHandler       gin.HandlerFunc
+	AIChatHandler gin.HandlerFunc
+	AISTTHandler  gin.HandlerFunc
 
 	// User endpoints
 	RegisterUserHandler        gin.HandlerFunc

@@ -57,8 +57,19 @@ type BasicVerification struct {
 }
 
 type PaymentDetails struct {
-	AcceptedPaymentMethods []string `bson:"acceptedPaymentMethods" json:"acceptedPaymentMethods,omitempty"`
-	PrePaymentRequired     bool     `bson:"prePaymentRequired" json:"prePaymentRequired,omitempty"`
+	PaymentMethods  []string `bson:"paymentMethods" json:"paymentMethods"`   // e.g., ["cash", "card"]
+	PreferredMethod string   `bson:"preferredMethod" json:"preferredMethod"` // e.g., "card"
+	Currency        string   `bson:"currency" json:"currency"`               // e.g., "KES"
+
+	// Stripe-related
+	StripeAccountID string `bson:"stripeAccountID,omitempty" json:"stripeAccountID,omitempty"`
+	StripeVerified  bool   `bson:"stripeVerified" json:"stripeVerified"`
+
+	// Optional cash-only metadata
+	AcceptsCash bool `bson:"acceptsCash" json:"acceptsCash"`
+
+	// Timestamps
+	LastUpdated time.Time `bson:"lastUpdated" json:"lastUpdated"`
 }
 
 type Provider struct {

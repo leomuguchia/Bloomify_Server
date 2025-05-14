@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	BookingCacheClient *redis.Client
-	AuthCacheClient    *redis.Client
-	OTPCacheClient     *redis.Client
-	TestCacheClient    *redis.Client
+	BookingCacheClient   *redis.Client
+	AuthCacheClient      *redis.Client
+	OTPCacheClient       *redis.Client
+	TestCacheClient      *redis.Client
+	AIContextCacheClient *redis.Client
 )
 
 func InitBookingCache() {
@@ -40,6 +41,31 @@ func GetBookingCacheClient() *redis.Client {
 		InitBookingCache()
 	}
 	return BookingCacheClient
+}
+
+// InitAIContextCache initializes the Redis client for AI context caching.
+func InitAIContextCache() {
+	log.Printf("Attempting to connect to Redis (AI Context Cache) at %s using DB %d",
+		config.AppConfig.RedisAddr, config.AppConfig.RedisAIContextDB)
+	AIContextCacheClient = redis.NewClient(&redis.Options{
+		Addr:     config.AppConfig.RedisAddr,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisAIContextDB,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := AIContextCacheClient.Ping(ctx).Result(); err != nil {
+		log.Fatalf("Failed to connect to Redis (AI Context Cache): %v", err)
+	}
+	log.Println("Connected to Redis (AI Context Cache) successfully.")
+}
+
+// GetAIContextCacheClient returns the Redis client for AI context caching.
+func GetAIContextCacheClient() *redis.Client {
+	if AIContextCacheClient == nil {
+		InitAIContextCache()
+	}
+	return AIContextCacheClient
 }
 
 // InitAuthCache initializes the Redis client for authorization caching using the DB from AppConfig for auth cache.
@@ -125,6 +151,7 @@ func GetTestCacheClient() *redis.Client {
 func InitRedis() {
 	InitBookingCache()
 	InitAuthCache()
+	InitAIContextCache()
 	InitOTPCache()
 	InitTestCache()
 	GetLogger().Sugar().Info("All Redis clients have been successfully initialized.")

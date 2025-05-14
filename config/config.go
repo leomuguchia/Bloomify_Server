@@ -19,23 +19,23 @@ type Config struct {
 	RedisAddr           string `mapstructure:"REDIS_ADDR"`
 	RedisPassword       string `mapstructure:"REDIS_PASSWORD"`
 	RedisBookingCacheDB int    `mapstructure:"REDIS_CACHE_DB"`
+	RedisAIContextDB    int    `mapstructure:"REDIS_AI_DB"`
 	RedisAuthDB         int    `mapstructure:"REDIS_AUTH_DB"`
 	RedisOTPDB          int    `mapstructure:"REDIS_OTP_DB"`
 
 	// Google Maps API Key.
 	GoogleAPIKey             string `mapstructure:"GOOGLE_API_KEY"`
 	GoogleServiceAccountFile string `mapstructure:"GOOGLE_SERVICE_ACCOUNT_FILE"`
+	OpenAIAPIKey             string `mapstructure:"OPENAI_KEY"`
 }
 
 var AppConfig Config
 
 func LoadConfig() {
-	// Look for a config file named "config.yaml" in the current and "config" directory.
-	viper.SetConfigName("config")
+	viper.SetConfigName("c")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("./config")
-	// Automatically use environment variables where available.
 	viper.AutomaticEnv()
 
 	// Set default values.

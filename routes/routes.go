@@ -46,12 +46,10 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.POST("/login", hb.AuthenticateProviderHandler)
 		api.POST("/reset-password", hb.ResetProviderPasswordHandler)
 
-		// Public routes requiring partial JWT verification but no device auth.
 		public := api.Group("")
 		public.GET("/id/:id", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByIDHandler)
 		public.GET("/email/:email", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByEmailHandler)
 
-		// Protected routes – require both JWT and Device authentication.
 		protected := api.Group("")
 		protected.Use(
 			middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, false),
@@ -74,15 +72,9 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 func RegisterAIRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	api := r.Group("/api/ai")
 	api.POST("/stt", hb.AISTTHandler)
-	api.Use(
-		// middleware.DeviceDetailsMiddleware(),
-		middleware.JWTAuthUserMiddleware(hb.UserRepo),
-	)
-	{
-		api.POST("/recommend", hb.AIRecommendHandler)
-		api.POST("/suggest", hb.AISuggestHandler)
-		api.POST("/auto-book", hb.AutoBookHandler)
-	}
+
+	api.Use(middleware.JWTAuthUserMiddleware(hb.UserRepo))
+	api.POST("/chat", hb.AIChatHandler)
 }
 
 func RegisterHealthRoute(r *gin.Engine) {

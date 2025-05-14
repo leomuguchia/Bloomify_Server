@@ -10,6 +10,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.6.0
+	github.com/sashabaranov/go-openai v1.39.1
 	github.com/spf13/viper v1.19.0
 	go.mongodb.org/mongo-driver v1.17.2
 	go.uber.org/zap v1.27.0

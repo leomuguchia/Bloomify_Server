@@ -23,13 +23,24 @@ type TimeSlot struct {
 
 // AvailableSlotResponse represents the detailed timeslot information including the user’s selected custom option and units.
 type AvailableSlotResponse struct {
-	ID           string        `json:"id"`
-	Start        int           `json:"start"`
-	End          int           `json:"end"`
-	UnitType     string        `json:"unitType"`
-	Date         string        `json:"date"`
-	Units        int           `json:"units"`
-	CustomOption *CustomOption `json:"customOption,omitempty"`
+	ID                  string              `json:"id"`
+	Start               int                 `json:"start"`
+	End                 int                 `json:"end"`
+	UnitType            string              `json:"unitType"`
+	Date                string              `json:"date"`
+	Units               int                 `json:"units"`
+	CustomOption        CustomOption        `json:"customOption"`
+	Subscription        bool                `json:"subscription"`
+	SubscriptionDetails SubscriptionDetails `json:"subscriptionDetails,omitempty"`
+	UserPayment         UserPayment         `json:"userPayment"`
+}
+
+type UserPayment struct {
+	PaymentMethod string `json:"paymentMethod"` //cash or card via stripe
+
+	// stripe required details, omit if using cash
+	PaymentID string `json:"paymentId,omitempty"`
+	Currency  string `json:"currency,omitempty"`
 }
 
 type CustomOption struct {

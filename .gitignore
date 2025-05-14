@@ -2,3 +2,6 @@
 
 /config/.env
 /config/campus.json
+/config/c.yaml
+# Ignore all service account keys
+config/*.json

@@ -149,6 +149,11 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 
 	log.Printf("ConfirmBooking: Confirmed slot ID: %s, Full slot: Start %d, End %d", confirmedSlot.ID, fullSlot.Start, fullSlot.End)
 
+	// **Verification Step**: Ensure the confirmed slot matches the fullSlot
+	if confirmedSlot.Start != fullSlot.Start || confirmedSlot.End != fullSlot.End || confirmedSlot.UnitType != fullSlot.UnitType {
+		return nil, fmt.Errorf("confirmed slot doesn't match the full timeslot's start, end or unit type")
+	}
+
 	// Locate the selected provider.
 	var selectedDTO models.ProviderDTO
 	found := false
@@ -171,30 +176,28 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 
 	// Build the BookingRequest using fields from the confirmed slot response.
 	req := models.BookingRequest{
-		ProviderID:    selectedProvider.ID,
-		UserID:        session.UserID,
-		Date:          confirmedSlot.Date,  // Use the date from the confirmed slot.
-		Start:         confirmedSlot.Start, // Use the start time from the confirmed slot.
-		End:           confirmedSlot.End,   // Use the end time from the confirmed slot.
-		Units:         confirmedSlot.Units, // Use the units sent from the frontend.
-		Priority:      false,
-		PaymentMethod: "inApp",
+		ProviderID:          selectedProvider.ID,
+		UserID:              session.UserID,
+		Date:                confirmedSlot.Date,  // Use the date from the confirmed slot.
+		Start:               confirmedSlot.Start, // Use the start time from the confirmed slot.
+		End:                 confirmedSlot.End,   // Use the end time from the confirmed slot.
+		Units:               confirmedSlot.Units, // Use the units sent from the frontend.
+		UnitType:            confirmedSlot.UnitType,
+		Priority:            false,
+		UserPayment:         confirmedSlot.UserPayment,
+		CustomOption:        confirmedSlot.CustomOption,
+		Subscription:        confirmedSlot.Subscription,
+		SubscriptionDetails: confirmedSlot.SubscriptionDetails,
 	}
 
 	// Process the booking using the SchedulerEngine.
-	// Note: For one-off bookings, the result should be a models.Booking.
 	result, err := s.SchedulerEngine.BookSlot(selectedProvider, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to book slot: %w", err)
 	}
 
-	booking, ok := result.(models.Booking)
-	if !ok {
-		return nil, fmt.Errorf("unexpected booking result type")
-	}
-
 	// Clear the session after a successful booking.
 	cacheClient.Del(ctx, sessionID)
 
-	return &booking, nil
+	return result, nil
 }

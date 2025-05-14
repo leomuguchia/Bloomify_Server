@@ -18,6 +18,7 @@ import (
 	"bloomify/middleware"
 	"bloomify/routes"
 	"bloomify/services/booking"
+	ai "bloomify/services/intelligence"
 	"bloomify/services/provider"
 	"bloomify/services/user"
 	"bloomify/utils"
@@ -67,9 +68,10 @@ func main() {
 		ProviderRepo: provRepo,
 	}
 
+	paymentHandler := booking.NewPaymentHandler(logger, userService)
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
 		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
-		PaymentHandler: &booking.InAppPaymentProcessor{},
+		PaymentHandler: paymentHandler,
 		ProviderRepo:   provRepo,
 	}
 
@@ -78,9 +80,17 @@ func main() {
 		SchedulerEngine: schedulingEngineInstance,
 	}
 
+	ctxStore := ai.NewRedisContextStore(utils.GetAIContextCacheClient(), 30*time.Minute)
+	aiService := ai.NewDefaultAIService(
+		config.AppConfig.OpenAIAPIKey,
+		ctxStore,
+		bookingService,
+	)
+
 	bookingHandler := handlers.NewBookingHandler(bookingService, logger)
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
 	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
+	aiHandler := handlers.NewDefaultAIHandler(aiService)
 
 	// Assemble the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
@@ -111,10 +121,8 @@ func main() {
 		GetDirections:        bookingHandler.GetDirections,
 
 		// AI endpoints.
-		AIRecommendHandler: handlers.AIRecommendHandler,
-		AISuggestHandler:   handlers.AISuggestHandler,
-		AutoBookHandler:    handlers.AutoBookHandler,
-		AISTTHandler:       handlers.AISTTHandler,
+		AIChatHandler: handlers.AISTTHandler,
+		AISTTHandler:  aiHandler.HandleAIRequest,
 
 		// User endpoints.
 		RegisterUserHandler:        handlers.RegisterUserHandler,

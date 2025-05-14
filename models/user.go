@@ -4,16 +4,27 @@ package models
 import "time"
 
 type User struct {
-	ID           string    `bson:"id" json:"id"`
-	Username     string    `bson:"username" json:"username"`
-	Email        string    `bson:"email" json:"email"`
-	PhoneNumber  string    `bson:"phoneNumber" json:"phoneNumber"`
-	Password     string    `bson:"-" json:"password,omitempty"`
-	PasswordHash string    `bson:"passwordHash" json:"-"`
-	ProfileImage string    `bson:"profileImage,omitempty" json:"profileImage,omitempty"`
-	Preferences  []string  `bson:"preferences,omitempty" json:"preferences,omitempty"`
-	Devices      []Device  `bson:"devices,omitempty" json:"devices,omitempty"`
-	CreatedAt    time.Time `bson:"createdAt" json:"createdAt"`
-	UpdatedAt    time.Time `bson:"updatedAt" json:"updatedAt"`
-	Rating       int       `bson:"rating" json:"rating,omitempty"`
+	ID             string         `bson:"id" json:"id"`
+	Username       string         `bson:"username" json:"username"`
+	Email          string         `bson:"email" json:"email"`
+	PhoneNumber    string         `bson:"phoneNumber" json:"phoneNumber"`
+	Password       string         `bson:"-" json:"password,omitempty"`
+	PasswordHash   string         `bson:"passwordHash" json:"-"`
+	ProfileImage   string         `bson:"profileImage,omitempty" json:"profileImage,omitempty"`
+	Preferences    []string       `bson:"preferences,omitempty" json:"preferences,omitempty"`
+	Devices        []Device       `bson:"devices,omitempty" json:"devices,omitempty"`
+	CreatedAt      time.Time      `bson:"createdAt" json:"createdAt"`
+	UpdatedAt      time.Time      `bson:"updatedAt" json:"updatedAt"`
+	Rating         int            `bson:"rating" json:"rating,omitempty"`
+	ActiveBookings []string       `bson:"activeBookings" json:"activeBookings,omitempty"`
+	Notifications  []Notification `bson:"notifications" json:"notifications,omitempty"`
+}
+
+type Notification struct {
+	ID        string    `bson:"id" json:"id"`
+	Type      string    `bson:"type" json:"type"` // e.g., "pending_hotspot_request"
+	Message   string    `bson:"message" json:"message"`
+	Data      any       `bson:"data,omitempty" json:"data,omitempty"` // optional: embed JSON or map
+	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
+	Read      bool      `bson:"read" json:"read"`
 }

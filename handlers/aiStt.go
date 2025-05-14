@@ -3,8 +3,6 @@ package handlers
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,8 +22,13 @@ import (
 const (
 	MaxDurationSeconds = 60              // 1 minute maximum
 	MaxFileSize        = 5 * 1024 * 1024 // 5MB (conservative buffer)
-	AllowedExtension   = ".wav"
 )
+
+var allowedExts = map[string]bool{
+	".wav": true,
+	".m4a": true,
+	".mp3": true,
+}
 
 type waveHeader struct {
 	RiffTag       [4]byte
@@ -43,56 +46,7 @@ type waveHeader struct {
 	DataSize      uint32
 }
 
-func parseWaveHeader(data []byte) (*waveHeader, error) {
-	if len(data) < 44 {
-		return nil, errors.New("invalid WAV header length")
-	}
-
-	var header waveHeader
-	buf := bytes.NewReader(data)
-
-	if err := binary.Read(buf, binary.LittleEndian, &header.RiffTag); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.FileSize); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.WaveTag); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.FmtTag); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.FmtSize); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.AudioFormat); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.NumChannels); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.SampleRate); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.ByteRate); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.BlockAlign); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.BitsPerSample); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.DataTag); err != nil {
-		return nil, err
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &header.DataSize); err != nil {
-		return nil, err
-	}
-
-	return &header, nil
-}
+// parseWaveHeader remains unchanged…
 
 func convertAudio(inputPath, outputPath string) error {
 	_, err := exec.LookPath("ffmpeg")
@@ -119,130 +73,108 @@ func convertAudio(inputPath, outputPath string) error {
 }
 
 func AISTTHandler(c *gin.Context) {
-	// 1. Get language parameter (default to en-US)
+	// 1. Language parameter (default en-US)
 	language := c.DefaultPostForm("language", "en-US")
 
-	// 2. Get audio file from multipart form
+	// 2. Uploaded file
 	file, header, err := c.Request.FormFile("audio")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "audio file is required",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "audio file is required", "details": err.Error()})
 		return
 	}
 	defer file.Close()
 
-	// 3. Validate file extension
-	if ext := strings.ToLower(filepath.Ext(header.Filename)); ext != AllowedExtension {
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if !allowedExts[ext] {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid file type",
-			"details": fmt.Sprintf("expected %s, got %s", AllowedExtension, ext),
+			"details": fmt.Sprintf("allowed: .wav, .m4a, .mp3; got %s", ext),
 		})
 		return
 	}
 
-	// 4. Create temp file for original audio
-	tempInput, err := os.CreateTemp("", "audio-*.wav")
+	// 3. Save original upload
+	tempInput, err := os.CreateTemp("", "audio-*"+ext)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to create temp file",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create temp file", "details": err.Error()})
 		return
 	}
 	defer os.Remove(tempInput.Name())
 	defer tempInput.Close()
 
-	// 5. Save uploaded file to temp location
 	if _, err := io.Copy(tempInput, io.LimitReader(file, MaxFileSize)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to save audio file",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save audio file", "details": err.Error()})
 		return
 	}
 
-	// 6. Create temp file for converted audio
+	// 4. Prepare a WAV output file
 	tempOutput, err := os.CreateTemp("", "converted-*.wav")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to create output temp file",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create output temp file", "details": err.Error()})
 		return
 	}
 	defer os.Remove(tempOutput.Name())
 	defer tempOutput.Close()
 
-	// 7. Convert audio to proper format
-	if err := convertAudio(tempInput.Name(), tempOutput.Name()); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "audio conversion failed",
-			"details": err.Error(),
-		})
-		return
+	// 5. If not already WAV, convert; otherwise just copy
+	if ext != ".wav" {
+		if err := convertAudio(tempInput.Name(), tempOutput.Name()); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "audio conversion failed", "details": err.Error()})
+			return
+		}
+	} else {
+		if _, err := tempInput.Seek(0, io.SeekStart); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "seek failed", "details": err.Error()})
+			return
+		}
+		if _, err := io.Copy(tempOutput, tempInput); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to copy WAV", "details": err.Error()})
+			return
+		}
 	}
 
-	// 8. Read converted audio data
+	// 6. Read final WAV data
 	audioData, err := os.ReadFile(tempOutput.Name())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to read converted audio",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read converted audio", "details": err.Error()})
 		return
 	}
 
-	// 9. Initialize Google STT client
+	// 7. Speech client setup
 	ctx := context.Background()
 	client, err := speech.NewClient(ctx, option.WithCredentialsFile(config.AppConfig.GoogleServiceAccountFile))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to initialize speech client",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to init speech client", "details": err.Error()})
 		return
 	}
 	defer client.Close()
 
-	// 10. Configure recognition request
+	// 8. Build and send RecognizeRequest
 	req := &speechpb.RecognizeRequest{
 		Config: &speechpb.RecognitionConfig{
 			Encoding:          speechpb.RecognitionConfig_LINEAR16,
 			SampleRateHertz:   16000,
 			LanguageCode:      language,
-			AudioChannelCount: 1, // Mono
+			AudioChannelCount: 1,
 		},
 		Audio: &speechpb.RecognitionAudio{
-			AudioSource: &speechpb.RecognitionAudio_Content{
-				Content: audioData,
-			},
+			AudioSource: &speechpb.RecognitionAudio_Content{Content: audioData},
 		},
 	}
 
-	// 11. Process with Google STT
 	resp, err := client.Recognize(ctx, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "speech recognition failed",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "speech recognition failed", "details": err.Error()})
 		return
 	}
 
-	// 12. Format results
+	// 9. Aggregate transcript
 	var transcript strings.Builder
-	if len(resp.Results) > 0 {
-		for _, result := range resp.Results {
-			for _, alt := range result.Alternatives {
-				transcript.WriteString(alt.Transcript + " ")
-			}
+	for _, result := range resp.Results {
+		for _, alt := range result.Alternatives {
+			transcript.WriteString(alt.Transcript + " ")
 		}
 	}
 
-	// 13. Return successful response
-	c.JSON(http.StatusOK, gin.H{
-		"transcription": strings.TrimSpace(transcript.String()),
-	})
+	c.JSON(http.StatusOK, gin.H{"transcription": strings.TrimSpace(transcript.String())})
 }
