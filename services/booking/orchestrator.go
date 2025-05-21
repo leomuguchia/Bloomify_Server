@@ -34,13 +34,12 @@ func (s *DefaultBookingSessionService) InitiateSession(plan models.ServicePlan, 
 	}
 
 	session := models.BookingSession{
-		SessionID:           sessionID,
-		ServicePlan:         plan,
-		MatchedProviders:    matchedProviders,
-		UserID:              userID,
-		DeviceID:            deviceID,
-		DeviceName:          userAgent,
-		FullTimeSlotMapping: make(map[string]models.TimeSlot),
+		SessionID:        sessionID,
+		ServicePlan:      plan,
+		MatchedProviders: matchedProviders,
+		UserID:           userID,
+		DeviceID:         deviceID,
+		DeviceName:       userAgent,
 	}
 
 	sessionData, err := json.Marshal(session)
@@ -94,8 +93,6 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 
 	session.SelectedProvider = selectedProviderID
 	session.Availability = nil
-	session.FullTimeSlotMapping = make(map[string]models.TimeSlot)
-
 	selectedProvider := models.Provider{
 		ID:               selectedDTO.ID,
 		ServiceCatalogue: selectedDTO.ServiceCatalogue,
@@ -111,7 +108,6 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 		session.AvailabilityError = availabilityResult.AvailabilityError
 	} else {
 		session.Availability = availabilityResult.Slots
-		session.FullTimeSlotMapping = availabilityResult.Mapping
 		session.MaxAvailableDate = availabilityResult.MaxAvailableDate
 	}
 
@@ -141,20 +137,6 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		return nil, fmt.Errorf("failed to parse booking session: %w", err)
 	}
 
-	// Map the confirmed available slot's ID to the full TimeSlot.
-	fullSlot, ok := session.FullTimeSlotMapping[confirmedSlot.ID]
-	if !ok {
-		return nil, fmt.Errorf("full timeslot not found for available slot %s", confirmedSlot.ID)
-	}
-
-	log.Printf("ConfirmBooking: Confirmed slot ID: %s, Full slot: Start %d, End %d", confirmedSlot.ID, fullSlot.Start, fullSlot.End)
-
-	// **Verification Step**: Ensure the confirmed slot matches the fullSlot
-	if confirmedSlot.Start != fullSlot.Start || confirmedSlot.End != fullSlot.End || confirmedSlot.UnitType != fullSlot.UnitType {
-		return nil, fmt.Errorf("confirmed slot doesn't match the full timeslot's start, end or unit type")
-	}
-
-	// Locate the selected provider.
 	var selectedDTO models.ProviderDTO
 	found := false
 	for _, p := range session.MatchedProviders {
@@ -174,14 +156,14 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		Profile:          selectedDTO.Profile,
 	}
 
-	// Build the BookingRequest using fields from the confirmed slot response.
 	req := models.BookingRequest{
+		SlotID:              confirmedSlot.SlotID,
 		ProviderID:          selectedProvider.ID,
 		UserID:              session.UserID,
-		Date:                confirmedSlot.Date,  // Use the date from the confirmed slot.
-		Start:               confirmedSlot.Start, // Use the start time from the confirmed slot.
-		End:                 confirmedSlot.End,   // Use the end time from the confirmed slot.
-		Units:               confirmedSlot.Units, // Use the units sent from the frontend.
+		Date:                confirmedSlot.Date,
+		Start:               confirmedSlot.Start,
+		End:                 confirmedSlot.End,
+		Units:               confirmedSlot.Units,
 		UnitType:            confirmedSlot.UnitType,
 		Priority:            false,
 		UserPayment:         confirmedSlot.UserPayment,
@@ -190,14 +172,11 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		SubscriptionDetails: confirmedSlot.SubscriptionDetails,
 	}
 
-	// Process the booking using the SchedulerEngine.
 	result, err := s.SchedulerEngine.BookSlot(selectedProvider, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to book slot: %w", err)
 	}
 
-	// Clear the session after a successful booking.
 	cacheClient.Del(ctx, sessionID)
-
 	return result, nil
 }

@@ -4,7 +4,8 @@ import (
 	"bloomify/models"
 	"fmt"
 	"log"
-	"time"
+
+	"slices"
 
 	"github.com/google/uuid"
 )
@@ -16,8 +17,8 @@ type SubscriptionBookingResult struct {
 }
 
 func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models.BookingRequest) (*models.Booking, error) {
-	log.Printf("[BookSlot] Starting booking process for user %s with provider %s and booking request %+v", req.UserID, provider.ID, req)
-	// Subscription booking branch.
+	log.Printf("[BookSlot] Starting booking process for user %s with provider %s", req.UserID, provider.ID)
+
 	if req.Subscription {
 		log.Printf("[BookSlot] Detected subscription booking")
 		baseBooking := models.Booking{
@@ -32,81 +33,62 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models
 			CustomOption: req.CustomOption,
 			UserPayment:  req.UserPayment,
 		}
-		log.Printf("[BookSlot] Created base subscription booking: %+v", baseBooking)
 		return se.bookSubscriptionSlots(provider, baseBooking, req.SubscriptionDetails)
 	}
 
-	log.Printf("[BookSlot] Detected one-off booking")
-
-	if req.Date == "" || req.Start == 0 || req.End == 0 {
-		log.Printf("[BookSlot] Invalid request: missing date/start/end. Date: %s, Start: %d, End: %d", req.Date, req.Start, req.End)
-		return nil, fmt.Errorf("missing date or time details for one-off booking")
+	if req.SlotID == "" {
+		return nil, fmt.Errorf("missing slot ID for one-off booking")
 	}
 
-	log.Printf("[BookSlot] Fetching available timeslots for date: %s", req.Date)
-	daySlots, err := se.Repo.GetAvailableTimeSlots(provider.ID, req.Date)
+	log.Printf("[BookSlot] Fetching timeslot by ID: %s (date: %s, start: %d, end: %d)", req.SlotID, req.Date, req.Start, req.End)
+	selectedSlot, err := se.TimeslotsRepo.GetTimeSlotByID(provider.ID, req.SlotID, req.Date, req.Start, req.End)
 	if err != nil {
-		log.Printf("[BookSlot] Error fetching timeslots: %v", err)
-		return nil, fmt.Errorf("failed to fetch timeslots for date %s: %w", req.Date, err)
+		log.Printf("[BookSlot] Error fetching timeslot by ID: %v", err)
+		return nil, err
 	}
-	log.Printf("[BookSlot] Retrieved %d timeslots", len(daySlots))
+	log.Printf("[BookSlot] Found timeslot: %+v", *selectedSlot)
 
-	if len(daySlots) == 0 {
-		log.Printf("[BookSlot] No available timeslots found for date %s", req.Date)
-		return nil, fmt.Errorf("no available timeslots for date %s", req.Date)
-	}
+	// Enrich with latest provider data
+	enrichedSlot := se.enrichSingleTimeSlot(*selectedSlot, provider)
+	log.Printf("[BookSlot] Enriched slot options: %+v", enrichedSlot.Catalogue.CustomOptions)
 
-	var selectedSlot *models.TimeSlot
-	for _, ts := range daySlots {
-		if ts.Start == req.Start && ts.End == req.End {
-			selectedSlot = &ts
+	valid := false
+	for _, opt := range enrichedSlot.Catalogue.CustomOptions {
+		if opt.Option == req.CustomOption.Option {
+			valid = true
 			break
 		}
 	}
-	if selectedSlot == nil {
-		log.Printf("[BookSlot] No matching timeslot found for [%d, %d] on %s", req.Start, req.End, req.Date)
-		return nil, fmt.Errorf("no matching timeslot available for requested time [%d, %d] on %s", req.Start, req.End, req.Date)
-	}
-
-	log.Printf("[BookSlot] Selected slot: %+v", *selectedSlot)
-
-	if selectedSlot.UnitType != req.UnitType {
-		log.Printf("[BookSlot] Unit type mismatch: requested %s, found %s", req.UnitType, selectedSlot.UnitType)
-		return nil, fmt.Errorf("unit type mismatch: requested %s, available %s", req.UnitType, selectedSlot.UnitType)
+	if !valid {
+		return nil, fmt.Errorf("invalid custom option %q", req.CustomOption.Option)
 	}
 
 	booking := &models.Booking{
 		ID:           uuid.New().String(),
 		ProviderID:   provider.ID,
 		UserID:       req.UserID,
-		Date:         req.Date,
-		Start:        req.Start,
-		End:          req.End,
+		Date:         enrichedSlot.Date,
+		Start:        enrichedSlot.Start,
+		End:          enrichedSlot.End,
 		Units:        req.Units,
-		UnitType:     req.UnitType,
+		UnitType:     enrichedSlot.UnitType,
 		Priority:     req.Priority,
-		CreatedAt:    time.Now(),
 		CustomOption: req.CustomOption,
 		UserPayment:  req.UserPayment,
+		ServiceType:  enrichedSlot.Catalogue.Service.ID,
 	}
 
-	log.Printf("[BookSlot] Creating booking: %+v", booking)
+	log.Printf("[BookSlot] Creating booking record: %+v", booking)
 
-	err = se.bookSingleSlot(provider, req.Date, *selectedSlot, booking, req.CustomOption)
-	if err != nil {
+	if err := se.bookSingleSlot(provider, selectedSlot.Date, enrichedSlot, booking, req.CustomOption); err != nil {
 		log.Printf("[BookSlot] Error booking slot: %v", err)
 		return nil, err
 	}
 
-	log.Printf("[BookSlot] Booking successful. Booking ID: %s", booking.ID)
+	log.Printf("[BookSlot] Booking successful. ID: %s", booking.ID)
 	return booking, nil
 }
 
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }

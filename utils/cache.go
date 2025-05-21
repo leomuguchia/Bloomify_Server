@@ -12,11 +12,12 @@ import (
 )
 
 var (
-	BookingCacheClient   *redis.Client
-	AuthCacheClient      *redis.Client
-	OTPCacheClient       *redis.Client
-	TestCacheClient      *redis.Client
-	AIContextCacheClient *redis.Client
+	BookingCacheClient      *redis.Client
+	AuthCacheClient         *redis.Client
+	ProviderAuthCacheClient *redis.Client
+	OTPCacheClient          *redis.Client
+	TestCacheClient         *redis.Client
+	AIContextCacheClient    *redis.Client
 )
 
 func InitBookingCache() {
@@ -91,6 +92,31 @@ func GetAuthCacheClient() *redis.Client {
 		InitAuthCache()
 	}
 	return AuthCacheClient
+}
+
+const ProviderAuthCachePrefix = "auth:provider:"
+
+func InitProviderAuthCache() {
+	log.Printf("Attempting to connect to Redis (Provider Auth Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisProviderAuthDB)
+	ProviderAuthCacheClient = redis.NewClient(&redis.Options{
+		Addr:     config.AppConfig.RedisAddr,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisProviderAuthDB,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := ProviderAuthCacheClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis (Provider Auth Cache): %v", err)
+	}
+	log.Println("Connected to Redis (Provider Auth Cache) successfully.")
+}
+
+func GetProviderAuthCacheClient() *redis.Client {
+	if ProviderAuthCacheClient == nil {
+		InitProviderAuthCache()
+	}
+	return ProviderAuthCacheClient
 }
 
 // InitOTPCache initializes the Redis client for OTP caching using the DB from AppConfig for OTP cache.

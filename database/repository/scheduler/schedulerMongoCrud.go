@@ -1,40 +1,13 @@
 package schedulerRepo
 
 import (
-	"bloomify/database"
 	"bloomify/models"
-	"bloomify/utils"
 	"context"
 	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.uber.org/zap"
 )
-
-// MongoSchedulerRepo implements SchedulerRepository using MongoDB.
-type MongoSchedulerRepo struct {
-	providerColl *mongo.Collection
-	bookingColl  *mongo.Collection
-}
-
-// NewMongoSchedulerRepo constructs a new instance of MongoSchedulerRepo.
-func NewMongoSchedulerRepo() SchedulerRepository {
-	db := database.MongoClient.Database("bloomify")
-
-	repo := &MongoSchedulerRepo{
-		providerColl: db.Collection("providers"),
-		bookingColl:  db.Collection("bookings"),
-	}
-
-	// Call ensureIndexes on the repo instance
-	if err := repo.ensureIndexes(); err != nil {
-		utils.GetLogger().Error("failed to create indexes", zap.Error(err))
-	}
-
-	return repo
-}
 
 // CreateBooking inserts a new booking document.
 func (repo *MongoSchedulerRepo) CreateBooking(booking *models.Booking) error {

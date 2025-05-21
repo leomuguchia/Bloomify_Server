@@ -4,6 +4,7 @@ import "time"
 
 type ProviderBasicRegistrationData struct {
 	ProviderName string   `json:"providerName"`
+	ProviderType string   `json:"providerType"`
 	Email        string   `json:"email"`
 	Password     string   `json:"password"`
 	PhoneNumber  string   `json:"phoneNumber"`

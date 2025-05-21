@@ -157,6 +157,6 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 		Token:       token,
 		Profile:     provider.Profile,
 		CreatedAt:   provider.CreatedAt,
-		ServiceType: provider.ServiceCatalogue.ServiceType,
+		ServiceType: provider.ServiceCatalogue.Service.ID,
 	}, nil
 }

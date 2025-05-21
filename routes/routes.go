@@ -60,21 +60,40 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 			protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
 			protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
 			protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
-			protected.PUT("/create-timeslots/:id", hb.SetupTimeslotsHandler)
 			protected.PUT("/password/:id", hb.UpdateProviderPasswordHandler)
 			// Provider device endpoints
 			protected.GET("/devices", hb.GetProviderDevicesHandler)
 			protected.DELETE("/devices", hb.SignOutOtherProviderDevicesHandler)
+			//Timeslot management endpoints
+			protected.PUT("/timeslots/:id", hb.SetupTimeslotsHandler)
+			protected.GET("/timeslots", hb.GetTimeslotsHandler)
+			protected.DELETE("/timeslot", hb.DeleteTimeslotHandler)
 		}
 	}
 }
 
 func RegisterAIRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
-	api := r.Group("/api/ai")
-	api.POST("/stt", hb.AISTTHandler)
+	aiGroup := r.Group("/api/ai")
+	aiGroup.Use(
+		middleware.DeviceDetailsMiddleware(),
+		middleware.JWTAuthUserMiddleware(hb.UserRepo),
+	)
+	{
+		aiGroup.POST("/stt", hb.AISTTHandler)
+		aiGroup.POST("/chat", hb.AIChatHandler)
+	}
+}
 
-	api.Use(middleware.JWTAuthUserMiddleware(hb.UserRepo))
-	api.POST("/chat", hb.AIChatHandler)
+func RegisterNotificationRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
+	aiGroup := r.Group("/api/notifications")
+	aiGroup.Use(
+		middleware.DeviceDetailsMiddleware(),
+		middleware.JWTAuthUserMiddleware(hb.UserRepo),
+	)
+	{
+		aiGroup.POST("/:userId", hb.AISTTHandler)
+		aiGroup.GET("/chat", hb.AIChatHandler)
+	}
 }
 
 func RegisterHealthRoute(r *gin.Engine) {
@@ -97,6 +116,7 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		bookingGroup.DELETE("/session/:sessionID", hb.CancelSession)
 		bookingGroup.GET("/services", hb.GetAvailableServices)
 		bookingGroup.GET("/directions", hb.GetDirections)
+		bookingGroup.POST("/payment", hb.GetPaymentIntent)
 	}
 }
 

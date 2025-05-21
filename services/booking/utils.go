@@ -5,6 +5,8 @@ import (
 	"bloomify/utils"
 	"context"
 	"fmt"
+
+	"go.uber.org/zap"
 )
 
 func validateServicePlan(plan models.ServicePlan) error {
@@ -38,16 +40,56 @@ func validateServicePlan(plan models.ServicePlan) error {
 
 func (svc *DefaultBookingSessionService) GetAvailableServices() ([]models.Service, error) {
 	services := []models.Service{
-		{ID: "1", Name: "Babysitting", Icon: "baby-buggy", UnitType: "kids", ProviderTerm: "Babysitters"},
-		{ID: "2", Name: "Chauffeuring", Icon: "steering", UnitType: "hour", ProviderTerm: "Chauffeurs"},
-		{ID: "3", Name: "Laundry", Icon: "washing-machine", UnitType: "kg", ProviderTerm: "Laundry Service"},
-		{ID: "4", Name: "Cleaning", Icon: "broom", UnitType: "hour", ProviderTerm: "Cleaning Professionals"},
-		{ID: "5", Name: "Plumbing", Icon: "pipe-wrench", UnitType: "hour", ProviderTerm: "Plumbers"},
-		{ID: "6", Name: "Electrical", Icon: "flash", UnitType: "hour", ProviderTerm: "Electricians"},
-		{ID: "7", Name: "Delivery", Icon: "truck-delivery", UnitType: "kg", ProviderTerm: "Delivery Personnel"},
-		{ID: "8", Name: "Pet Sitting", Icon: "paw", UnitType: "hour", ProviderTerm: "Pet Sitters"},
-		{ID: "9", Name: "Tutoring", Icon: "book", UnitType: "hour", ProviderTerm: "Tutors"},
-		{ID: "10", Name: "Fitness Training", Icon: "dumbbell", UnitType: "hour", ProviderTerm: "Trainers"},
+		{
+			ID: "Babysitting", Icon: "🧒", UnitType: "child", ProviderTerm: "Babysitters",
+			Modes:        []string{models.ModeInHome},
+			CapacityMode: models.CapacityByUnit, // measured in children
+		},
+		{
+			ID: "Chauffeuring", Icon: "🚗", UnitType: "trip", ProviderTerm: "Chauffeurs",
+			Modes:        []string{models.ModeInHome},
+			CapacityMode: models.CapacitySingleUse, // usually one ride per booking
+		},
+		{
+			ID: "Laundry", Icon: "🧺", UnitType: "kg", ProviderTerm: "Laundry Services",
+			Modes:        []string{models.ModePickupDelivery, models.ModeInStore, models.ModeInHome},
+			CapacityMode: models.CapacityByUnit, // load is measured in kg
+		},
+		{
+			ID: "Cleaning", Icon: "🧹", UnitType: "hour", ProviderTerm: "Cleaners",
+			Modes:        []string{models.ModeInHome},
+			CapacityMode: models.CapacityByWorker, // depends on number of workers
+		},
+		{
+			ID: "Grooming", Icon: "🧔‍♂️", UnitType: "session", ProviderTerm: "Barbers & Stylists",
+			Modes:        []string{models.ModeInHome, models.ModeInStore},
+			CapacityMode: models.CapacitySingleUse, // one session at a time
+		},
+		{
+			ID: "Plumbing", Icon: "🔧", UnitType: "hour", ProviderTerm: "Plumbers",
+			Modes:        []string{models.ModeInHome},
+			CapacityMode: models.CapacityByWorker,
+		},
+		{
+			ID: "Electrical", Icon: "⚡", UnitType: "hour", ProviderTerm: "Electricians",
+			Modes:        []string{models.ModeInHome},
+			CapacityMode: models.CapacityByWorker,
+		},
+		{
+			ID: "Pet Sitting", Icon: "🐕", UnitType: "pet", ProviderTerm: "Pet Sitters",
+			Modes:        []string{models.ModeInHome},
+			CapacityMode: models.CapacityByUnit, // number of pets
+		},
+		{
+			ID: "Tutoring", Icon: "📚", UnitType: "session", ProviderTerm: "Tutors",
+			Modes:        []string{models.ModeInHome, models.ModeOnline},
+			CapacityMode: models.CapacitySingleUse, // 1 student per session
+		},
+		{
+			ID: "Fitness Training", Icon: "💪", UnitType: "session", ProviderTerm: "Trainers",
+			Modes:        []string{models.ModeInHome, models.ModeInStore, models.ModeOnline},
+			CapacityMode: models.CapacityByUnit, // can support group sessions (e.g. 5 people)
+		},
 	}
 
 	return services, nil
@@ -62,4 +104,47 @@ func (s *DefaultBookingSessionService) CancelSession(sessionID string) error {
 		return fmt.Errorf("failed to cancel booking session: %w", err)
 	}
 	return nil
+}
+
+func (se *DefaultSchedulingEngine) enrichSingleTimeSlot(slot models.TimeSlot, provider models.Provider) models.TimeSlot {
+	// Create a copy to avoid mutation
+	enriched := slot
+	logger := utils.GetLogger()
+
+	// Merge basic catalogue properties
+	enriched.Catalogue.Service.ID = provider.ServiceCatalogue.Service.ID
+	enriched.Catalogue.Mode = provider.ServiceCatalogue.Mode
+	enriched.Catalogue.Currency = provider.ServiceCatalogue.Currency
+
+	// Create a new slice for merged options
+	mergedOptions := make([]models.CustomOption, 0, len(slot.Catalogue.CustomOptions)+len(provider.ServiceCatalogue.CustomOptions))
+
+	// Add existing slot options first
+	mergedOptions = append(mergedOptions, slot.Catalogue.CustomOptions...)
+
+	// Merge provider options, overriding existing ones
+	for _, providerOpt := range provider.ServiceCatalogue.CustomOptions {
+		exists := false
+		// Check if option already exists in slot
+		for i, slotOpt := range mergedOptions {
+			if slotOpt.Option == providerOpt.Option {
+				// Overwrite with provider's version
+				mergedOptions[i] = providerOpt
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			mergedOptions = append(mergedOptions, providerOpt)
+		}
+	}
+
+	// Assign the merged options
+	enriched.Catalogue.CustomOptions = mergedOptions
+
+	logger.Debug("Enriched timeslot for booking",
+		zap.String("slotID", enriched.ID),
+		zap.Any("customOptions", enriched.Catalogue.CustomOptions))
+
+	return enriched
 }

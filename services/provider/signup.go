@@ -111,7 +111,7 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 		return nil, fmt.Errorf("failed to retrieve registration session: %w", err)
 	}
 
-	if catalogueData.ServiceType == "" || catalogueData.Mode == "" {
+	if catalogueData.Service.ID == "" || catalogueData.Mode == "" {
 		return nil, fmt.Errorf("service type and mode are required")
 	}
 
@@ -125,14 +125,14 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 		Profile: models.Profile{
 			ProviderName: session.BasicData.ProviderName,
 			// Assuming ProviderType should be set; if not available from BasicData, set a default.
-			ProviderType: "individual",
+			ProviderType: session.BasicData.ProviderType,
 			Email:        session.BasicData.Email,
 			PhoneNumber:  session.BasicData.PhoneNumber,
 			Address:      session.BasicData.Address,
 			Status:       "active",
 			ProfileImage: "https://example.com/default_profile.png",
 			LocationGeo:  session.BasicData.LocationGeo,
-			Rating:       0, // default rating; can be updated later.
+			Rating:       0,
 		},
 		ServiceCatalogue: session.ServiceCatalogue,
 		BasicVerification: models.BasicVerification{
@@ -192,7 +192,7 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 		Token:       token,
 		Profile:     provider.Profile,
 		CreatedAt:   provider.CreatedAt,
-		ServiceType: provider.ServiceCatalogue.ServiceType,
+		ServiceType: provider.ServiceCatalogue.Service.ID,
 	}
 	return resp, nil
 }

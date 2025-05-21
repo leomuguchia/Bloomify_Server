@@ -58,7 +58,7 @@ func (se *DefaultSchedulingEngine) bookSubscriptionSlots(
 			var err error
 
 			for attempt := 1; attempt <= maxRetries; attempt++ {
-				daySlots, fetchErr := se.Repo.GetAvailableTimeSlots(provider.ID, dateStr)
+				daySlots, fetchErr := se.TimeslotsRepo.GetAvailableTimeSlots(provider.ID, dateStr)
 				if fetchErr != nil {
 					err = fmt.Errorf("fetch error on %s: %w", dateStr, fetchErr)
 					break

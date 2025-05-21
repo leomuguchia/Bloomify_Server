@@ -6,7 +6,9 @@ import (
 
 	providerRepo "bloomify/database/repository/provider"
 	schedulerRepo "bloomify/database/repository/scheduler"
+	timeslotRepo "bloomify/database/repository/timeslot"
 	"bloomify/models"
+	"bloomify/services/user"
 	"bloomify/utils"
 
 	"go.uber.org/zap"
@@ -17,11 +19,12 @@ type DefaultSchedulingEngine struct {
 	Repo           schedulerRepo.SchedulerRepository
 	PaymentHandler PaymentHandler
 	ProviderRepo   providerRepo.ProviderRepository
+	TimeslotsRepo  timeslotRepo.TimeSlotRepository
+	UserService    user.UserService
 }
 
 type AvailableSlotsResult struct {
 	Slots               []models.AvailableSlot
-	Mapping             map[string]models.TimeSlot
 	AvailabilityError   string                   `json:"availabilityError,omitempty"`
 	MaxAvailableDate    string                   `json:"maxAvailableDate,omitempty"`
 	SubscriptionAllowed bool                     `json:"subscriptionAllowed"`
@@ -36,7 +39,7 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 	now := time.Now()
 
 	// 1. Fetch maxDate (as before)
-	maxDate, err := se.Repo.GetMaxAvailableDate(provider.ID)
+	maxDate, err := se.TimeslotsRepo.GetMaxAvailableDate(provider.ID)
 	if err != nil {
 		logger.Error("GetWeeklyAvailableSlots: error fetching max available date",
 			zap.String("providerID", provider.ID), zap.Error(err))
@@ -51,7 +54,7 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 	var raw []models.TimeSlot
 	for d := weekStart; d.Before(weekEnd); d = d.AddDate(0, 0, 1) {
 		dateStr := d.Format("2006-01-02")
-		daySlots, err := se.Repo.GetAvailableTimeSlots(provider.ID, dateStr)
+		daySlots, err := se.TimeslotsRepo.GetAvailableTimeSlots(provider.ID, dateStr)
 		if err != nil {
 			logger.Error("error fetching timeslots", zap.String("date", dateStr), zap.Error(err))
 			continue
@@ -61,7 +64,6 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 	if len(raw) == 0 {
 		return AvailableSlotsResult{
 			Slots:             nil,
-			Mapping:           map[string]models.TimeSlot{},
 			AvailabilityError: "No schedule available for the selected provider",
 			MaxAvailableDate:  maxDate,
 			// subscription flags off by default
@@ -74,7 +76,6 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 	if len(enriched) == 0 {
 		return AvailableSlotsResult{
 			Slots:               nil,
-			Mapping:             map[string]models.TimeSlot{},
 			AvailabilityError:   "No available timeslots after enrichment",
 			MaxAvailableDate:    maxDate,
 			SubscriptionAllowed: provider.SubscriptionEnabled,
@@ -82,7 +83,7 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 		}, nil
 	}
 
-	slots, mapping, err := BuildAvailableSlots(enriched, weekStart, weekEnd, now)
+	slots, err := BuildAvailableSlots(enriched, weekStart, weekEnd, now, provider.PaymentDetails.Currency)
 	if err != nil {
 		return AvailableSlotsResult{}, fmt.Errorf("failed to build available slots: %w", err)
 	}
@@ -90,7 +91,6 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 	// 5. Return everything, with subscription info straight from provider
 	return AvailableSlotsResult{
 		Slots:               slots,
-		Mapping:             mapping,
 		AvailabilityError:   "",
 		MaxAvailableDate:    maxDate,
 		SubscriptionAllowed: provider.SubscriptionEnabled,

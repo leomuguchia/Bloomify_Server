@@ -9,50 +9,32 @@ import (
 	"bloomify/models"
 	"bloomify/utils"
 
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 func EnrichTimeslots(rawSlots []models.TimeSlot, catalogue models.ServiceCatalogue, logger *zap.Logger) []models.TimeSlot {
-	var enriched []models.TimeSlot
-	for _, ts := range rawSlots {
+	enriched := make([]models.TimeSlot, len(rawSlots))
+
+	for i := range rawSlots {
+		ts := &rawSlots[i]
+
 		if ts.ID == "" {
-			logger.Warn("skipping timeslot with empty ID")
+			logger.Warn("skipping empty ID slot", zap.Int("index", i))
 			continue
 		}
-		enrichedTs, ok := enrichTimeSlot(ts, catalogue, logger)
-		if !ok {
-			logger.Warn("enrichment failed", zap.String("timeslotID", ts.ID))
-			continue
-		}
-		enriched = append(enriched, enrichedTs)
+
+		// Merge provider catalogue into timeslot
+		ts.Catalogue.Service.ID = catalogue.Service.ID
+		ts.Catalogue.Mode = catalogue.Mode
+		ts.Catalogue.CustomOptions = append(
+			ts.Catalogue.CustomOptions, // Preserve existing
+			catalogue.CustomOptions..., // Add provider options
+		)
+		ts.Catalogue.Currency = catalogue.Currency
+
+		enriched[i] = *ts
 	}
 	return enriched
-}
-
-func enrichTimeSlot(ts models.TimeSlot, catalogue models.ServiceCatalogue, logger *zap.Logger) (models.TimeSlot, bool) {
-	switch ts.SlotModel {
-	case "urgency":
-		if ts.Urgency == nil {
-			logger.Warn("missing urgency data", zap.String("timeslotID", ts.ID))
-			return ts, false
-		}
-	case "earlybird":
-		if ts.EarlyBird == nil {
-			logger.Warn("missing earlybird data", zap.String("timeslotID", ts.ID))
-			return ts, false
-		}
-	case "flatrate":
-		if ts.Flatrate == nil {
-			logger.Warn("missing flatrate data", zap.String("timeslotID", ts.ID))
-			return ts, false
-		}
-	default:
-		logger.Warn("unknown slot model", zap.String("timeslotID", ts.ID))
-		return ts, false
-	}
-	ts.Catalogue = catalogue
-	return ts, true
 }
 
 // Abstracted logic for computing remaining units.
@@ -71,9 +53,8 @@ func getRemainingUnits(ts models.TimeSlot) (int, bool) {
 	}
 }
 
-func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, now time.Time) ([]models.AvailableSlot, map[string]models.TimeSlot, error) {
+func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, now time.Time, currency string) ([]models.AvailableSlot, error) {
 	var availableSlots []models.AvailableSlot
-	mapping := make(map[string]models.TimeSlot)
 	logger := utils.GetLogger()
 
 	for d := weekStart; d.Before(weekEnd); d = d.AddDate(0, 0, 1) {
@@ -101,7 +82,7 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 					return
 				}
 
-				slotID := uuid.New().String()
+				slotID := ts.ID
 				slot := models.AvailableSlot{
 					ID:            slotID,
 					Start:         ts.Start,
@@ -113,26 +94,29 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 				}
 
 				slot.RegularCapacityRemaining = remaining
+				if slot.Catalogue.Currency == "" {
+					slot.Catalogue.Currency = currency
+				}
 
 				switch ts.SlotModel {
 				case "urgency":
-					slot.RegularPricePerUnit = ts.Urgency.BasePrice
-					for key, modifier := range ts.Catalogue.CustomOptions {
-						price := ts.Urgency.BasePrice * modifier
-						slot.OptionPricing[key] = math.Round(price*100) / 100
+					slot.PriorityPricePerUnit = ts.BasePrice * (1 + ts.Urgency.PrioritySurchargeRate)
+					for _, option := range ts.Catalogue.CustomOptions {
+						price := slot.PriorityPricePerUnit * option.Multiplier
+						slot.OptionPricing[option.Option] = math.Round(price*100) / 100
 					}
 				case "earlybird":
-					nextPrice := GetEarlyBirdNextUnitPrice(*ts.EarlyBird, ts.Capacity, ts.BookedUnitsStandard)
+					nextPrice := GetEarlyBirdNextUnitPrice(ts.BasePrice, *ts.EarlyBird, ts.Capacity, ts.BookedUnitsStandard)
 					slot.RegularPricePerUnit = nextPrice
-					for key, modifier := range ts.Catalogue.CustomOptions {
-						price := nextPrice * modifier
-						slot.OptionPricing[key] = math.Round(price*100) / 100
+					for _, option := range ts.Catalogue.CustomOptions {
+						price := nextPrice * option.Multiplier
+						slot.OptionPricing[option.Option] = math.Round(price*100) / 100
 					}
 				case "flatrate":
-					slot.RegularPricePerUnit = ts.Flatrate.BasePrice
-					for key, modifier := range ts.Catalogue.CustomOptions {
-						price := ts.Flatrate.BasePrice * modifier
-						slot.OptionPricing[key] = math.Round(price*100) / 100
+					slot.RegularPricePerUnit = ts.BasePrice
+					for _, option := range ts.Catalogue.CustomOptions {
+						price := ts.BasePrice * option.Multiplier
+						slot.OptionPricing[option.Option] = math.Round(price*100) / 100
 					}
 				}
 
@@ -141,7 +125,6 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 				}
 
 				availableSlots = append(availableSlots, slot)
-				mapping[slotID] = ts
 			}(ts)
 		}
 	}
@@ -153,5 +136,5 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 		return availableSlots[i].Date < availableSlots[j].Date
 	})
 
-	return availableSlots, mapping, nil
+	return availableSlots, nil
 }

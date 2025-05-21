@@ -22,6 +22,8 @@ type HandlerBundle struct {
 	UpdateProviderPasswordHandler  gin.HandlerFunc
 	RevokeProviderAuthTokenHandler gin.HandlerFunc
 	SetupTimeslotsHandler          gin.HandlerFunc
+	GetTimeslotsHandler            gin.HandlerFunc
+	DeleteTimeslotHandler          gin.HandlerFunc
 
 	// Provider device endpoints
 	GetProviderDevicesHandler          gin.HandlerFunc
@@ -34,6 +36,7 @@ type HandlerBundle struct {
 	CancelSession        gin.HandlerFunc
 	GetAvailableServices gin.HandlerFunc
 	GetDirections        gin.HandlerFunc
+	GetPaymentIntent     gin.HandlerFunc
 
 	// AI endpoints
 	AIChatHandler gin.HandlerFunc

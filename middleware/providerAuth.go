@@ -134,10 +134,10 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 		}
 
 		// Build composite cache key using providerID and deviceID.
-		cacheKey := utils.AuthCachePrefix + providerID + ":" + tokenDeviceID
+		cacheKey := utils.ProviderAuthCachePrefix + providerID + ":" + tokenDeviceID
 
 		// Retrieve the auth cache client.
-		authCache := utils.GetAuthCacheClient()
+		authCache := utils.GetProviderAuthCacheClient()
 		if authCache == nil {
 			logger.Error("JWTAuthProviderMiddleware: auth cache client is nil")
 			if !optional {

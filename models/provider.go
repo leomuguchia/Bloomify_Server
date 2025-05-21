@@ -4,20 +4,6 @@ import (
 	"time"
 )
 
-type HistoricalRecord struct {
-	RecordID         string           `bson:"recordId" json:"recordId"`                 // Unique identifier for the record.
-	Date             time.Time        `bson:"date" json:"date"`                         // Date of the service.
-	ServiceCatalogue ServiceCatalogue `bson:"serviceCatalogue" json:"serviceCatalogue"` // Full catalogue of services offered.
-	TotalEarned      float64          `bson:"totalEarned" json:"totalEarned"`           // Earnings from this service.
-	Review           *Review          `bson:"review,omitempty" json:"review,omitempty"` // Optional customer review.
-	Bookings         []Booking        `bson:"bookings" json:"bookings"`                 // All bookings linked to this record.
-}
-
-type Review struct {
-	Rating  float64 `bson:"rating" json:"rating"`   // Expected value between 1 and 5.
-	Comment string  `bson:"comment" json:"comment"` // Customer's feedback.
-}
-
 // GeoPoint represents a GeoJSON Point.
 type GeoPoint struct {
 	Type        string    `bson:"type" json:"type"`               // Always "Point"
@@ -80,8 +66,8 @@ type Provider struct {
 	VerificationLevel    string                `bson:"verificationLevel" json:"verificationLevel,omitempty"`
 	BasicVerification    BasicVerification     `bson:"verification" json:"verification,omitzero"`
 	AdvancedVerification AdvancedVerification  `bson:"advancedVerification" json:"advancedVerification,omitzero"`
-	HistoricalRecords    []HistoricalRecord    `bson:"historicalRecords" json:"historicalRecords,omitempty"`
-	TimeSlots            []TimeSlot            `bson:"timeSlots" json:"timeSlots,omitempty"`
+	HistoricalRecordsIDs []string              `bson:"historicalRecordsIds" json:"historicalRecordsIds,omitempty"`
+	TimeSlotIDs          []string              `bson:"timeSlotIDs,omitempty" json:"timeSlotIDs,omitempty"` // Optional if needed
 	PaymentDetails       PaymentDetails        `bson:"paymentDetails" json:"paymentDetails,omitzero"`
 	CompletedBookings    int                   `bson:"completedBookings" json:"completedBookings,omitempty"`
 	CreatedAt            time.Time             `bson:"createdAt" json:"createdAt,omitzero"`

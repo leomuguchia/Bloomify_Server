@@ -3,6 +3,7 @@ package repository
 import (
 	providerRepo "bloomify/database/repository/provider"
 	schedulerRepo "bloomify/database/repository/scheduler"
+	timeslotRepo "bloomify/database/repository/timeslot"
 	userRepo "bloomify/database/repository/user"
 )
 
@@ -22,3 +23,8 @@ var NewMongoUserRepository = userRepo.NewMongoUserRepo
 type SchedulerRepository = schedulerRepo.SchedulerRepository
 
 var NewMongoSchedulerRepo = schedulerRepo.NewMongoSchedulerRepo
+
+// Re-export the TimeslotsRepository interface and constructor.
+type TimeslotsRepository = timeslotRepo.TimeSlotRepository
+
+var NewMongoTimeSlotRepo = timeslotRepo.NewMongoTimeSlotRepo

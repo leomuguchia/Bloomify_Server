@@ -12,7 +12,9 @@ import (
 	"bloomify/config"
 	"bloomify/database"
 	providerRepo "bloomify/database/repository/provider"
+	recordsRepo "bloomify/database/repository/records"
 	schedulerRepo "bloomify/database/repository/scheduler"
+	timeslotRepo "bloomify/database/repository/timeslot"
 	userRepoPkg "bloomify/database/repository/user"
 	"bloomify/handlers"
 	"bloomify/middleware"
@@ -24,6 +26,7 @@ import (
 	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stripe/stripe-go/v76"
 )
 
 func main() {
@@ -46,10 +49,14 @@ func main() {
 	router.Use(gin.Logger())
 	router.Use(middleware.RateLimitMiddleware())
 	router.Use(middleware.GeolocationMiddleware())
+	stripe.Key = config.AppConfig.StripeKey
 
 	// repositories.
 	provRepo := providerRepo.NewMongoProviderRepo()
 	userRepo := userRepoPkg.NewMongoUserRepo()
+	timeslotRepo := timeslotRepo.NewMongoTimeSlotRepo()
+	schedulerRepo := schedulerRepo.NewMongoSchedulerRepo(timeslotRepo)
+	recordsRepo := recordsRepo.NewMongoRecordRepo()
 
 	// services.
 	userService := &user.DefaultUserService{
@@ -58,7 +65,9 @@ func main() {
 	handlers.SetUserService(userService)
 
 	providerService := &provider.DefaultProviderService{
-		Repo: provRepo,
+		Repo:        provRepo,
+		Timeslot:    timeslotRepo,
+		RecordsRepo: recordsRepo,
 	}
 	providerHandler := handlers.NewProviderHandler(providerService)
 	ProviderDeviceHandler := handlers.NewProviderDeviceHandler(providerService)
@@ -70,9 +79,11 @@ func main() {
 
 	paymentHandler := booking.NewPaymentHandler(logger, userService)
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
-		Repo:           schedulerRepo.NewMongoSchedulerRepo(),
+		Repo:           schedulerRepo,
 		PaymentHandler: paymentHandler,
 		ProviderRepo:   provRepo,
+		TimeslotsRepo:  timeslotRepo,
+		UserService:    userService,
 	}
 
 	bookingService := &booking.DefaultBookingSessionService{
@@ -81,8 +92,8 @@ func main() {
 	}
 
 	ctxStore := ai.NewRedisContextStore(utils.GetAIContextCacheClient(), 30*time.Minute)
-	aiService := ai.NewDefaultAIService(
-		config.AppConfig.OpenAIAPIKey,
+	aiSvc := ai.NewDefaultAIService(
+		config.AppConfig.GeminiAPIKey,
 		ctxStore,
 		bookingService,
 	)
@@ -90,7 +101,7 @@ func main() {
 	bookingHandler := handlers.NewBookingHandler(bookingService, logger)
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
 	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
-	aiHandler := handlers.NewDefaultAIHandler(aiService)
+	aiHandler := handlers.NewDefaultAIHandler(aiSvc)
 
 	// Assemble the handler bundle.
 	handlerBundle := &handlers.HandlerBundle{
@@ -105,8 +116,12 @@ func main() {
 		AuthenticateProviderHandler:    providerHandler.AuthenticateProviderHandler,
 		AdvanceVerifyProviderHandler:   providerHandler.AdvanceVerifyProviderHandler,
 		RevokeProviderAuthTokenHandler: providerHandler.RevokeProviderAuthTokenHandler,
-		SetupTimeslotsHandler:          providerHandler.SetupTimeslotsHandler,
 		UpdateProviderPasswordHandler:  providerHandler.UpdateProviderPasswordHandler,
+
+		//provider timeslots management
+		SetupTimeslotsHandler: providerHandler.SetupTimeslotsHandler,
+		GetTimeslotsHandler:   providerHandler.GetTimeslotsHandler,
+		DeleteTimeslotHandler: providerHandler.DeleteTimeslotHandler,
 
 		// Provider device endpoints.
 		GetProviderDevicesHandler:          ProviderDeviceHandler.GetProviderDevicesHandler,
@@ -119,10 +134,11 @@ func main() {
 		CancelSession:        bookingHandler.CancelSession,
 		GetAvailableServices: bookingHandler.GetAvailableServices,
 		GetDirections:        bookingHandler.GetDirections,
+		GetPaymentIntent:     bookingHandler.GetPaymentIntent,
 
 		// AI endpoints.
-		AIChatHandler: handlers.AISTTHandler,
-		AISTTHandler:  aiHandler.HandleAIRequest,
+		AISTTHandler:  aiHandler.AISTTHandler,
+		AIChatHandler: aiHandler.HandleAIRequest,
 
 		// User endpoints.
 		RegisterUserHandler:        handlers.RegisterUserHandler,

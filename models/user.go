@@ -19,12 +19,3 @@ type User struct {
 	ActiveBookings []string       `bson:"activeBookings" json:"activeBookings,omitempty"`
 	Notifications  []Notification `bson:"notifications" json:"notifications,omitempty"`
 }
-
-type Notification struct {
-	ID        string    `bson:"id" json:"id"`
-	Type      string    `bson:"type" json:"type"` // e.g., "pending_hotspot_request"
-	Message   string    `bson:"message" json:"message"`
-	Data      any       `bson:"data,omitempty" json:"data,omitempty"` // optional: embed JSON or map
-	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
-	Read      bool      `bson:"read" json:"read"`
-}

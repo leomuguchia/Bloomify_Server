@@ -2,9 +2,9 @@ package models
 
 // AIRequest is the payload coming from the frontend into /api/ai/chat.
 type AIRequest struct {
-	UserID      string   `json:"user_id"`     // unique user identifier
-	Text        string   `json:"text"`        // user’s message (voice→text or typed)
-	LocationGeo GeoPoint `json:"locationGeo"` // user’s current location
+	UserID      string   `json:"user_id"`               // unique user identifier
+	Text        string   `json:"text"`                  // user’s message (voice→text or typed)
+	LocationGeo GeoPoint `json:"locationGeo,omitempty"` // user’s current location
 }
 
 // AIAction is a single button/card action returned during booking steps.

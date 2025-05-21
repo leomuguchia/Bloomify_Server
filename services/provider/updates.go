@@ -40,7 +40,7 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 	}
 	if v, ok := updates["serviceType"].(string); ok && v != "" {
 		updateFields["serviceCatalogue.serviceType"] = v
-		existing.ServiceCatalogue.ServiceType = v
+		existing.ServiceCatalogue.Service.ID = v
 	}
 	if v, ok := updates["mode"].(string); ok && v != "" {
 		updateFields["serviceCatalogue.mode"] = v
@@ -48,21 +48,27 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 	}
 	if v, ok := updates["customOptions"]; ok {
 		if opts, ok := v.(map[string]interface{}); ok {
-			newOpts := make(map[string]float64)
+			newOpts := make([]models.CustomOption, 0, len(opts))
 			for key, val := range opts {
+				var multiplier float64
 				switch t := val.(type) {
 				case float64:
-					newOpts[key] = t
+					multiplier = t
 				case int:
-					newOpts[key] = float64(t)
+					multiplier = float64(t)
 				default:
 					return nil, fmt.Errorf("invalid type for custom option %s", key)
 				}
+				newOpts = append(newOpts, models.CustomOption{
+					Option:     key,
+					Multiplier: multiplier,
+				})
 			}
 			updateFields["serviceCatalogue.customOptions"] = newOpts
 			existing.ServiceCatalogue.CustomOptions = newOpts
 		}
 	}
+
 	if geo, ok := updates["locationGeo"].(map[string]interface{}); ok {
 		if t, ok := geo["type"].(string); ok && t == "Point" {
 			if coords, ok := geo["coordinates"].([]interface{}); ok && len(coords) == 2 {

@@ -1,0 +1,44 @@
+# pseudocode YAML or JSON for templates
+templates:
+  booking.finalized:
+    in_app:
+      title: “Booking Confirmed!”
+      body: “Your booking {bookingID} has been confirmed for {date} from {startTime} to {endTime}.”
+    email:
+      subject: “Your booking is confirmed, {firstName}!”
+      body: |
+        Hello {firstName},
+
+        We’re pleased to let you know that your booking (ID: {bookingID}) on {date} from {startTime} to {endTime} is now confirmed.
+        You paid {amount}{currency} successfully.
+
+        Thank you for choosing us!
+    push:
+      title: “Booking Confirmed!”
+      body: “ID: {bookingID} on {date} – enjoy your slot!”
+  payment.captured:
+    in_app:
+      title: “Payment Received”
+      body: “Your payment of {amount}{currency} (Invoice: {invoiceID}) was successful.”
+    email:
+      subject: “Payment Receipt – {invoiceID}”
+      body: |
+        Hi {firstName},
+
+        We received your payment of {amount}{currency} (Invoice ID: {invoiceID}) on {paidAt}.
+        Thank you for your business!
+    push:
+      title: “Payment Successful”
+      body: “Invoice {invoiceID}: {amount}{currency} received.”
+  booking.cancelled:
+    in_app:
+      title: “Booking Cancelled”
+      body: “Your booking ID {bookingID} on {date} has been cancelled.”
+    email:
+      subject: “Booking Cancelled – {bookingID}”
+      body: |
+        Hello {firstName},
+
+        We're sorry to inform you that your booking (ID: {bookingID}) on {date} has been cancelled.
+        If you have any questions, please reply to this email or contact support.
+      # …etc.

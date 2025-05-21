@@ -72,7 +72,7 @@ func convertAudio(inputPath, outputPath string) error {
 	return nil
 }
 
-func AISTTHandler(c *gin.Context) {
+func (h *DefaultAIHandler) AISTTHandler(c *gin.Context) {
 	// 1. Language parameter (default en-US)
 	language := c.DefaultPostForm("language", "en-US")
 

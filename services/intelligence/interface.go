@@ -8,25 +8,21 @@ import (
 
 	"bloomify/models"
 	"bloomify/services/booking"
-
-	"github.com/sashabaranov/go-openai"
 )
 
-// DefaultAIService orchestrates chat, recommend, and 3-step booking.
 type DefaultAIService struct {
-	client   *openai.Client
+	gemini   *GeminiClient
 	ctxStore *RedisContextStore
 	bookSvc  booking.BookingSessionService
 }
 
-// NewDefaultAIService constructs the AI service.
 func NewDefaultAIService(
-	openaiKey string,
+	makerSuiteKey string,
 	ctxStore *RedisContextStore,
 	bookSvc booking.BookingSessionService,
 ) *DefaultAIService {
 	return &DefaultAIService{
-		client:   openai.NewClient(openaiKey),
+		gemini:   NewGeminiClient(makerSuiteKey),
 		ctxStore: ctxStore,
 		bookSvc:  bookSvc,
 	}
@@ -100,7 +96,7 @@ func (s *DefaultAIService) handleChatOrRecommend(
 	}
 	names := make([]string, len(services))
 	for i, svc := range services {
-		names[i] = svc.Name
+		names[i] = svc.ID
 	}
 
 	var prompt string
@@ -119,7 +115,7 @@ Recommend 2–3 services from this list: %v, with brief descriptions.`,
 		)
 	}
 
-	text, err := s.callGPT(ctx, prompt)
+	text, err := s.callGemini(ctx, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("chat/recommend GPT: %w", err)
 	}
@@ -193,7 +189,7 @@ func (s *DefaultAIService) handleBookingFlow(
 		respText = "These slots are available. Which date/time works for you?"
 		for _, slot := range session.Availability {
 			actions = append(actions, models.AIAction{
-				Label:       slot.Catalogue.ServiceType,
+				Label:       slot.Catalogue.Service.ID,
 				Type:        "select_slot",
 				Description: slot.Message,
 			})
@@ -222,7 +218,6 @@ func (s *DefaultAIService) handleBookingFlow(
 	}, nil
 }
 
-// getIntentAndService asks GPT-3.5 for intent & serviceType in one shot.
 func (s *DefaultAIService) getIntentAndService(
 	ctx context.Context,
 	text string,
@@ -233,26 +228,18 @@ func (s *DefaultAIService) getIntentAndService(
 	}
 	names := make([]string, len(services))
 	for i, svc := range services {
-		names[i] = svc.Name
+		names[i] = svc.ID
 	}
 
-	system := fmt.Sprintf(`You are Bloomify’s NLP component.
+	prompt := fmt.Sprintf(`You are Bloomify’s NLP component.
 Available services: %v.
-Given the user’s message, output pure JSON:
-{"intent":"chat|recommend|book","serviceType":"one of the above or empty"}`, names)
-	userPrompt := fmt.Sprintf(`User message: "%s"`, text)
 
-	resp, err := s.client.CreateChatCompletion(
-		ctx,
-		openai.ChatCompletionRequest{
-			Model:       openai.GPT3Dot5Turbo,
-			Temperature: 0.0,
-			Messages: []openai.ChatCompletionMessage{
-				{Role: openai.ChatMessageRoleSystem, Content: system},
-				{Role: openai.ChatMessageRoleUser, Content: userPrompt},
-			},
-		},
-	)
+Given the user’s message, respond ONLY in raw JSON:
+{"intent":"chat|recommend|book","serviceType":"<one_of_the_above_or_empty>"}
+
+User message: "%s"`, names, text)
+
+	respText, err := s.callGemini(ctx, prompt)
 	if err != nil {
 		return "", "", err
 	}
@@ -261,26 +248,12 @@ Given the user’s message, output pure JSON:
 		Intent      string `json:"intent"`
 		ServiceType string `json:"serviceType"`
 	}
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &slot); err != nil {
-		return "", "", fmt.Errorf("parsing intent JSON: %w", err)
+	if err := json.Unmarshal([]byte(respText), &slot); err != nil {
+		return "", "", fmt.Errorf("gemini intent JSON parse error: %w\nRaw: %s", err, respText)
 	}
 	return slot.Intent, slot.ServiceType, nil
 }
 
-// callGPT wraps any follow-up prompt to GPT-3.5.
-func (s *DefaultAIService) callGPT(ctx context.Context, prompt string) (string, error) {
-	resp, err := s.client.CreateChatCompletion(
-		ctx,
-		openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{
-				{Role: openai.ChatMessageRoleSystem, Content: "You are Bloomify Assistant—helpful and concise."},
-				{Role: openai.ChatMessageRoleUser, Content: prompt},
-			},
-		},
-	)
-	if err != nil {
-		return "", err
-	}
-	return resp.Choices[0].Message.Content, nil
+func (s *DefaultAIService) callGemini(ctx context.Context, prompt string) (string, error) {
+	return s.gemini.GenerateContent(ctx, prompt)
 }

@@ -10,6 +10,8 @@ import (
 	"bloomify/services/booking"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v76/paymentintent"
 	"go.uber.org/zap"
 )
 
@@ -140,6 +142,56 @@ func (h *BookingHandler) UpdateSession(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 
+}
+
+// GetPaymentIntent handles POST /api/booking/payment.
+func (h *BookingHandler) GetPaymentIntent(c *gin.Context) {
+	var req models.PaymentIntentRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid payload", "details": err.Error()})
+		return
+	}
+
+	userIDRaw, exists := c.Get("userID")
+	if !exists {
+		c.JSON(401, gin.H{"error": "Unauthorized: user ID not found in context"})
+		return
+	}
+	userID, ok := userIDRaw.(string)
+	if !ok {
+		c.JSON(500, gin.H{"error": "Invalid user ID in context"})
+		return
+	}
+
+	amountInCents := int64(req.Amount * 100)
+
+	params := &stripe.PaymentIntentParams{
+		Amount:        stripe.Int64(amountInCents),
+		Currency:      stripe.String(req.Currency),
+		CaptureMethod: stripe.String(string(stripe.PaymentIntentCaptureMethodManual)),
+
+		AutomaticPaymentMethods: &stripe.PaymentIntentAutomaticPaymentMethodsParams{
+			Enabled: stripe.Bool(true),
+		},
+
+		Metadata: map[string]string{
+			"userId":  userID,
+			"context": "booking",
+		},
+	}
+
+	intent, err := paymentintent.New(params)
+	if err != nil {
+		h.Logger.Error("Stripe PaymentIntent error", zap.Error(err))
+		c.JSON(500, gin.H{"error": "Failed to create payment intent"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"clientSecret": intent.ClientSecret,
+		"intentId":     intent.ID,
+	})
 }
 
 // ConfirmBooking handles POST /api/booking/confirm.

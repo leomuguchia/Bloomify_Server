@@ -22,11 +22,14 @@ type Config struct {
 	RedisAIContextDB    int    `mapstructure:"REDIS_AI_DB"`
 	RedisAuthDB         int    `mapstructure:"REDIS_AUTH_DB"`
 	RedisOTPDB          int    `mapstructure:"REDIS_OTP_DB"`
+	RedisProviderAuthDB int    `mapstructure:"REDIS_PROVAUTH_DB"`
 
 	// Google Maps API Key.
 	GoogleAPIKey             string `mapstructure:"GOOGLE_API_KEY"`
 	GoogleServiceAccountFile string `mapstructure:"GOOGLE_SERVICE_ACCOUNT_FILE"`
 	OpenAIAPIKey             string `mapstructure:"OPENAI_KEY"`
+	StripeKey                string `mapstructure:"STRIPE_KEY"`
+	GeminiAPIKey             string `mapstructure:"GEMINI_KEY"`
 }
 
 var AppConfig Config

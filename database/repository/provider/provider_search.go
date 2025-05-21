@@ -24,7 +24,7 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 
 	// Filter by service type using a case-insensitive regex.
 	if criteria.ServiceType != "" {
-		filter["serviceCatalogue.serviceType"] = bson.M{
+		filter["serviceCatalogue.service.id"] = bson.M{
 			"$regex":   criteria.ServiceType,
 			"$options": "i",
 		}
