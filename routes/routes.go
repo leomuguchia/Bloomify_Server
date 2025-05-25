@@ -34,6 +34,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.PUT("/password/:id", hb.UpdateUserPasswordHandler)
 		api.GET("/devices", hb.GetUserDevicesHandler)
 		api.DELETE("/devices", hb.SignOutOtherUserDevicesHandler)
+		api.POST("/fcm", hb.UpdateFCMTokenHandler)
 	}
 }
 
@@ -84,18 +85,6 @@ func RegisterAIRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	}
 }
 
-func RegisterNotificationRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
-	aiGroup := r.Group("/api/notifications")
-	aiGroup.Use(
-		middleware.DeviceDetailsMiddleware(),
-		middleware.JWTAuthUserMiddleware(hb.UserRepo),
-	)
-	{
-		aiGroup.POST("/:userId", hb.AISTTHandler)
-		aiGroup.GET("/chat", hb.AIChatHandler)
-	}
-}
-
 func RegisterHealthRoute(r *gin.Engine) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Hi, I'm Bloomify"})
@@ -117,6 +106,7 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		bookingGroup.GET("/services", hb.GetAvailableServices)
 		bookingGroup.GET("/directions", hb.GetDirections)
 		bookingGroup.POST("/payment", hb.GetPaymentIntent)
+		bookingGroup.GET("/match", hb.MatchNearbyProviders)
 	}
 }
 

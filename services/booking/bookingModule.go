@@ -16,7 +16,7 @@ type SubscriptionBookingResult struct {
 	Errors             []error
 }
 
-func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models.BookingRequest) (*models.Booking, error) {
+func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models.BookingRequest) (*models.PublicBookingData, error) {
 	log.Printf("[BookSlot] Starting booking process for user %s with provider %s", req.UserID, provider.ID)
 
 	if req.Subscription {
@@ -32,6 +32,7 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models
 			Priority:     req.Priority,
 			CustomOption: req.CustomOption,
 			UserPayment:  req.UserPayment,
+			Mode:         req.Mode,
 		}
 		return se.bookSubscriptionSlots(provider, baseBooking, req.SubscriptionDetails)
 	}
@@ -76,6 +77,7 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models
 		CustomOption: req.CustomOption,
 		UserPayment:  req.UserPayment,
 		ServiceType:  enrichedSlot.Catalogue.Service.ID,
+		Mode:         req.Mode,
 	}
 
 	log.Printf("[BookSlot] Creating booking record: %+v", booking)
@@ -85,8 +87,10 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models
 		return nil, err
 	}
 
+	publicData := models.ToPublicBookingData(*booking)
+
 	log.Printf("[BookSlot] Booking successful. ID: %s", booking.ID)
-	return booking, nil
+	return &publicData, nil
 }
 
 func contains(slice []string, item string) bool {

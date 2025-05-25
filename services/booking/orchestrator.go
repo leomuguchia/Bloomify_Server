@@ -123,7 +123,7 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 	return &session, nil
 }
 
-func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlotResponse) (*models.Booking, error) {
+func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlotResponse) (*models.PublicBookingData, error) {
 	ctx := context.Background()
 	cacheClient := utils.GetBookingCacheClient()
 
@@ -170,6 +170,7 @@ func (s *DefaultBookingSessionService) ConfirmBooking(sessionID string, confirme
 		CustomOption:        confirmedSlot.CustomOption,
 		Subscription:        confirmedSlot.Subscription,
 		SubscriptionDetails: confirmedSlot.SubscriptionDetails,
+		Mode:                session.ServicePlan.Mode,
 	}
 
 	result, err := s.SchedulerEngine.BookSlot(selectedProvider, req)

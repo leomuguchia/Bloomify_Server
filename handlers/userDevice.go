@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"bloomify/models"
 	"bloomify/services/user"
+	"bloomify/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type UserDeviceHandler struct {
@@ -62,4 +65,41 @@ func (h *UserDeviceHandler) SignOutOtherUserDevicesHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Signed out of other devices successfully"})
+}
+
+func (h *UserDeviceHandler) UpdateFCMTokenHandler(c *gin.Context) {
+	rawUserID, exists := c.Get("userID")
+	if !exists || rawUserID == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User ID not found in context"})
+		return
+	}
+	userID, ok := rawUserID.(string)
+	if !ok || userID == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req struct {
+		FCMToken string `json:"fcmToken" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	// Log the update attempt
+	utils.Logger.Info("Updating FCM token", zap.String("userID", userID), zap.String("newFCMToken", req.FCMToken))
+
+	updatedUser, err := h.UserService.UpdateUser(models.User{
+		ID:       userID,
+		FCMToken: req.FCMToken,
+	})
+	if err != nil {
+		utils.Logger.Error("Failed to update FCM token", zap.String("userID", userID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	utils.Logger.Info("Successfully updated FCM token", zap.String("userID", userID))
+	c.JSON(http.StatusOK, updatedUser)
 }

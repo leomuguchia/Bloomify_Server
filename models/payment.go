@@ -27,6 +27,28 @@ type Invoice struct {
 	Error     string
 }
 
+type PublicInvoice struct {
+	InvoiceID string    `json:"invoiceId"`
+	Amount    float64   `json:"amount"`
+	Currency  string    `json:"currency"`
+	Status    string    `json:"status"`
+	Method    string    `json:"method"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func ToPublicInvoice(inv Invoice) PublicInvoice {
+	return PublicInvoice{
+		InvoiceID: inv.InvoiceID,
+		Amount:    inv.Amount,
+		Currency:  inv.Currency,
+		Status:    inv.Status,
+		Method:    inv.Method,
+		CreatedAt: inv.CreatedAt,
+		UpdatedAt: inv.UpdatedAt,
+	}
+}
+
 type PaymentIntentRequest struct {
 	Amount   float64 `json:"amount" binding:"required"`   // e.g., 10.00
 	Currency string  `json:"currency" binding:"required"` // e.g., "usd"

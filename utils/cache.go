@@ -18,6 +18,7 @@ var (
 	OTPCacheClient          *redis.Client
 	TestCacheClient         *redis.Client
 	AIContextCacheClient    *redis.Client
+	FeedCacheClient         *redis.Client
 )
 
 func InitBookingCache() {
@@ -117,6 +118,31 @@ func GetProviderAuthCacheClient() *redis.Client {
 		InitProviderAuthCache()
 	}
 	return ProviderAuthCacheClient
+}
+
+const FeedCachePrefix = "feed:aggregates:"
+
+func InitFeedCache() {
+	log.Printf("Attempting to connect to Redis (Feed Auth Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisFeedDB)
+	FeedCacheClient = redis.NewClient(&redis.Options{
+		Addr:     config.AppConfig.RedisAddr,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisFeedDB,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := FeedCacheClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis (Feed Cache): %v", err)
+	}
+	log.Println("Connected to Redis (Feed Cache) successfully.")
+}
+
+func GetFeedCacheClient() *redis.Client {
+	if FeedCacheClient == nil {
+		InitFeedCache()
+	}
+	return FeedCacheClient
 }
 
 // InitOTPCache initializes the Redis client for OTP caching using the DB from AppConfig for OTP cache.

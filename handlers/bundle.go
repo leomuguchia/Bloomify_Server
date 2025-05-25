@@ -37,6 +37,7 @@ type HandlerBundle struct {
 	GetAvailableServices gin.HandlerFunc
 	GetDirections        gin.HandlerFunc
 	GetPaymentIntent     gin.HandlerFunc
+	MatchNearbyProviders gin.HandlerFunc
 
 	// AI endpoints
 	AIChatHandler gin.HandlerFunc
@@ -51,6 +52,7 @@ type HandlerBundle struct {
 	DeleteUserHandler          gin.HandlerFunc
 	RevokeUserAuthTokenHandler gin.HandlerFunc
 	UpdateUserPasswordHandler  gin.HandlerFunc
+	UpdateFCMTokenHandler      gin.HandlerFunc
 
 	// User device endpoints
 	GetUserDevicesHandler          gin.HandlerFunc

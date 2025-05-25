@@ -2,12 +2,11 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"bloomify/models"
-
-	"github.com/gin-gonic/gin"
 )
 
 // AdvanceVerifyRequest represents the extra fields required for advanced verification.
@@ -18,7 +17,7 @@ type AdvanceVerifyRequest struct {
 
 // AdvanceVerifyProvider verifies extra advanced details for a provider.
 // It updates the provider record to mark it as advanced verified and returns the updated provider details.
-func (s *DefaultProviderService) AdvanceVerifyProvider(c *gin.Context, providerID string, advReq AdvanceVerifyRequest) (*models.Provider, error) {
+func (s *DefaultProviderService) AdvanceVerifyProvider(c context.Context, providerID string, advReq AdvanceVerifyRequest, fullAccess bool) (*models.Provider, error) {
 	// Retrieve the current provider record without any projection restrictions.
 	provider, err := s.Repo.GetByIDWithProjection(providerID, nil)
 	if err != nil {
@@ -54,7 +53,7 @@ func (s *DefaultProviderService) AdvanceVerifyProvider(c *gin.Context, providerI
 	}
 
 	// Retrieve the full provider details using the context flag.
-	updatedProvider, err := s.GetProviderByID(c, providerID)
+	updatedProvider, err := s.GetProviderByID(c, providerID, fullAccess)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve updated provider: %w", err)
 	}

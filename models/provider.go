@@ -33,6 +33,7 @@ type Security struct {
 	PasswordHash string `bson:"passwordHash" json:"-"`
 	Token        string `bson:"-" json:"token,omitempty"`
 	TokenHash    string `bson:"tokenHash" json:"-"`
+	FCMToken     string `bson:"fcmToken" json:"fcmToken"`
 }
 
 type BasicVerification struct {
@@ -67,7 +68,7 @@ type Provider struct {
 	BasicVerification    BasicVerification     `bson:"verification" json:"verification,omitzero"`
 	AdvancedVerification AdvancedVerification  `bson:"advancedVerification" json:"advancedVerification,omitzero"`
 	HistoricalRecordsIDs []string              `bson:"historicalRecordsIds" json:"historicalRecordsIds,omitempty"`
-	TimeSlotIDs          []string              `bson:"timeSlotIDs,omitempty" json:"timeSlotIDs,omitempty"` // Optional if needed
+	TimeSlotRefs         []MinimalSlotDTO      `bson:"timeSlotRefs,omitempty" json:"timeSlotRefs,omitempty"`
 	PaymentDetails       PaymentDetails        `bson:"paymentDetails" json:"paymentDetails,omitzero"`
 	CompletedBookings    int                   `bson:"completedBookings" json:"completedBookings,omitempty"`
 	CreatedAt            time.Time             `bson:"createdAt" json:"createdAt,omitzero"`
@@ -76,4 +77,13 @@ type Provider struct {
 	SubscriptionEnabled  bool                  `bson:"subscriptionEnabled" json:"subscriptionEnabled"` // Set to true if provider qualifies for recurring bookings
 	SubscriptionModel    SubscriptionModel     `bson:"subscriptionModel" json:"subscriptionModel"`     // NEW FIELD
 	SubscriptionBooking  []SubscriptionBooking `bson:"subscriptionBooking,omitempty" json:"subscriptionBooking,omitempty"`
+	ActiveBookings       []ActiveBookingDTO    `bson:"activeBookings,omitempty" json:"activeBookings,omitempty"`
+	Notifications        []Notification        `bson:"notifications,omitempty" json:"notifications,omitempty"`
+}
+
+type ActiveBookingDTO struct {
+	BookingID string      `bson:"bookingId" json:"bookingId"`
+	CreatedAt time.Time   `bson:"createdAt" json:"createdAt"`
+	End       int         `bson:"end" json:"end"`
+	User      UserMinimal `bson:"user" json:"user"`
 }

@@ -66,8 +66,11 @@ func (r *MongoUserRepo) UpdateWithDocument(id string, updateDoc bson.M) error {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
+	// Wrap in $set to comply with MongoDB update syntax
+	update := bson.M{"$set": updateDoc}
+
 	filter := bson.M{"id": id}
-	result, err := r.coll.UpdateOne(ctx, filter, updateDoc)
+	result, err := r.coll.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update user with id %s: %w", id, err)
 	}

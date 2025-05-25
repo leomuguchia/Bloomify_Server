@@ -22,6 +22,7 @@ type Booking struct {
 	CustomOption CustomOptionResponse `bson:"customOption,omitempty" json:"customOption,omitzero"`
 	Invoice      Invoice              `bson:"invoice,omitempty" json:"invoice,omitzero"`
 	UserPayment  UserPayment          `bson:"userPayment" json:"userPayment,omitzero"`
+	Mode         string               `bson:"mode" json:"mode"`
 }
 
 type SubscriptionDetails struct {
@@ -48,6 +49,7 @@ type BookingRequest struct {
 	SubscriptionDetails SubscriptionDetails  `json:"subscriptionDetails,omitzero"`
 	CustomOption        CustomOptionResponse `json:"customOption,omitzero"`
 	UserPayment         UserPayment          `json:"userPayment"`
+	Mode                string               `json:"mode"`
 }
 
 type SubscriptionModel struct {
@@ -66,4 +68,32 @@ type SubscriptionBooking struct {
 	SuccessfulBookings []Booking `json:"successfulBookings"`
 	Errors             []error   `json:"-"`
 	ErrorCount         int       `json:"errorCount"`
+}
+
+type PublicBookingData struct {
+	ID           string        `json:"id"`
+	Date         string        `json:"date"`
+	Start        int           `json:"start"`
+	End          int           `json:"end"`
+	ServiceType  string        `json:"serviceType"`
+	Units        int           `json:"units"`
+	UnitType     string        `json:"unitType"`
+	CustomOption string        `json:"customOption"`
+	TotalPrice   float64       `json:"totalPrice"`
+	Invoice      PublicInvoice `json:"invoice"`
+}
+
+func ToPublicBookingData(b Booking) PublicBookingData {
+	return PublicBookingData{
+		ID:           b.ID,
+		Date:         b.Date,
+		Start:        b.Start,
+		End:          b.End,
+		ServiceType:  b.ServiceType,
+		Units:        b.Units,
+		UnitType:     b.UnitType,
+		CustomOption: b.CustomOption.Option,
+		TotalPrice:   b.TotalPrice,
+		Invoice:      ToPublicInvoice(b.Invoice),
+	}
 }

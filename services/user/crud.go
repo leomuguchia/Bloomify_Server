@@ -15,29 +15,77 @@ import (
 
 // UpdateUser updates non-null user fields using a partial update.
 func (s *DefaultUserService) UpdateUser(user models.User) (*models.User, error) {
-	updateFields := bson.M{
-		"updated_at": time.Now(),
+	logger := utils.GetLogger()
+	logger.Debug("UpdateUser called", zap.Any("user", user))
+
+	updateFields := map[string]any{
+		"updatedAt": time.Now(),
 	}
+
 	if user.Username != "" {
 		updateFields["username"] = user.Username
-	}
-	if user.PhoneNumber != "" {
-		updateFields["phone_number"] = user.PhoneNumber
 	}
 	if user.Email != "" {
 		updateFields["email"] = user.Email
 	}
-	if user.ProfileImage == "" {
-		updateFields["profile_image"] = nil
-	} else {
-		updateFields["profile_image"] = user.ProfileImage
+	if user.PhoneNumber != "" {
+		updateFields["phoneNumber"] = user.PhoneNumber
 	}
-	updateDoc := bson.M{"$set": updateFields}
+	if user.FCMToken != "" {
+		updateFields["fcmToken"] = user.FCMToken
+	}
+	if user.ProfileImage != "" {
+		updateFields["profileImage"] = user.ProfileImage
+	}
+	if user.Preferences != nil {
+		updateFields["preferences"] = user.Preferences
+	}
+	if user.Devices != nil {
+		updateFields["devices"] = user.Devices
+	}
+	if user.Rating != 0 {
+		updateFields["rating"] = user.Rating
+	}
+	if user.ActiveBookings != nil {
+		updateFields["activeBookings"] = user.ActiveBookings
+	}
+	if user.BookingHistory != nil {
+		updateFields["bookingHistory"] = user.BookingHistory
+	}
+	if user.Notifications != nil {
+		updateFields["notifications"] = user.Notifications
+	}
+	if !user.LastBookingTime.IsZero() {
+		updateFields["lastBookingTime"] = user.LastBookingTime
+	}
+	if len(user.Location.Coordinates) > 0 {
+		updateFields["location"] = user.Location
+	}
 
-	if err := s.Repo.UpdateWithDocument(user.ID, updateDoc); err != nil {
+	logger.Debug("UpdateUser updateFields", zap.Any("updateFields", updateFields))
+
+	if len(updateFields) == 1 {
+		logger.Warn("No updatable fields provided")
+		return nil, fmt.Errorf("no updatable fields provided")
+	}
+	// Ensure the user ID is set for the update operation.
+	if user.ID == "" {
+		logger.Error("User ID is required for update")
+		return nil, fmt.Errorf("user ID is required for update")
+	}
+
+	if err := s.Repo.UpdateWithDocument(user.ID, updateFields); err != nil {
+		logger.Error("Failed to update user", zap.String("userID", user.ID), zap.Error(err))
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
-	return s.Repo.GetByIDWithProjection(user.ID, nil)
+
+	updatedUser, err := s.Repo.GetByIDWithProjection(user.ID, nil)
+	if err != nil {
+		logger.Error("Failed to fetch updated user", zap.String("userID", user.ID), zap.Error(err))
+		return nil, err
+	}
+	logger.Debug("UpdateUser success", zap.Any("updatedUser", updatedUser))
+	return updatedUser, nil
 }
 
 // UpdateUserPassword updates the user's password and logs out other devices.

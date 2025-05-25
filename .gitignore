@@ -2,6 +2,7 @@
 
 /config/.env
 /config/campus.json
+/config/bloom-firebase-service-account.json
 /config/c.yaml
 # Ignore all service account keys
 config/*.json

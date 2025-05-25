@@ -14,7 +14,14 @@ import (
 func (h *ProviderHandler) GetProviderByIDHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	id := c.Param("id")
-	prov, err := h.Service.GetProviderByID(c, id)
+	// Check if the context has full access flag set.
+	fullAccess := false
+	if val, exists := c.Get("isProviderFullAccess"); exists {
+		if fa, ok := val.(bool); ok {
+			fullAccess = fa
+		}
+	}
+	prov, err := h.Service.GetProviderByID(c, id, fullAccess)
 	if err != nil {
 		logger.Error("Provider not found", zap.String("id", id), zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": "Provider not found"})
@@ -27,7 +34,14 @@ func (h *ProviderHandler) GetProviderByIDHandler(c *gin.Context) {
 func (h *ProviderHandler) GetProviderByEmailHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	email := c.Param("email")
-	prov, err := h.Service.GetProviderByEmail(c, email)
+	// Check if the context has full access flag set.
+	fullAccess := false
+	if val, exists := c.Get("isProviderFullAccess"); exists {
+		if fa, ok := val.(bool); ok {
+			fullAccess = fa
+		}
+	}
+	prov, err := h.Service.GetProviderByEmail(c.Request.Context(), email, fullAccess)
 	if err != nil {
 		logger.Error("Provider not found by email", zap.String("email", email), zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": "Provider not found"})
@@ -52,6 +66,13 @@ func (h *ProviderHandler) DeleteProviderHandler(c *gin.Context) {
 func (h *ProviderHandler) AdvanceVerifyProviderHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	providerID := c.Param("id")
+	fullAccess := false
+	// Check if the context has full access flag set.
+	if val, exists := c.Get("isProviderFullAccess"); exists {
+		if fa, ok := val.(bool); ok {
+			fullAccess = fa
+		}
+	}
 
 	var advReq provider.AdvanceVerifyRequest
 	if err := c.ShouldBindJSON(&advReq); err != nil {
@@ -60,7 +81,7 @@ func (h *ProviderHandler) AdvanceVerifyProviderHandler(c *gin.Context) {
 		return
 	}
 
-	updatedProvider, err := h.Service.AdvanceVerifyProvider(c, providerID, advReq)
+	updatedProvider, err := h.Service.AdvanceVerifyProvider(c.Request.Context(), providerID, advReq, fullAccess)
 	if err != nil {
 		logger.Error("Failed to advanced verify provider", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to advanced verify provider"})
@@ -82,7 +103,7 @@ func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
 	// Remove the id field if provided in the payload.
 	delete(updates, "id")
 
-	updatedProvider, err := h.Service.UpdateProvider(c, id, updates)
+	updatedProvider, err := h.Service.UpdateProvider(c.Request.Context(), id, updates)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update provider: " + err.Error()})
 		return

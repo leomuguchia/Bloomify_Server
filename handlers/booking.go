@@ -17,15 +17,16 @@ import (
 
 // BookingHandler handles HTTP requests for booking operations.
 type BookingHandler struct {
-	BookingSvc booking.BookingSessionService
-	Logger     *zap.Logger
+	BookingSvc  booking.BookingSessionService
+	MatchingSvc booking.MatchingService
+	Logger      *zap.Logger
 }
 
-// NewBookingHandler returns a new BookingHandler instance.
-func NewBookingHandler(svc booking.BookingSessionService, logger *zap.Logger) *BookingHandler {
+func NewBookingHandler(bs booking.BookingSessionService, ms booking.MatchingService, logger *zap.Logger) *BookingHandler {
 	return &BookingHandler{
-		BookingSvc: svc,
-		Logger:     logger,
+		BookingSvc:  bs,
+		MatchingSvc: ms,
+		Logger:      logger,
 	}
 }
 
@@ -244,4 +245,26 @@ func (h *BookingHandler) GetAvailableServices(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, services)
+}
+
+func (h *BookingHandler) MatchNearbyProviders(c *gin.Context) {
+	var geo models.GeoPoint
+	if err := c.ShouldBindJSON(&geo); err != nil {
+		h.Logger.Error("invalid request body for nearby", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if geo.Type != "Point" || len(geo.Coordinates) != 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid GeoPoint; must be `Point` with 2 coordinates"})
+		return
+	}
+
+	dtos, err := h.MatchingSvc.MatchNearbyProviders(geo)
+	if err != nil {
+		h.Logger.Error("failed to match nearby providers", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not retrieve nearby providers"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"providers": dtos})
 }

@@ -9,12 +9,11 @@ import (
 	"bloomify/models"
 	"bloomify/utils"
 
-	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updates map[string]interface{}) (*models.Provider, error) {
+func (s *DefaultProviderService) UpdateProvider(c context.Context, id string, updates map[string]interface{}) (*models.Provider, error) {
 	existing, err := s.Repo.GetByIDWithProjection(id, nil)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
@@ -104,7 +103,7 @@ func (s *DefaultProviderService) UpdateProvider(c *gin.Context, id string, updat
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
-	return s.GetProviderByID(c, id)
+	return s.GetProviderByID(c, id, true)
 }
 
 func (s *DefaultProviderService) DeleteProvider(providerID string) error {

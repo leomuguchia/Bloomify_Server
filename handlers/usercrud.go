@@ -36,7 +36,18 @@ func GetUserByEmailHandler(c *gin.Context) {
 
 func UpdateUserHandler(c *gin.Context) {
 	logger := utils.GetLogger()
-	id := c.Param("id")
+	idVal, exists := c.Get("userID")
+	if !exists {
+		logger.Error("Missing device details: deviceID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing device details: deviceID"})
+		return
+	}
+	id, ok := idVal.(string)
+	if !ok || id == "" {
+		logger.Error("Invalid user ID in context", zap.Any("userID", idVal))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
 	var reqUser models.User
 	if err := c.ShouldBindJSON(&reqUser); err != nil {

@@ -104,19 +104,22 @@ func (h *UnifiedPaymentHandler) processCashPayment(
 		Amount:    req.Amount,
 		Currency:  req.Currency,
 		Method:    "cash",
-		Status:    "cash_pending",
+		Status:    "pending",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	h.logger.Info("Cash payment recorded", zap.String("invoiceID", inv.InvoiceID), zap.String("userID", req.UserID))
-
-	if err := h.updateUserAfterPayment(ctx, req.UserID, inv); err != nil {
-		h.logger.Error("Failed to update user with payment notification", zap.Error(err))
-	}
+	h.logger.Info("Cash payment recorded",
+		zap.String("invoiceID", inv.InvoiceID),
+		zap.String("userID", req.UserID),
+	)
 
 	return inv, nil
 }
+
+// ---------------------------------------------------------------------
+// CARD PAYMENT
+// ---------------------------------------------------------------------
 
 func (h *UnifiedPaymentHandler) authorizeCardPayment(
 	ctx context.Context,
@@ -130,7 +133,9 @@ func (h *UnifiedPaymentHandler) authorizeCardPayment(
 	}
 
 	if intent.Status != stripe.PaymentIntentStatusRequiresCapture {
-		h.logger.Warn("Stripe intent not in requires_capture", zap.String("status", string(intent.Status)))
+		h.logger.Warn("Stripe intent not in requires_capture",
+			zap.String("status", string(intent.Status)),
+		)
 		return nil, fmt.Errorf("payment not authorized, status: %s", intent.Status)
 	}
 
@@ -146,7 +151,9 @@ func (h *UnifiedPaymentHandler) authorizeCardPayment(
 		UpdatedAt: time.Now(),
 	}
 
-	h.logger.Info("Payment authorized", zap.String("invoiceID", inv.InvoiceID))
+	h.logger.Info("Payment authorized",
+		zap.String("invoiceID", inv.InvoiceID),
+	)
 
 	return inv, nil
 }
@@ -170,16 +177,14 @@ func (h *UnifiedPaymentHandler) captureCardPayment(
 		Currency:  string(pi.Currency),
 		Method:    "card",
 		PaymentID: pi.ID,
-		Status:    "paid",
+		Status:    "completed",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	h.logger.Info("Payment captured", zap.String("invoiceID", inv.InvoiceID))
-
-	if err := h.updateUserAfterPayment(ctx, req.UserID, inv); err != nil {
-		h.logger.Error("Failed to  update user with payment notification", zap.Error(err))
-	}
+	h.logger.Info("Payment captured",
+		zap.String("invoiceID", inv.InvoiceID),
+	)
 
 	return inv, nil
 }
@@ -195,37 +200,8 @@ func (h *UnifiedPaymentHandler) cancelCardPayment(
 		return fmt.Errorf("stripe cancel failed: %w", err)
 	}
 
-	h.logger.Info("PaymentIntent canceled", zap.String("intentID", intentID))
+	h.logger.Info("PaymentIntent canceled",
+		zap.String("intentID", intentID),
+	)
 	return nil
-}
-
-func (h *UnifiedPaymentHandler) updateUserAfterPayment(
-	ctx context.Context,
-	userID string,
-	inv *models.Invoice,
-) error {
-	user, err := h.userService.GetUserByID(userID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch user: %w", err)
-	}
-
-	notification := models.Notification{
-		ID:      uuid.New().String(),
-		Type:    "payment_confirmation",
-		Message: fmt.Sprintf("Payment of %s %.2f via %s was %s.", inv.Currency, inv.Amount, inv.Method, inv.Status),
-		Data: map[string]any{
-			"invoiceId": inv.InvoiceID,
-			"amount":    inv.Amount,
-			"method":    inv.Method,
-			"status":    inv.Status,
-		},
-		CreatedAt: time.Now(),
-		Read:      false,
-	}
-
-	user.Notifications = append(user.Notifications, notification)
-	user.UpdatedAt = time.Now()
-
-	_, err = h.userService.UpdateUser(*user)
-	return err
 }

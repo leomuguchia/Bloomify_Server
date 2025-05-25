@@ -1,85 +1,80 @@
 package providerRepo
 
 import (
+	"bloomify/models"
 	"context"
 	"fmt"
 	"time"
 
-	"bloomify/models"
-	"bloomify/utils"
-
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.uber.org/zap"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]models.Provider, error) {
-	logger := utils.GetLogger()
-	logger.Debug("AdvancedSearch: received criteria", zap.Any("criteria", criteria))
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{}
+	var pipeline mongo.Pipeline
 
-	// Filter by service type using a case-insensitive regex.
+	// 1) $geoNear: must come first to filter+sort by distance
+	if criteria.MaxDistanceKm > 0 && len(criteria.LocationGeo.Coordinates) == 2 {
+		pipeline = append(pipeline, bson.D{
+			{Key: "$geoNear", Value: bson.D{
+				{Key: "near", Value: bson.D{
+					{Key: "type", Value: "Point"},
+					{Key: "coordinates", Value: criteria.LocationGeo.Coordinates},
+				}},
+				{Key: "distanceField", Value: "distance"},
+				{Key: "spherical", Value: true},
+				{Key: "maxDistance", Value: criteria.MaxDistanceKm * 1000},
+			}},
+		})
+	}
+
+	// 2) $match: active/online + must have at least one timeslot
+	matchFilter := bson.M{
+		"profile.status": bson.M{"$in": []string{"active", "online"}},
+		"timeSlotRefs":   bson.M{"$exists": true, "$ne": bson.A{}},
+	}
 	if criteria.ServiceType != "" {
-		filter["serviceCatalogue.service.id"] = bson.M{
-			"$regex":   criteria.ServiceType,
-			"$options": "i",
-		}
+		matchFilter["serviceCatalogue.service.id"] = bson.M{"$regex": criteria.ServiceType, "$options": "i"}
 	}
-
+	if criteria.CustomOption != "" {
+		matchFilter["serviceCatalogue.customOptions"] = bson.M{"$elemMatch": bson.M{
+			"option": bson.M{"$regex": criteria.CustomOption, "$options": "i"},
+		}}
+	}
 	if criteria.Mode != "" {
-		filter["serviceCatalogue.mode"] = criteria.Mode
+		matchFilter["serviceCatalogue.mode"] = criteria.Mode
 	}
+	pipeline = append(pipeline, bson.D{{Key: "$match", Value: matchFilter}})
 
-	// Filter by geo-location if a max distance is provided.
-	if criteria.MaxDistanceKm > 0 {
-		maxDistanceMeters := criteria.MaxDistanceKm * 1000
-		filter["profile.locationGeo"] = bson.M{
-			"$nearSphere": bson.M{
-				"$geometry": bson.M{
-					"type":        "Point",
-					"coordinates": criteria.LocationGeo.Coordinates,
-				},
-				"$maxDistance": maxDistanceMeters,
-			},
-		}
-	}
+	// 3) $addFields: compute slotCount and activeCount
+	pipeline = append(pipeline, bson.D{
+		{Key: "$addFields", Value: bson.M{
+			"slotCount":   bson.M{"$size": "$timeSlotRefs"},
+			"activeCount": bson.M{"$size": "$activeBookings"},
+		}},
+	})
 
-	// Ensure provider status is active or online.
-	filter["profile.status"] = bson.M{"$in": []string{"active", "online"}}
+	// 4) $sort: verified first, then most slots, nearest, then lightest load
+	pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
+		{Key: "profile.advancedVerified", Value: -1}, // true before false
+		{Key: "slotCount", Value: -1},                // more slots first
+		{Key: "distance", Value: 1},                  // nearer first
+		{Key: "activeCount", Value: 1},               // fewer active bookings first
+	}}})
 
-	logger.Debug("AdvancedSearch: constructed filter", zap.Any("filter", filter))
-
-	opts := options.Find()
-	cursor, err := r.coll.Find(ctx, filter, opts)
+	// Execute pipeline
+	cursor, err := r.coll.Aggregate(ctx, pipeline)
 	if err != nil {
-		logger.Error("AdvancedSearch: query failed", zap.Error(err))
-		return nil, fmt.Errorf("advanced search query failed: %w", err)
+		return nil, fmt.Errorf("aggregation query failed: %w", err)
 	}
 	defer cursor.Close(ctx)
 
 	var providers []models.Provider
-	for cursor.Next(ctx) {
-		var p models.Provider
-		if err := cursor.Decode(&p); err != nil {
-			logger.Error("AdvancedSearch: failed to decode provider", zap.Error(err))
-			return nil, fmt.Errorf("failed to decode provider: %w", err)
-		}
-		providers = append(providers, p)
+	if err := cursor.All(ctx, &providers); err != nil {
+		return nil, fmt.Errorf("failed to decode providers: %w", err)
 	}
-	if err := cursor.Err(); err != nil {
-		logger.Error("AdvancedSearch: cursor error", zap.Error(err))
-		return nil, fmt.Errorf("cursor error: %w", err)
-	}
-
-	if len(providers) == 0 {
-		logger.Warn("AdvancedSearch: no providers found", zap.Any("filter", filter))
-		return []models.Provider{}, nil
-	}
-
-	logger.Debug("AdvancedSearch: found providers", zap.Int("count", len(providers)))
 	return providers, nil
 }

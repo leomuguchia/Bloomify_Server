@@ -69,3 +69,11 @@ type ProviderTimeslotDTO struct {
 	Status    string     `json:"status"`
 	TimeSlots []TimeSlot `json:"timeSlots"`
 }
+
+type MinimalSlotDTO struct {
+	ID        string `bson:"id" json:"id"`
+	Date      string `bson:"date" json:"date"`
+	Start     int    `bson:"start" json:"start"`
+	End       int    `bson:"end" json:"end"`
+	SlotModel string `bson:"slotModel" json:"slotModel"`
+}

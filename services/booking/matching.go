@@ -23,6 +23,7 @@ type RankedProvider struct {
 // MatchingService defines the interface for matching providers.
 type MatchingService interface {
 	MatchProviders(plan models.ServicePlan) ([]models.ProviderDTO, error)
+	MatchNearbyProviders(location models.GeoPoint) ([]models.ProviderDTO, error) // NEW
 }
 
 // DefaultMatchingService implements MatchingService.
@@ -177,6 +178,37 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 		math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 	return R * c
+}
+
+func (s *DefaultMatchingService) MatchNearbyProviders(location models.GeoPoint) ([]models.ProviderDTO, error) {
+	criteria := repository.ProviderSearchCriteria{
+		LocationGeo:   location,
+		MaxDistanceKm: 50,
+	}
+	providers, err := s.ProviderRepo.AdvancedSearch(criteria)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find nearby providers: %w", err)
+	}
+
+	var dtos []models.ProviderDTO
+	for i, p := range providers {
+		var proximity float64
+		coords := p.Profile.LocationGeo.Coordinates
+		if len(coords) >= 2 {
+			lon, lat := coords[0], coords[1]
+			proximity = haversine(location.Coordinates[1], location.Coordinates[0], lat, lon) * 1000
+		}
+		dtos = append(dtos, models.ProviderDTO{
+			ID:               p.ID,
+			Profile:          p.Profile,
+			ServiceCatalogue: p.ServiceCatalogue,
+			LocationGeo:      p.Profile.LocationGeo,
+			Preferred:        i == 0,
+			Proximity:        proximity,
+		})
+	}
+
+	return dtos, nil
 }
 
 func extractProvidersDTO(ranked []RankedProvider) []models.ProviderDTO {

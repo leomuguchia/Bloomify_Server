@@ -32,7 +32,7 @@ func (h *ProviderHandler) SetupTimeslotsHandler(c *gin.Context) {
 		return
 	}
 
-	dto, err := h.Service.SetupTimeslots(c, providerID, req)
+	dto, err := h.Service.SetupTimeslots(c.Request.Context(), providerID, req)
 	if err != nil {
 		logger.Error("Failed to set up timeslots", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set up timeslots", "message": err.Error()})
@@ -61,7 +61,7 @@ func (h *ProviderHandler) GetTimeslotsHandler(c *gin.Context) {
 		return
 	}
 
-	timeslots, err := h.Service.GetTimeslots(c, providerID, body.Date)
+	timeslots, err := h.Service.GetTimeslots(c.Request.Context(), providerID, body.Date)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch timeslots", "message": err.Error()})
 		return
@@ -92,7 +92,7 @@ func (h *ProviderHandler) DeleteTimeslotHandler(c *gin.Context) {
 		return
 	}
 
-	dto, err := h.Service.DeleteTimeslot(c, providerID, timeslotID, body.Date)
+	dto, err := h.Service.DeleteTimeslot(c.Request.Context(), providerID, timeslotID, body.Date)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete timeslot", "message": err.Error()})
 		return

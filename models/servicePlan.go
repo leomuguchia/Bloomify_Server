@@ -1,14 +1,17 @@
 package models
 
 type ServicePlan struct {
-	ServiceType string   `json:"serviceType"`
-	BookingFor  string   `json:"bookingFor"`
-	Priority    bool     `json:"priority"`
-	Mode        string   `json:"mode"`
-	LocationGeo GeoPoint `json:"locationGeo"`
-	Date        string   `json:"date"`
-	Units       int      `json:"units"`
-	UnitType    string   `json:"unitType"`
+	ServiceType         string              `json:"serviceType"`
+	BookingFor          string              `json:"bookingFor"`
+	Priority            bool                `json:"priority"`
+	Mode                string              `json:"mode"`
+	LocationGeo         GeoPoint            `json:"locationGeo"`
+	Date                string              `json:"date"`
+	Units               int                 `json:"units"`
+	UnitType            string              `json:"unitType"`
+	Subscription        bool                `json:"subscription"`
+	SubscriptionDetails SubscriptionDetails `json:"subscriptionDetails,omitempty"`
+	CustomOption        string              `json:"customOption,omitempty"`
 }
 
 const (
@@ -40,6 +43,7 @@ type ServiceCatalogue struct {
 	Mode          string         `bson:"mode" json:"mode"`
 	CustomOptions []CustomOption `bson:"customOptions" json:"customOptions"`
 	Currency      string         `bson:"currency" json:"currency"`
+	ImageURLs     []string       `bson:"imageUrls" json:"imageUrls"`
 }
 
 type CustomOption struct {

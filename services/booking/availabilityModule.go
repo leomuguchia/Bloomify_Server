@@ -8,6 +8,7 @@ import (
 	schedulerRepo "bloomify/database/repository/scheduler"
 	timeslotRepo "bloomify/database/repository/timeslot"
 	"bloomify/models"
+	"bloomify/services/notification"
 	"bloomify/services/user"
 	"bloomify/utils"
 
@@ -21,6 +22,7 @@ type DefaultSchedulingEngine struct {
 	ProviderRepo   providerRepo.ProviderRepository
 	TimeslotsRepo  timeslotRepo.TimeSlotRepository
 	UserService    user.UserService
+	Notification   notification.NotificationService
 }
 
 type AvailableSlotsResult struct {

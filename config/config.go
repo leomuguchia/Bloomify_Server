@@ -23,6 +23,7 @@ type Config struct {
 	RedisAuthDB         int    `mapstructure:"REDIS_AUTH_DB"`
 	RedisOTPDB          int    `mapstructure:"REDIS_OTP_DB"`
 	RedisProviderAuthDB int    `mapstructure:"REDIS_PROVAUTH_DB"`
+	RedisFeedDB         int    `mapstructure:"FEED_DB"`
 
 	// Google Maps API Key.
 	GoogleAPIKey             string `mapstructure:"GOOGLE_API_KEY"`
@@ -33,6 +34,7 @@ type Config struct {
 }
 
 var AppConfig Config
+var FirebaseServiceAccountKeyPath string = "config/bloom-firebase-service-account.json"
 
 func LoadConfig() {
 	viper.SetConfigName("c")

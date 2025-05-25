@@ -2,19 +2,17 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 
 	"bloomify/models"
-
-	"github.com/gin-gonic/gin"
 )
 
 // GetTimeslots fetches all unblocked timeslots for that provider on the given date.
 func (s *DefaultProviderService) GetTimeslots(
-	c *gin.Context,
+	ctx context.Context,
 	providerID, date string,
 ) ([]models.TimeSlot, error) {
-	ctx := c.Request.Context()
 	slots, err := s.Timeslot.GetByProviderIDAndDate(ctx, providerID, date)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch timeslots: %w", err)
@@ -24,10 +22,9 @@ func (s *DefaultProviderService) GetTimeslots(
 
 // GetTimeslot retrieves one specific timeslot for a provider on a date.
 func (s *DefaultProviderService) GetTimeslot(
-	c *gin.Context,
+	ctx context.Context,
 	providerID, slotID, date string,
 ) (*models.TimeSlot, error) {
-	ctx := c.Request.Context()
 	slot, err := s.Timeslot.GetByIDWithDate(ctx, providerID, slotID, date)
 	if err != nil {
 		return nil, fmt.Errorf("timeslot not found: %w", err)
@@ -37,10 +34,9 @@ func (s *DefaultProviderService) GetTimeslot(
 
 // DeleteTimeslot deletes a single timeslot and returns the updated DTO.
 func (s *DefaultProviderService) DeleteTimeslot(
-	c *gin.Context,
+	ctx context.Context,
 	providerID, slotID, date string,
 ) (*models.ProviderTimeslotDTO, error) {
-	ctx := c.Request.Context()
 
 	// 1) Verify slot exists and is unbooked
 	slot, err := s.Timeslot.GetByIDWithDate(ctx, providerID, slotID, date)
@@ -61,18 +57,20 @@ func (s *DefaultProviderService) DeleteTimeslot(
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
-	newIDs := prov.TimeSlotIDs[:0]
-	for _, id := range prov.TimeSlotIDs {
-		if id != slotID {
-			newIDs = append(newIDs, id)
+
+	newRefs := prov.TimeSlotRefs[:0]
+	for _, ref := range prov.TimeSlotRefs {
+		if ref.ID != slotID {
+			newRefs = append(newRefs, ref)
 		}
 	}
-	prov.TimeSlotIDs = newIDs
+	prov.TimeSlotRefs = newRefs
+
 	if err := s.Repo.Update(prov); err != nil {
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
-	// 4) Re‑fetch remaining slots for DTO
+	// 4) Re-fetch remaining slots for DTO
 	remaining, _ := s.Timeslot.GetByProviderIDAndDate(ctx, providerID, date)
 	return &models.ProviderTimeslotDTO{
 		ID:        prov.ID,

@@ -21,6 +21,7 @@ import (
 	"bloomify/routes"
 	"bloomify/services/booking"
 	ai "bloomify/services/intelligence"
+	"bloomify/services/notification"
 	"bloomify/services/provider"
 	"bloomify/services/user"
 	"bloomify/utils"
@@ -30,12 +31,12 @@ import (
 )
 
 func main() {
-	// Load configuration and initialize the logger.
 	config.LoadConfig()
 	logger := utils.GetLogger()
 
 	database.InitDB()
 	utils.InitRedis()
+	utils.FirebaseInit()
 
 	cloudinaryStorageService, err := utils.Cloudinary()
 	if err != nil {
@@ -77,6 +78,11 @@ func main() {
 		ProviderRepo: provRepo,
 	}
 
+	notificationService := &notification.DefaultNotificationService{
+		User:     userService,
+		Provider: providerService,
+	}
+
 	paymentHandler := booking.NewPaymentHandler(logger, userService)
 	schedulingEngineInstance := &booking.DefaultSchedulingEngine{
 		Repo:           schedulerRepo,
@@ -84,11 +90,13 @@ func main() {
 		ProviderRepo:   provRepo,
 		TimeslotsRepo:  timeslotRepo,
 		UserService:    userService,
+		Notification:   notificationService,
 	}
 
 	bookingService := &booking.DefaultBookingSessionService{
 		MatchingSvc:     matchingServiceInstance,
 		SchedulerEngine: schedulingEngineInstance,
+		NotificationSvc: notificationService,
 	}
 
 	ctxStore := ai.NewRedisContextStore(utils.GetAIContextCacheClient(), 30*time.Minute)
@@ -98,7 +106,7 @@ func main() {
 		bookingService,
 	)
 
-	bookingHandler := handlers.NewBookingHandler(bookingService, logger)
+	bookingHandler := handlers.NewBookingHandler(bookingService, matchingServiceInstance, logger)
 	adminHandler := handlers.NewAdminHandler(userService, providerService)
 	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
 	aiHandler := handlers.NewDefaultAIHandler(aiSvc)
@@ -135,6 +143,7 @@ func main() {
 		GetAvailableServices: bookingHandler.GetAvailableServices,
 		GetDirections:        bookingHandler.GetDirections,
 		GetPaymentIntent:     bookingHandler.GetPaymentIntent,
+		MatchNearbyProviders: bookingHandler.MatchNearbyProviders,
 
 		// AI endpoints.
 		AISTTHandler:  aiHandler.AISTTHandler,
@@ -153,6 +162,7 @@ func main() {
 		// User device endpoints.
 		GetUserDevicesHandler:          UserDeviceHandler.GetUserDevicesHandler,
 		SignOutOtherUserDevicesHandler: UserDeviceHandler.SignOutOtherUserDevicesHandler,
+		UpdateFCMTokenHandler:          UserDeviceHandler.UpdateFCMTokenHandler,
 
 		// OTP endpoints.
 		VerifyOTPHandler: handlers.VerifyOTPHandler,

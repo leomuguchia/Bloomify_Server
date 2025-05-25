@@ -2,23 +2,20 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 
 	"bloomify/models"
 
-	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetProviderByID returns a provider by ID with fields based on access level.
-func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID string) (*models.Provider, error) {
-	fullAccess, exists := c.Get("isProviderFullAccess")
-
+func (s *DefaultProviderService) GetProviderByID(c context.Context, providerID string, fullAccess bool) (*models.Provider, error) {
 	access := false
-	if exists {
-		if fa, ok := fullAccess.(bool); ok {
-			access = fa
-		}
+	if fullAccess {
+		// If the context has full access, we allow it.
+		access = true
 	}
 
 	var projection bson.M
@@ -51,18 +48,9 @@ func (s *DefaultProviderService) GetProviderByID(c *gin.Context, providerID stri
 }
 
 // GetProviderByEmail returns a provider by email with fields based on access level.
-func (s *DefaultProviderService) GetProviderByEmail(c *gin.Context, email string) (*models.Provider, error) {
-	fullAccess, exists := c.Get("isProviderFullAccess")
-
-	access := false
-	if exists {
-		if fa, ok := fullAccess.(bool); ok {
-			access = fa
-		}
-	}
-
+func (s *DefaultProviderService) GetProviderByEmail(c context.Context, email string, fullAccess bool) (*models.Provider, error) {
 	var projection bson.M
-	if access {
+	if fullAccess {
 		// Full access: Return all details except sensitive auth fields.
 		projection = bson.M{
 			"password_hash": 0,

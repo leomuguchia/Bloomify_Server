@@ -15,7 +15,7 @@ func (se *DefaultSchedulingEngine) bookSubscriptionSlots(
 	provider models.Provider,
 	baseBooking models.Booking,
 	subDetails models.SubscriptionDetails,
-) (*models.Booking, error) {
+) (*models.PublicBookingData, error) {
 	if subDetails.EndDate.Before(subDetails.StartDate) {
 		return nil, fmt.Errorf("subscription end date is before start date")
 	}
@@ -107,6 +107,6 @@ func (se *DefaultSchedulingEngine) bookSubscriptionSlots(
 		return nil, fmt.Errorf("subscription booking failed: no successful booking")
 	}
 
-	// Errors from other dates are ignored here but could be logged or returned optionally.
-	return firstBooking, nil
+	publicBooking := models.ToPublicBookingData(*firstBooking)
+	return &publicBooking, nil
 }

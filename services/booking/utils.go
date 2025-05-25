@@ -26,9 +26,6 @@ func validateServicePlan(plan models.ServicePlan) error {
 	if len(plan.LocationGeo.Coordinates) < 2 {
 		return fmt.Errorf("locationGeo.coordinates must be an array of at least two numbers")
 	}
-	if plan.Date == "" {
-		return fmt.Errorf("date is required")
-	}
 	if plan.Units <= 0 {
 		return fmt.Errorf("units must be a positive integer")
 	}
@@ -46,7 +43,7 @@ func (svc *DefaultBookingSessionService) GetAvailableServices() ([]models.Servic
 			CapacityMode: models.CapacityByUnit, // measured in children
 		},
 		{
-			ID: "Chauffeuring", Icon: "🚗", UnitType: "trip", ProviderTerm: "Chauffeurs",
+			ID: "Chauffeuring", Icon: "🚗", UnitType: "hour", ProviderTerm: "Chauffeurs",
 			Modes:        []string{models.ModeInHome},
 			CapacityMode: models.CapacitySingleUse, // usually one ride per booking
 		},

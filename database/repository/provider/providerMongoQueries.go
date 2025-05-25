@@ -1,38 +1,15 @@
 package providerRepo
 
 import (
-	"context"
 	"fmt"
 	"time"
 
-	"bloomify/database"
 	"bloomify/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-// MongoProviderRepo implements ProviderRepository using MongoDB.
-type MongoProviderRepo struct {
-	coll *mongo.Collection
-}
-
-// NewMongoProviderRepo creates a new instance of ProviderRepository using MongoDB.
-func NewMongoProviderRepo() ProviderRepository {
-	coll := database.MongoClient.Database("bloomify").Collection("providers")
-	repo := &MongoProviderRepo{coll: coll}
-
-	if err := repo.ensureIndexes(); err != nil {
-		fmt.Printf("failed to create indexes: %v\n", err)
-	}
-	return repo
-}
-
-// newContext creates a context with the given timeout.
-func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), timeout)
-}
 
 // GetByIDWithProjection retrieves a provider by its unique ID using a projection.
 // Pass nil for projection if you want the full document with sensitive fields omitted by default.
