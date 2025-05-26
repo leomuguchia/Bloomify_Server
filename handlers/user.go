@@ -12,17 +12,11 @@ import (
 	"go.uber.org/zap"
 )
 
-var userService user.UserService
-
-func SetUserService(us user.UserService) {
-	userService = us
-}
-
 // RegisterUserHandler orchestrates the three-step registration process.
 // "basic": Initiates registration (returns code 100 on success).
 // "otp": Verifies the OTP (returns code 101 on success).
 // "preferences": Finalizes registration (returns AuthResponse, code 102).
-func RegisterUserHandler(c *gin.Context) {
+func (h *UserHandler) RegisterUserHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	// Extract device details from context.
@@ -61,7 +55,7 @@ func RegisterUserHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing basic registration data"})
 			return
 		}
-		sessionID, code, err := userService.InitiateRegistration(*req.BasicData, device)
+		sessionID, code, err := h.UserService.InitiateRegistration(*req.BasicData, device)
 		if err != nil {
 			logger.Error("Basic registration failed", zap.Error(err))
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -75,7 +69,7 @@ func RegisterUserHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sessionID or OTP for verification"})
 			return
 		}
-		code, err := userService.VerifyRegistrationOTP(req.SessionID, device.DeviceID, req.OTP)
+		code, err := h.UserService.VerifyRegistrationOTP(req.SessionID, device.DeviceID, req.OTP)
 		if err != nil {
 			logger.Error("OTP verification failed", zap.Error(err))
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -93,7 +87,10 @@ func RegisterUserHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Preferences are required to finalize registration"})
 			return
 		}
-		authResp, err := userService.FinalizeRegistration(req.SessionID, req.Preferences)
+		if !req.EmailUpdates {
+			req.EmailUpdates = false // Default to false if not provided
+		}
+		authResp, err := h.UserService.FinalizeRegistration(req.SessionID, req.Preferences, req.EmailUpdates)
 		if err != nil {
 			logger.Error("Finalizing registration failed", zap.Error(err))
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -109,7 +106,7 @@ func RegisterUserHandler(c *gin.Context) {
 
 // AuthenticateUserHandler handles user sign‑in with device management and OTP.
 // It expects JSON containing email, password, and optionally a sessionID.
-func AuthenticateUserHandler(c *gin.Context) {
+func (h *UserHandler) AuthenticateUserHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 
 	// Bind the login request.
@@ -144,7 +141,7 @@ func AuthenticateUserHandler(c *gin.Context) {
 	}
 
 	// Call the authentication service with device management.
-	authResp, err := userService.AuthenticateUser(req.Email, req.Password, currentDevice, req.SessionID)
+	authResp, err := h.UserService.AuthenticateUser(req.Email, req.Password, currentDevice, req.SessionID)
 	if err != nil {
 		// If OTP is pending, return that information.
 		if otpErr, ok := err.(user.OTPPendingError); ok {
@@ -166,7 +163,7 @@ func AuthenticateUserHandler(c *gin.Context) {
 
 // RevokeUserAuthTokenHandler handles token revocation for a user.
 // It requires the user ID in the URL parameter and uses the device details from context.
-func RevokeUserAuthTokenHandler(c *gin.Context) {
+func (h *UserHandler) RevokeUserAuthTokenHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	userID := c.Param("id")
 
@@ -178,7 +175,7 @@ func RevokeUserAuthTokenHandler(c *gin.Context) {
 	}
 
 	// Call the service to revoke the token for this specific device.
-	if err := userService.RevokeUserAuthToken(userID, deviceID.(string)); err != nil {
+	if err := h.UserService.RevokeUserAuthToken(userID, deviceID.(string)); err != nil {
 		logger.Error("Revoke token error", zap.String("userID", userID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

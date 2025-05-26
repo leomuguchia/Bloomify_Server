@@ -97,16 +97,14 @@ func (s *DefaultProviderService) RevokeProviderAuthToken(providerID, deviceID st
 		return fmt.Errorf("device not found")
 	}
 
-	// Build update document to patch only devices and updated_at.
+	// Build update document to patch only devices and updatedAt.
 	updateDoc := bson.M{
-		"$set": bson.M{
-			"devices":    provider.Devices,
-			"updated_at": time.Now(),
-		},
+		"devices":   provider.Devices,
+		"updatedAt": time.Now(),
 	}
 
 	// Update the provider record using UpdateWithDocument.
-	if err := s.Repo.UpdateWithDocument(providerID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSet(providerID, updateDoc); err != nil {
 		return fmt.Errorf("failed to revoke provider auth token: %w", err)
 	}
 

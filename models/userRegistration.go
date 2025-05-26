@@ -14,11 +14,12 @@ type UserBasicRegistrationData struct {
 // UserRegistrationRequest is the composite payload for multi‑step user registration.
 // For users, we support three steps: "basic", "otp", and "preferences".
 type UserRegistrationRequest struct {
-	Step        string                     `json:"step"`                  // "basic", "otp", or "preferences"
-	SessionID   string                     `json:"sessionID,omitempty"`   // Provided in "otp" and "preferences" steps
-	OTP         string                     `json:"otp,omitempty"`         // Provided in the "otp" step
-	BasicData   *UserBasicRegistrationData `json:"basicData,omitempty"`   // Provided in "basic" (and repeated in "otp" if needed)
-	Preferences []string                   `json:"preferences,omitempty"` // Provided in "preferences" step
+	Step         string                     `json:"step"`                   // "basic", "otp", or "preferences"
+	SessionID    string                     `json:"sessionID,omitempty"`    // Provided in "otp" and "preferences" steps
+	OTP          string                     `json:"otp,omitempty"`          // Provided in the "otp" step
+	BasicData    *UserBasicRegistrationData `json:"basicData,omitempty"`    // Provided in "basic" (and repeated in "otp" if needed)
+	Preferences  []string                   `json:"preferences,omitempty"`  // Provided in "preferences" step
+	EmailUpdates bool                       `json:"emailUpdates,omitempty"` // Whether to send email updates
 }
 
 // UserRegistrationSession holds all transient data during the multi‑step registration process.

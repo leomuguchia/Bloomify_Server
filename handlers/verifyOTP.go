@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bloomify/models"
-	"bloomify/services/provider"
 	"bloomify/utils"
 	"net/http"
 	"strings"
@@ -11,9 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var providerService provider.ProviderService
-
-func VerifyOTPHandler(c *gin.Context) {
+func (h *UserHandler) VerifyOTPHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	var req struct {
 		SessionID   string `json:"sessionId" binding:"required"`
@@ -79,7 +76,7 @@ func VerifyOTPHandler(c *gin.Context) {
 
 	switch req.AccountType {
 	case "user":
-		resp, err := userService.AuthenticateUser(req.Email, req.Password, device, req.SessionID)
+		resp, err := h.UserService.AuthenticateUser(req.Email, req.Password, device, req.SessionID)
 		if err != nil {
 			logger.Error("VerifyOTPHandler: User authentication failed", zap.Error(err))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -87,7 +84,7 @@ func VerifyOTPHandler(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, resp)
 	case "provider":
-		resp, err := providerService.AuthenticateProvider(req.Email, req.Password, device, req.SessionID)
+		resp, err := h.ProviderService.AuthenticateProvider(req.Email, req.Password, device, req.SessionID)
 		if err != nil {
 			logger.Error("VerifyOTPHandler: Provider authentication failed", zap.Error(err))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})

@@ -93,7 +93,7 @@ func (s *DefaultUserService) VerifyRegistrationOTP(sessionID string, deviceID st
 
 // FinalizeRegistration retrieves the session, builds and persists the user record using stored basic data and provided preferences,
 // clears the registration session, and returns an AuthResponse. (Finalization corresponds to code 102.)
-func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences []string) (*AuthResponse, error) {
+func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences []string, emailUpdates bool) (*AuthResponse, error) {
 	sessionClient := utils.GetAuthCacheClient()
 	regSession, err := GetUserRegistrationSession(sessionClient, sessionID)
 	if err != nil {
@@ -116,17 +116,28 @@ func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences 
 		return nil, fmt.Errorf("registration failed, please try again")
 	}
 
+	var DefaultSafetySettings = models.SafetySettings{
+		NoShowThresholdMinutes: 15,
+		SafetyReminderMinutes:  10,
+		RequireInsured:         false,
+		AlertChannel:           "both",
+		EmailUpdates:           false,
+	}
+
 	userObj := models.User{
-		Username:     regSession.BasicData.Username,
-		Email:        regSession.BasicData.Email,
-		PhoneNumber:  regSession.BasicData.PhoneNumber,
-		PasswordHash: string(hashedPassword),
-		Password:     "",
-		Preferences:  preferences,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		Username:       regSession.BasicData.Username,
+		Email:          regSession.BasicData.Email,
+		PhoneNumber:    regSession.BasicData.PhoneNumber,
+		PasswordHash:   string(hashedPassword),
+		Password:       "",
+		Preferences:    preferences,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		Rating:         3.0,
+		SafetySettings: DefaultSafetySettings,
 	}
 	userObj.ID = uuid.New().String()
+	userObj.SafetySettings.EmailUpdates = emailUpdates
 
 	if len(regSession.Devices) == 0 {
 		return nil, fmt.Errorf("registration session missing device information")

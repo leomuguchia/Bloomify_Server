@@ -24,6 +24,7 @@ type HandlerBundle struct {
 	SetupTimeslotsHandler          gin.HandlerFunc
 	GetTimeslotsHandler            gin.HandlerFunc
 	DeleteTimeslotHandler          gin.HandlerFunc
+	ProviderLegalDocumentation     gin.HandlerFunc
 
 	// Provider device endpoints
 	GetProviderDevicesHandler          gin.HandlerFunc
@@ -53,6 +54,8 @@ type HandlerBundle struct {
 	RevokeUserAuthTokenHandler gin.HandlerFunc
 	UpdateUserPasswordHandler  gin.HandlerFunc
 	UpdateFCMTokenHandler      gin.HandlerFunc
+	UserLegalDocumentation     gin.HandlerFunc
+	UpdateSafetyPreferences    gin.HandlerFunc
 
 	// User device endpoints
 	GetUserDevicesHandler          gin.HandlerFunc
@@ -68,7 +71,10 @@ type HandlerBundle struct {
 	ResetProviderPasswordHandler gin.HandlerFunc
 
 	// Admin endpoints
-	AdminHandler *AdminHandler
+	AdminHandler            *AdminHandler
+	AdminLegalDocumentation gin.HandlerFunc
+	GetAllProvidersHandler  gin.HandlerFunc
+	GetAllUsersHandler      gin.HandlerFunc
 
 	// Storage endpoints
 	StorageHandler           *StorageHandler

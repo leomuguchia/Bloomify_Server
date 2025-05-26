@@ -1,22 +1,28 @@
 package providerRepo
 
 import (
-	"bloomify/models"
 	"context"
 	"fmt"
 	"time"
 
+	"bloomify/models"
+	"bloomify/utils"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.uber.org/zap"
 )
 
 func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]models.Provider, error) {
+	logger := utils.GetLogger()
+	logger.Debug("AdvancedSearch: received criteria", zap.Any("criteria", criteria))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var pipeline mongo.Pipeline
 
-	// 1) $geoNear: must come first to filter+sort by distance
+	// 1. Geo filter
 	if criteria.MaxDistanceKm > 0 && len(criteria.LocationGeo.Coordinates) == 2 {
 		pipeline = append(pipeline, bson.D{
 			{Key: "$geoNear", Value: bson.D{
@@ -31,50 +37,60 @@ func (r *MongoProviderRepo) AdvancedSearch(criteria ProviderSearchCriteria) ([]m
 		})
 	}
 
-	// 2) $match: active/online + must have at least one timeslot
-	matchFilter := bson.M{
+	// 2. Filter by status and at least one timeslot
+	match := bson.M{
 		"profile.status": bson.M{"$in": []string{"active", "online"}},
-		"timeSlotRefs":   bson.M{"$exists": true, "$ne": bson.A{}},
+		// ensure timeSlotRefs exists and is non-empty
+		"$expr": bson.M{"$gt": bson.A{
+			bson.M{"$size": bson.M{"$ifNull": bson.A{"$timeSlotRefs", bson.A{}}}},
+			0,
+		}},
 	}
 	if criteria.ServiceType != "" {
-		matchFilter["serviceCatalogue.service.id"] = bson.M{"$regex": criteria.ServiceType, "$options": "i"}
+		match["serviceCatalogue.service.id"] = bson.M{"$regex": criteria.ServiceType, "$options": "i"}
 	}
 	if criteria.CustomOption != "" {
-		matchFilter["serviceCatalogue.customOptions"] = bson.M{"$elemMatch": bson.M{
-			"option": bson.M{"$regex": criteria.CustomOption, "$options": "i"},
-		}}
+		match["serviceCatalogue.customOptions"] = bson.M{
+			"$elemMatch": bson.M{"option": bson.M{"$regex": criteria.CustomOption, "$options": "i"}},
+		}
 	}
-	if criteria.Mode != "" {
-		matchFilter["serviceCatalogue.mode"] = criteria.Mode
+
+	if len(criteria.Modes) > 0 {
+		match["serviceCatalogue.mode"] = bson.M{
+			"$in": criteria.Modes,
+		}
 	}
-	pipeline = append(pipeline, bson.D{{Key: "$match", Value: matchFilter}})
 
-	// 3) $addFields: compute slotCount and activeCount
-	pipeline = append(pipeline, bson.D{
-		{Key: "$addFields", Value: bson.M{
-			"slotCount":   bson.M{"$size": "$timeSlotRefs"},
-			"activeCount": bson.M{"$size": "$activeBookings"},
-		}},
-	})
+	pipeline = append(pipeline, bson.D{{Key: "$match", Value: match}})
 
-	// 4) $sort: verified first, then most slots, nearest, then lightest load
-	pipeline = append(pipeline, bson.D{{Key: "$sort", Value: bson.D{
-		{Key: "profile.advancedVerified", Value: -1}, // true before false
-		{Key: "slotCount", Value: -1},                // more slots first
-		{Key: "distance", Value: 1},                  // nearer first
-		{Key: "activeCount", Value: 1},               // fewer active bookings first
-	}}})
+	// 3. Add computed fields, safely handling missing arrays
+	pipeline = append(pipeline, bson.D{{
+		Key: "$addFields", Value: bson.M{
+			"slotCount": bson.M{
+				"$size": bson.M{"$ifNull": bson.A{"$timeSlotRefs", bson.A{}}},
+			},
+			"activeCount": bson.M{
+				"$size": bson.M{"$ifNull": bson.A{"$activeBookings", bson.A{}}},
+			},
+		},
+	}})
 
-	// Execute pipeline
+	// 🚫 4. No $sort here — we sort in Go
+
+	logger.Debug("AdvancedSearch: final pipeline", zap.Any("pipeline", pipeline))
+
 	cursor, err := r.coll.Aggregate(ctx, pipeline)
 	if err != nil {
+		logger.Error("AdvancedSearch: aggregation failed", zap.Error(err))
 		return nil, fmt.Errorf("aggregation query failed: %w", err)
 	}
 	defer cursor.Close(ctx)
 
 	var providers []models.Provider
 	if err := cursor.All(ctx, &providers); err != nil {
+		logger.Error("AdvancedSearch: decode failed", zap.Error(err))
 		return nil, fmt.Errorf("failed to decode providers: %w", err)
 	}
+
 	return providers, nil
 }

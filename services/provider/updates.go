@@ -95,11 +95,7 @@ func (s *DefaultProviderService) UpdateProvider(c context.Context, id string, up
 	updateFields["updatedAt"] = time.Now()
 	existing.UpdatedAt = time.Now()
 
-	updateDoc := bson.M{
-		"$set": updateFields,
-	}
-
-	if err := s.Repo.UpdateWithDocument(existing.ID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSet(existing.ID, updateFields); err != nil {
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
@@ -157,14 +153,12 @@ func (s *DefaultProviderService) UpdateProviderPassword(providerID, currentPassw
 	}
 
 	updateDoc := bson.M{
-		"$set": bson.M{
-			"password_hash": existing.Security.PasswordHash,
-			"updated_at":    existing.UpdatedAt,
-			"devices":       existing.Devices,
-		},
+		"passwordHash": existing.Security.PasswordHash,
+		"updatedAt":    existing.UpdatedAt,
+		"devices":      existing.Devices,
 	}
 
-	if err := s.Repo.UpdateWithDocument(providerID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSet(providerID, updateDoc); err != nil {
 		return nil, fmt.Errorf("failed to update provider password: %w", err)
 	}
 	return s.Repo.GetByIDWithProjection(providerID, nil)

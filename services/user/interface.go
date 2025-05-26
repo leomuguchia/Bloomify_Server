@@ -8,7 +8,7 @@ import (
 type UserService interface {
 	InitiateRegistration(basicData models.UserBasicRegistrationData, device models.Device) (string, int, error)
 	VerifyRegistrationOTP(sessionID string, deviceID string, providedOTP string) (int, error)
-	FinalizeRegistration(sessionID string, preferences []string) (*AuthResponse, error)
+	FinalizeRegistration(sessionID string, preferences []string, emailUpdates bool) (*AuthResponse, error)
 	AuthenticateUser(email, password string, currentDevice models.Device, providedSessionID string) (*AuthResponse, error)
 	UpdateUser(user models.User) (*models.User, error)
 	GetUserByID(userID string) (*models.User, error)

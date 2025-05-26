@@ -18,11 +18,11 @@ import (
 func (s *DefaultProviderService) AuthenticateProvider(email, password string, currentDevice models.Device, providedSessionID string) (*models.ProviderAuthResponse, error) {
 	// 1. Fetch provider details using a projection.
 	projection := bson.M{
-		"password_hash": 1,
-		"id":            1,
-		"email":         1,
-		"devices":       1,
-		"profile":       1,
+		"passwordHash": 1,
+		"id":           1,
+		"email":        1,
+		"devices":      1,
+		"profile":      1,
 	}
 	provider, err := s.Repo.GetByEmailWithProjection(email, projection)
 	if err != nil {
@@ -138,12 +138,10 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 
 	// 10. Build an update document to patch the devices field and updated timestamp in one call.
 	updateDoc := bson.M{
-		"$set": bson.M{
-			"devices":    provider.Devices,
-			"updated_at": time.Now(),
-		},
+		"devices":   provider.Devices,
+		"updatedAt": time.Now(),
 	}
-	if err := s.Repo.UpdateWithDocument(provider.ID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSet(provider.ID, updateDoc); err != nil {
 		utils.GetLogger().Error("Failed to update provider with device token hash", zap.Error(err))
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}

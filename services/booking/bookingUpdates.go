@@ -150,19 +150,23 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 
 	now := time.Now()
 
-	updateDoc := bson.M{
-		"$push": bson.M{
-			"notifications":  notification,
-			"activeBookings": activeBooking,
-		},
-		"$set": bson.M{
-			"updatedAt": now,
-		},
+	// Push to notifications and activeBookings
+	pushDoc := bson.M{
+		"notifications":  notification,
+		"activeBookings": activeBooking,
 	}
-
-	err = se.ProviderRepo.UpdateWithDocument(provider.ID, updateDoc)
+	err = se.ProviderRepo.UpdatePush(provider.ID, pushDoc)
 	if err != nil {
 		log.Printf("[UpdateProviderWithBookingNotification] Failed to update provider: %v", err)
+		return false
+	}
+
+	// Set updatedAt field
+	setDoc := bson.M{
+		"updatedAt": now,
+	}
+	err = se.ProviderRepo.UpdateSet(provider.ID, setDoc)
+	if err != nil {
 		return false
 	}
 

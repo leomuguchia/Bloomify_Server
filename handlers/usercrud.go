@@ -9,12 +9,22 @@ import (
 	"go.uber.org/zap"
 )
 
-func GetUserByIDHandler(c *gin.Context) {
+func (h *UserHandler) GetUserByIDHandler(c *gin.Context) {
 	logger := utils.GetLogger()
-	id := c.Param("id")
-	usr, err := userService.GetUserByID(id)
+	id, ok := c.Get("userID")
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device details: X-Device-ID"})
+		return
+	}
+	idStr, ok := id.(string)
+	if !ok {
+		logger.Error("Invalid user ID type", zap.Any("userID", id))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+	usr, err := h.UserService.GetUserByID(idStr)
 	if err != nil {
-		logger.Error("User not found", zap.String("id", id), zap.Error(err))
+		logger.Error("User not found", zap.String("id", idStr), zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
@@ -22,10 +32,10 @@ func GetUserByIDHandler(c *gin.Context) {
 }
 
 // GetUserByEmailHandler handles GET /users/email/:email.
-func GetUserByEmailHandler(c *gin.Context) {
+func (h *UserHandler) GetUserByEmailHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	email := c.Param("email")
-	usr, err := userService.GetUserByEmail(email)
+	usr, err := h.UserService.GetUserByEmail(email)
 	if err != nil {
 		logger.Error("User not found by email", zap.String("email", email), zap.Error(err))
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -34,7 +44,7 @@ func GetUserByEmailHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, usr)
 }
 
-func UpdateUserHandler(c *gin.Context) {
+func (h *UserHandler) UpdateUserHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	idVal, exists := c.Get("userID")
 	if !exists {
@@ -57,7 +67,7 @@ func UpdateUserHandler(c *gin.Context) {
 	}
 	reqUser.ID = id
 
-	updatedUser, err := userService.UpdateUser(reqUser)
+	updatedUser, err := h.UserService.UpdateUser(reqUser)
 	if err != nil {
 		logger.Error("Update error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -67,10 +77,10 @@ func UpdateUserHandler(c *gin.Context) {
 }
 
 // DeleteUserHandler handles DELETE /users/delete/:id.
-func DeleteUserHandler(c *gin.Context) {
+func (h *UserHandler) DeleteUserHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	id := c.Param("id")
-	if err := userService.DeleteUser(id); err != nil {
+	if err := h.UserService.DeleteUser(id); err != nil {
 		logger.Error("Delete error", zap.String("id", id), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,7 +90,7 @@ func DeleteUserHandler(c *gin.Context) {
 
 // UpdateUserPasswordHandler handles PUT /users/password/:id.
 // It expects a JSON payload with "currentPassword" and "newPassword".
-func UpdateUserPasswordHandler(c *gin.Context) {
+func (h *UserHandler) UpdateUserPasswordHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 	userID := c.Param("id")
 
@@ -101,7 +111,7 @@ func UpdateUserPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := userService.UpdateUserPassword(userID, req.CurrentPassword, req.NewPassword, deviceID.(string))
+	updatedUser, err := h.UserService.UpdateUserPassword(userID, req.CurrentPassword, req.NewPassword, deviceID.(string))
 	if err != nil {
 		logger.Error("Failed to update user password", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -109,4 +119,14 @@ func UpdateUserPasswordHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, updatedUser)
+}
+
+func (uh *UserHandler) UserLegalDocumentation(c *gin.Context) {
+	sections := uh.AdminService.GetLegalSectionsFor("User")
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"version": "v1.0",
+		"data":    sections,
+	})
 }

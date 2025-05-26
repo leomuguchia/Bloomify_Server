@@ -118,10 +118,8 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 
 	// Update the user record.
 	updateDoc := bson.M{
-		"$set": bson.M{
-			"devices":    userRec.Devices,
-			"updated_at": time.Now(),
-		},
+		"devices":   userRec.Devices,
+		"updatedAt": time.Now(),
 	}
 	if err := s.Repo.UpdateWithDocument(userRec.ID, updateDoc); err != nil {
 		return nil, fmt.Errorf("authentication failed, please try again")

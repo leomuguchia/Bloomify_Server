@@ -10,6 +10,7 @@ type ProviderBasicRegistrationData struct {
 	PhoneNumber  string   `json:"phoneNumber"`
 	Address      string   `json:"address,omitempty"`
 	LocationGeo  GeoPoint `json:"locationGeo"`
+	Description  string   `json:"description"`
 }
 
 type KYPVerificationData struct {
@@ -50,6 +51,7 @@ type ProviderDTO struct {
 	LocationGeo      GeoPoint         `json:"locationGeo"`
 	Preferred        bool             `json:"preferred"`
 	Proximity        float64          `json:"proximity"`
+	Icon             string           `json:"icon,omitempty"`
 }
 
 type ProviderAuthResponse struct {

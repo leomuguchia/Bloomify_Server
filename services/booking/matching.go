@@ -12,12 +12,17 @@ import (
 	"bloomify/models"
 )
 
+// Algorithmic matching service for providers based on service plans and proximity.
+// This service matches providers to service plans based on various criteria
+// such as service type, mode, and geographical proximity.
+// It also provides a method to find nearby providers based on a given location.
 // RankedProvider holds provider data along with computed score and proximity.
 type RankedProvider struct {
-	Provider   models.Provider
-	RankPoints float64
-	Preferred  bool
-	Proximity  float64
+	Provider       models.Provider
+	RankPoints     float64
+	Preferred      bool
+	Proximity      float64
+	ScoreBreakdown map[string]float64
 }
 
 // MatchingService defines the interface for matching providers.
@@ -37,7 +42,7 @@ func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]mode
 	log.Printf("Received ServicePlan: %+v", plan)
 	criteria := repository.ProviderSearchCriteria{
 		ServiceType:   plan.ServiceType,
-		Mode:          plan.Mode,
+		Modes:         []string{plan.Mode},
 		MaxDistanceKm: 5,
 		LocationGeo:   plan.LocationGeo,
 	}
@@ -53,119 +58,25 @@ func (s *DefaultMatchingService) MatchProviders(plan models.ServicePlan) ([]mode
 	return extractProvidersDTO(rankedProviders), nil
 }
 
-// matchProviders performs the actual provider search, scoring and ranking.
-func (s *DefaultMatchingService) matchProviders(criteria repository.ProviderSearchCriteria, ctx context.Context) ([]RankedProvider, error) {
+func (s *DefaultMatchingService) matchProviders(
+	criteria repository.ProviderSearchCriteria,
+	ctx context.Context,
+) ([]RankedProvider, error) {
 	providers, err := s.ProviderRepo.AdvancedSearch(criteria)
 	if err != nil {
 		return nil, fmt.Errorf("advanced search failed: %w", err)
 	}
-	// If no providers are found at all, return an empty slice.
 	if len(providers) == 0 {
-		return []RankedProvider{}, nil
+		return nil, nil
 	}
-
 	if len(criteria.LocationGeo.Coordinates) < 2 {
-		return nil, fmt.Errorf("invalid search center coordinates")
+		return nil, fmt.Errorf("invalid center coords")
 	}
 	centerLon := criteria.LocationGeo.Coordinates[0]
 	centerLat := criteria.LocationGeo.Coordinates[1]
 
-	const (
-		MaxLocationPoints = 45.0
-		VerifiedBonus     = 20.0
-		MaxCompletedPts   = 20.0
-		MaxRatingPts      = 15.0
-	)
-
-	computeLocationScore := func(distanceKm float64) float64 {
-		if distanceKm >= 5 {
-			return 0
-		}
-		return MaxLocationPoints * (1 - distanceKm/5)
-	}
-	computeCompletedScore := func(completed int) float64 {
-		return math.Log10(float64(completed+1)) * MaxCompletedPts / math.Log10(101)
-	}
-	computeRatingScore := func(rating float64) float64 {
-		if rating > 5 {
-			rating = 5
-		}
-		return (rating / 5) * MaxRatingPts
-	}
-
-	// scoreData holds temporary scoring details.
-	type scoreData struct {
-		Provider       models.Provider
-		TotalScore     float64
-		LocationScore  float64
-		VerifiedScore  float64
-		CompletedScore float64
-		RatingScore    float64
-		DistanceKm     float64 // distance in km
-	}
-
-	resultsCh := make(chan scoreData, len(providers))
-	var wg sync.WaitGroup
-
-	for _, p := range providers {
-		wg.Add(1)
-		go func(p models.Provider) {
-			defer wg.Done()
-			var provLat, provLon float64
-			if len(p.Profile.LocationGeo.Coordinates) >= 2 {
-				provLon = p.Profile.LocationGeo.Coordinates[0]
-				provLat = p.Profile.LocationGeo.Coordinates[1]
-			}
-			// Compute distance in km.
-			distanceKm := haversine(centerLat, centerLon, provLat, provLon)
-			locScore := computeLocationScore(distanceKm)
-			var verifiedScore float64
-			if p.Profile.AdvancedVerified {
-				verifiedScore = VerifiedBonus
-			}
-			compScore := computeCompletedScore(p.CompletedBookings)
-			ratingScore := computeRatingScore(p.Profile.Rating)
-			totalScore := locScore + verifiedScore + compScore + ratingScore
-
-			resultsCh <- scoreData{
-				Provider:       p,
-				TotalScore:     totalScore,
-				LocationScore:  locScore,
-				VerifiedScore:  verifiedScore,
-				CompletedScore: compScore,
-				RatingScore:    ratingScore,
-				DistanceKm:     distanceKm,
-			}
-		}(p)
-	}
-
-	wg.Wait()
-	close(resultsCh)
-
-	var scores []scoreData
-	for s := range resultsCh {
-		scores = append(scores, s)
-	}
-
-	sort.Slice(scores, func(i, j int) bool {
-		return scores[i].TotalScore > scores[j].TotalScore
-	})
-
-	var ranked []RankedProvider
-	for i, sd := range scores {
-		ranked = append(ranked, RankedProvider{
-			Provider:   sd.Provider,
-			RankPoints: sd.TotalScore,
-			Preferred:  i == 0,
-			// Convert km to metres.
-			Proximity: sd.DistanceKm * 1000,
-		})
-	}
-	if len(ranked) > 20 {
-		ranked = ranked[:20]
-	}
-
-	return ranked, nil
+	// Score + rank top 20
+	return scoreAndRankProviders(providers, centerLat, centerLon, 20), nil
 }
 
 func haversine(lat1, lon1, lat2, lon2 float64) float64 {
@@ -180,34 +91,33 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	return R * c
 }
 
-func (s *DefaultMatchingService) MatchNearbyProviders(location models.GeoPoint) ([]models.ProviderDTO, error) {
+func (s *DefaultMatchingService) MatchNearbyProviders(
+	location models.GeoPoint,
+) ([]models.ProviderDTO, error) {
 	criteria := repository.ProviderSearchCriteria{
 		LocationGeo:   location,
-		MaxDistanceKm: 50,
+		MaxDistanceKm: 5,
+		Modes:         []string{"in_store", "pickup_delivery"},
 	}
-	providers, err := s.ProviderRepo.AdvancedSearch(criteria)
+	// Reuse matchProviders (which in turn does AdvancedSearch + scoring)
+	ranked, err := s.matchProviders(criteria, context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to find nearby providers: %w", err)
 	}
 
+	// Map RankedProvider → ProviderDTO
 	var dtos []models.ProviderDTO
-	for i, p := range providers {
-		var proximity float64
-		coords := p.Profile.LocationGeo.Coordinates
-		if len(coords) >= 2 {
-			lon, lat := coords[0], coords[1]
-			proximity = haversine(location.Coordinates[1], location.Coordinates[0], lat, lon) * 1000
-		}
+	for _, rp := range ranked {
+		p := rp.Provider
 		dtos = append(dtos, models.ProviderDTO{
 			ID:               p.ID,
 			Profile:          p.Profile,
 			ServiceCatalogue: p.ServiceCatalogue,
 			LocationGeo:      p.Profile.LocationGeo,
-			Preferred:        i == 0,
-			Proximity:        proximity,
+			Preferred:        rp.Preferred,
+			Proximity:        rp.Proximity,
 		})
 	}
-
 	return dtos, nil
 }
 
@@ -225,4 +135,103 @@ func extractProvidersDTO(ranked []RankedProvider) []models.ProviderDTO {
 		dtos = append(dtos, dto)
 	}
 	return dtos
+}
+
+// scoreAndRankProviders applies your weighted formula and returns top N
+func scoreAndRankProviders(
+	providers []models.Provider,
+	centerLat, centerLon float64,
+	maxResults int,
+) []RankedProvider {
+	const (
+		MaxLocationPoints = 30.0
+		VerifiedBonus     = 15.0
+		MaxCompletedPts   = 25.0
+		MaxRatingPts      = 20.0
+		MaxSlotPts        = 10.0
+		MaxDistanceKm     = 5.0
+	)
+
+	computeLocationScore := func(distKm float64) float64 {
+		if distKm >= MaxDistanceKm {
+			return 0
+		}
+		return MaxLocationPoints * (1 - distKm/MaxDistanceKm)
+	}
+	computeCompletedScore := func(c int) float64 {
+		return math.Log10(float64(c+1)) * MaxCompletedPts / math.Log10(101)
+	}
+	computeRatingScore := func(r float64) float64 {
+		if r > 5 {
+			r = 5
+		}
+		return (r / 5) * MaxRatingPts
+	}
+	computeSlotScore := func(count int) float64 {
+		if count >= 20 {
+			return MaxSlotPts
+		}
+		return float64(count) / 20.0 * MaxSlotPts
+	}
+
+	type scoreData struct {
+		sd RankedProvider
+	}
+	ch := make(chan RankedProvider, len(providers))
+	var wg sync.WaitGroup
+
+	for _, p := range providers {
+		wg.Add(1)
+		go func(p models.Provider) {
+			defer wg.Done()
+			lon, lat := 0.0, 0.0
+			if len(p.Profile.LocationGeo.Coordinates) >= 2 {
+				lon = p.Profile.LocationGeo.Coordinates[0]
+				lat = p.Profile.LocationGeo.Coordinates[1]
+			}
+			distKm := haversine(centerLat, centerLon, lat, lon)
+			locS := computeLocationScore(distKm)
+			verS := 0.0
+			if p.Profile.AdvancedVerified {
+				verS = VerifiedBonus
+			}
+			compS := computeCompletedScore(p.CompletedBookings)
+			ratS := computeRatingScore(p.Profile.Rating)
+			slotCount := len(p.TimeSlotRefs)
+			slotS := computeSlotScore(slotCount)
+			total := locS + verS + compS + ratS + slotS
+
+			ch <- RankedProvider{
+				Provider:   p,
+				RankPoints: total,
+				Proximity:  distKm * 1000,
+				ScoreBreakdown: map[string]float64{
+					"proximity": locS,
+					"verified":  verS,
+					"completed": compS,
+					"rating":    ratS,
+					"slots":     slotS,
+				},
+			}
+		}(p)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	var scored []RankedProvider
+	for rp := range ch {
+		scored = append(scored, rp)
+	}
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].RankPoints > scored[j].RankPoints
+	})
+
+	if len(scored) > maxResults {
+		scored = scored[:maxResults]
+	}
+	for i := range scored {
+		scored[i].Preferred = (i == 0)
+	}
+	return scored
 }

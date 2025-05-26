@@ -109,8 +109,8 @@ func (s *DefaultUserService) ResetPassword(email, providedOTP, newPassword, prov
 	// Build the update document.
 	now := time.Now()
 	updateFields := bson.M{
-		"password_hash": string(newHash),
-		"updated_at":    now,
+		"passwordHash": string(newHash),
+		"updatedAt":    now,
 	}
 
 	// Retain only the current device if more than one device exists.
@@ -132,7 +132,7 @@ func (s *DefaultUserService) ResetPassword(email, providedOTP, newPassword, prov
 	}
 	utils.GetLogger().Debug("ResetPassword: Prepared update fields", zap.Any("updateFields", updateFields))
 
-	updateDoc := bson.M{"$set": updateFields}
+	updateDoc := updateFields
 	if err := s.Repo.UpdateWithDocument(userRec.ID, updateDoc); err != nil {
 		utils.GetLogger().Error("ResetPassword: Failed to update user password", zap.Error(err))
 		return fmt.Errorf("failed to update password")

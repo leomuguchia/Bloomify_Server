@@ -139,7 +139,7 @@ func (h *ProviderHandler) UpdateProviderPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	updatedProvider, err := providerService.UpdateProviderPassword(providerID, req.CurrentPassword, req.NewPassword, deviceID.(string))
+	updatedProvider, err := h.Service.UpdateProviderPassword(providerID, req.CurrentPassword, req.NewPassword, deviceID.(string))
 	if err != nil {
 		logger.Error("Failed to update provider password", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -147,4 +147,14 @@ func (h *ProviderHandler) UpdateProviderPasswordHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, updatedProvider)
+}
+
+func (ph *ProviderHandler) ProviderLegalDocumentation(c *gin.Context) {
+	sections := ph.AdminService.GetLegalSectionsFor("Provider")
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"version": "v1.0",
+		"data":    sections,
+	})
 }

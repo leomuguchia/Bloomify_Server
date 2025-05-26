@@ -18,6 +18,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.POST("/register", hb.RegisterUserHandler)
 		api.POST("/login", hb.AuthenticateUserHandler)
 		api.POST("/reset-password", hb.ResetPasswordHandler)
+		api.GET("/legal", hb.UserLegalDocumentation)
 	}
 
 	// Protected routes
@@ -26,7 +27,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		// middleware.DeviceAuthMiddlewareUser(hb.UserRepo),
 	)
 	{
-		api.GET("/id/:id", hb.GetUserByIDHandler)
+		api.GET("/id", hb.GetUserByIDHandler)
 		api.GET("/email/:email", hb.GetUserByEmailHandler)
 		api.PUT("/update/:id", hb.UpdateUserHandler)
 		api.DELETE("/delete/:id", hb.DeleteUserHandler)
@@ -35,6 +36,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.GET("/devices", hb.GetUserDevicesHandler)
 		api.DELETE("/devices", hb.SignOutOtherUserDevicesHandler)
 		api.POST("/fcm", hb.UpdateFCMTokenHandler)
+		api.PUT("/safety-preferences", hb.UpdateSafetyPreferences)
 	}
 }
 
@@ -46,6 +48,7 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.POST("/register", hb.RegisterProviderHandler)
 		api.POST("/login", hb.AuthenticateProviderHandler)
 		api.POST("/reset-password", hb.ResetProviderPasswordHandler)
+		api.GET("/legal", hb.ProviderLegalDocumentation)
 
 		public := api.Group("")
 		public.GET("/id/:id", middleware.JWTAuthProviderMiddleware(hb.ProviderRepo, true), hb.GetProviderByIDHandler)
@@ -70,6 +73,16 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 			protected.GET("/timeslots", hb.GetTimeslotsHandler)
 			protected.DELETE("/timeslot", hb.DeleteTimeslotHandler)
 		}
+	}
+}
+
+func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
+	adminGroup := r.Group("/api/admin")
+	{
+		adminGroup.Use(middleware.JWTAuthAdminMiddleware())
+		adminGroup.GET("/users", hb.GetAllUsersHandler)
+		adminGroup.GET("/providers", hb.GetAllProvidersHandler)
+		adminGroup.POST("/legal", hb.AdminLegalDocumentation)
 	}
 }
 
@@ -106,16 +119,7 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		bookingGroup.GET("/services", hb.GetAvailableServices)
 		bookingGroup.GET("/directions", hb.GetDirections)
 		bookingGroup.POST("/payment", hb.GetPaymentIntent)
-		bookingGroup.GET("/match", hb.MatchNearbyProviders)
-	}
-}
-
-func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
-	adminGroup := r.Group("/api/admin")
-	{
-		adminGroup.Use(middleware.JWTAuthAdminMiddleware())
-		adminGroup.GET("/users", hb.AdminHandler.GetAllUsersHandler)
-		adminGroup.GET("/providers", hb.AdminHandler.GetAllProvidersHandler)
+		bookingGroup.POST("/nearby", hb.MatchNearbyProviders)
 	}
 }
 

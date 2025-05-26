@@ -132,7 +132,8 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 			Status:       "active",
 			ProfileImage: "https://example.com/default_profile.png",
 			LocationGeo:  session.BasicData.LocationGeo,
-			Rating:       0,
+			Rating:       3.0,
+			Description:  session.BasicData.Description,
 		},
 		ServiceCatalogue: session.ServiceCatalogue,
 		BasicVerification: models.BasicVerification{

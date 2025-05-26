@@ -43,8 +43,8 @@ func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*mo
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -73,8 +73,8 @@ func (r *MongoUserRepo) GetByEmailWithProjection(email string, projection bson.M
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -100,8 +100,8 @@ func (r *MongoUserRepo) GetAllWithProjection(projection bson.M) ([]models.User, 
 	var proj bson.M
 	if projection == nil {
 		proj = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		proj = projection
@@ -128,7 +128,7 @@ func (r *MongoUserRepo) GetAllWithProjection(projection bson.M) ([]models.User, 
 
 // GetAllSafe retrieves all users while excluding sensitive fields.
 func (r *MongoUserRepo) GetAllSafe() ([]models.User, error) {
-	projection := bson.M{"password_hash": 0, "token_hash": 0}
+	projection := bson.M{"passwordHash": 0, "tokenHash": 0}
 	return r.GetAllWithProjection(projection)
 }
 

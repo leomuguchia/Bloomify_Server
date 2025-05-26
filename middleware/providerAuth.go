@@ -187,7 +187,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 		}
 
 		// Cache miss: Query the database.
-		proj := bson.M{"id": 1, "token_hash": 1}
+		proj := bson.M{"id": 1, "tokenHash": 1}
 		prov, err := providerRepo.GetByIDWithProjection(providerID, proj)
 		if err != nil || prov == nil {
 			logger.Error("JWTAuthProviderMiddleware: provider not found in repository", zap.String("providerID", providerID), zap.Error(err))

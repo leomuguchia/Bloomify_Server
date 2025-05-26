@@ -22,8 +22,8 @@ func (s *DefaultProviderService) GetProviderByID(c context.Context, providerID s
 	if access {
 		// Full access: Return all details except sensitive auth fields.
 		projection = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		// Public access: Return only public details.
@@ -53,8 +53,8 @@ func (s *DefaultProviderService) GetProviderByEmail(c context.Context, email str
 	if fullAccess {
 		// Full access: Return all details except sensitive auth fields.
 		projection = bson.M{
-			"password_hash": 0,
-			"token_hash":    0,
+			"passwordHash": 0,
+			"tokenHash":    0,
 		}
 	} else {
 		// Public access: Return only public details.

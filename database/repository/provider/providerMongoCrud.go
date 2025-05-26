@@ -54,18 +54,38 @@ func (r *MongoProviderRepo) Delete(id string) error {
 	return nil
 }
 
-// UpdateWithDocument updates a provider using a custom update document.
 func (r *MongoProviderRepo) UpdateWithDocument(id string, updateDoc bson.M) error {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
+	// Wrap in $set to comply with MongoDB update syntax
+	update := bson.M{"$set": updateDoc}
+
 	filter := bson.M{"id": id}
-	result, err := r.coll.UpdateOne(ctx, filter, updateDoc)
+	result, err := r.coll.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update provider with id %s: %w", id, err)
 	}
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("provider with id %s not found", id)
+		return fmt.Errorf("user with id %s not found", id)
+	}
+	return nil
+}
+
+func (r *MongoProviderRepo) UpdatePushDocument(id string, updateDoc bson.M) error {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Wrap in $set to comply with MongoDB update syntax
+	update := bson.M{"$set": updateDoc}
+
+	filter := bson.M{"id": id}
+	result, err := r.coll.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update provider with id %s: %w", id, err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user with id %s not found", id)
 	}
 	return nil
 }

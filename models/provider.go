@@ -21,6 +21,7 @@ type Profile struct {
 	Address          string   `bson:"address" json:"address,omitempty"`
 	Rating           float64  `bson:"rating" json:"rating,omitempty"`
 	LocationGeo      GeoPoint `bson:"locationGeo" json:"locationGeo"`
+	Description      string   `bson:"description,omitempty" json:"description,omitempty"`
 }
 
 type AdvancedVerification struct {

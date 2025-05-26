@@ -17,7 +17,7 @@ type ProviderSearchCriteria struct {
 	Location      string
 	MaxDistanceKm float64
 	LocationGeo   models.GeoPoint
-	Mode          string
+	Modes         []string
 	CustomOption  string
 }
 
@@ -48,7 +48,8 @@ type ProviderRepository interface {
 	// GetByServiceTypeWithProjection retrieves providers by service type with a projection.
 	GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error)
 	// UpdateWithDocument patches a provider document with the specified update document.
-	UpdateWithDocument(id string, updateDoc bson.M) error
+	UpdateSet(id string, updateDoc bson.M) error
+	UpdatePush(id string, updateDoc bson.M) error
 	// IsProviderAvailable checks if a provider with the given basic registration details already exists.
 	IsProviderAvailable(basicReq models.ProviderBasicRegistrationData) (bool, error)
 	FetchTopProviders(ctx context.Context, page, limit int) ([]models.Provider, error)

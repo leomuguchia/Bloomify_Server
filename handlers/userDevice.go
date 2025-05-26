@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"bloomify/models"
+	"bloomify/services/admin"
+	"bloomify/services/provider"
 	"bloomify/services/user"
 	"bloomify/utils"
 	"net/http"
@@ -10,14 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
-type UserDeviceHandler struct {
-	UserService user.UserService
+type UserHandler struct {
+	UserService     user.UserService
+	ProviderService provider.ProviderService
+	AdminService    admin.AdminService
 }
 
-func NewUserDeviceHandler(userService user.UserService) *UserDeviceHandler {
-	return &UserDeviceHandler{UserService: userService}
+func NewUserHandler(userService user.UserService, providerService provider.ProviderService, adminService admin.AdminService) *UserHandler {
+	return &UserHandler{
+		UserService:     userService,
+		ProviderService: providerService,
+		AdminService:    adminService,
+	}
 }
-func (h *UserDeviceHandler) GetUserDevicesHandler(c *gin.Context) {
+func (h *UserHandler) GetUserDevicesHandler(c *gin.Context) {
 	// Retrieve userID from context (set by JWTAuthUserMiddleware)
 	rawUserID, exists := c.Get("userID")
 	if !exists || rawUserID == nil {
@@ -39,7 +47,7 @@ func (h *UserDeviceHandler) GetUserDevicesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"devices": devices})
 }
 
-func (h *UserDeviceHandler) SignOutOtherUserDevicesHandler(c *gin.Context) {
+func (h *UserHandler) SignOutOtherUserDevicesHandler(c *gin.Context) {
 	// Retrieve userID from context (set by JWTAuthUserMiddleware)
 	rawUserID, exists := c.Get("userID")
 	if !exists || rawUserID == nil {
@@ -67,7 +75,7 @@ func (h *UserDeviceHandler) SignOutOtherUserDevicesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Signed out of other devices successfully"})
 }
 
-func (h *UserDeviceHandler) UpdateFCMTokenHandler(c *gin.Context) {
+func (h *UserHandler) UpdateFCMTokenHandler(c *gin.Context) {
 	rawUserID, exists := c.Get("userID")
 	if !exists || rawUserID == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User ID not found in context"})

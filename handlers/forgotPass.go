@@ -15,7 +15,7 @@ type ResetPasswordRequest struct {
 	SessionID   string `json:"sessionID"`
 }
 
-func ResetUserPasswordHandler(c *gin.Context) {
+func (h *UserHandler) ResetUserPasswordHandler(c *gin.Context) {
 	var req ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -29,7 +29,7 @@ func ResetUserPasswordHandler(c *gin.Context) {
 		return
 	}
 
-	err := userService.ResetPassword(req.Email, req.OTP, req.NewPassword, req.SessionID, deviceID.(string))
+	err := h.UserService.ResetPassword(req.Email, req.OTP, req.NewPassword, req.SessionID, deviceID.(string))
 	if err != nil {
 		if otpErr, ok := err.(user.OTPPendingError); ok {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -58,14 +58,14 @@ func ResetUserPasswordHandler(c *gin.Context) {
 	})
 }
 
-func ResetProviderPasswordHandler(c *gin.Context) {
+func (h *ProviderHandler) ResetProviderPasswordHandler(c *gin.Context) {
 	var req ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := providerService.ResetPassword(req.Email, req.OTP, req.NewPassword, req.SessionID)
+	err := h.Service.ResetPassword(req.Email, req.OTP, req.NewPassword, req.SessionID)
 	if err != nil {
 		if otpErr, ok := err.(provider.OTPPendingError); ok {
 			c.JSON(http.StatusUnauthorized, gin.H{

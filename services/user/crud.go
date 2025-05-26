@@ -61,6 +61,9 @@ func (s *DefaultUserService) UpdateUser(user models.User) (*models.User, error) 
 	if len(user.Location.Coordinates) > 0 {
 		updateFields["location"] = user.Location
 	}
+	if user.SafetySettings != (models.SafetySettings{}) {
+		updateFields["safetySettings"] = user.SafetySettings
+	}
 
 	logger.Debug("UpdateUser updateFields", zap.Any("updateFields", updateFields))
 
@@ -135,11 +138,9 @@ func (s *DefaultUserService) UpdateUserPassword(userID, currentPassword, newPass
 	}
 
 	updateDoc := bson.M{
-		"$set": bson.M{
-			"password_hash": existing.PasswordHash,
-			"updated_at":    existing.UpdatedAt,
-			"devices":       existing.Devices,
-		},
+		"passwordHash": existing.PasswordHash,
+		"updatedAt":    existing.UpdatedAt,
+		"devices":      existing.Devices,
 	}
 
 	if err := s.Repo.UpdateWithDocument(userID, updateDoc); err != nil {
@@ -150,7 +151,7 @@ func (s *DefaultUserService) UpdateUserPassword(userID, currentPassword, newPass
 
 // GetUserByID retrieves a user by ID, excluding sensitive fields.
 func (s *DefaultUserService) GetUserByID(userID string) (*models.User, error) {
-	projection := bson.M{"password_hash": 0, "token_hash": 0}
+	projection := bson.M{"passwordHash": 0, "tokenHash": 0}
 	user, err := s.Repo.GetByIDWithProjection(userID, projection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -160,7 +161,7 @@ func (s *DefaultUserService) GetUserByID(userID string) (*models.User, error) {
 
 // GetUserByEmail retrieves a user by email, excluding sensitive fields.
 func (s *DefaultUserService) GetUserByEmail(email string) (*models.User, error) {
-	projection := bson.M{"password_hash": 0, "token_hash": 0}
+	projection := bson.M{"passwordHash": 0, "tokenHash": 0}
 	user, err := s.Repo.GetByEmailWithProjection(email, projection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
@@ -200,13 +201,11 @@ func (s *DefaultUserService) RevokeUserAuthToken(userID, deviceID string) error 
 		return fmt.Errorf("device not found")
 	}
 
-	// Build update document to patch only devices and updated_at.
+	// Build update document to patch only devices and updatedAt.
 	now := time.Now()
 	updateDoc := bson.M{
-		"$set": bson.M{
-			"devices":    user.Devices,
-			"updated_at": now,
-		},
+		"devices":   user.Devices,
+		"updatedAt": now,
 	}
 
 	// Update the user record using UpdateWithDocument.

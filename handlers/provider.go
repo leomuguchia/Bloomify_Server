@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"bloomify/models"
+	"bloomify/services/admin"
 	"bloomify/services/provider"
 	"bloomify/services/user"
 	"bloomify/utils"
@@ -14,11 +15,15 @@ import (
 )
 
 type ProviderHandler struct {
-	Service provider.ProviderService
+	Service      provider.ProviderService
+	AdminService admin.AdminService
 }
 
-func NewProviderHandler(ps provider.ProviderService) *ProviderHandler {
-	return &ProviderHandler{Service: ps}
+func NewProviderHandler(ps provider.ProviderService, as admin.AdminService) *ProviderHandler {
+	return &ProviderHandler{
+		Service:      ps,
+		AdminService: as,
+	}
 }
 
 // RegisterProviderHandler orchestrates the multi‑step registration process.

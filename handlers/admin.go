@@ -4,6 +4,7 @@ package handlers
 import (
 	"net/http"
 
+	"bloomify/services/admin"
 	"bloomify/services/provider"
 	"bloomify/services/user"
 
@@ -15,13 +16,15 @@ import (
 type AdminHandler struct {
 	UserService     user.UserService
 	ProviderService provider.ProviderService
+	AdminService    admin.AdminService
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(us user.UserService, ps provider.ProviderService) *AdminHandler {
+func NewAdminHandler(us user.UserService, ps provider.ProviderService, as admin.AdminService) *AdminHandler {
 	return &AdminHandler{
 		UserService:     us,
 		ProviderService: ps,
+		AdminService:    as,
 	}
 }
 
@@ -45,4 +48,14 @@ func (ah *AdminHandler) GetAllProvidersHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, providers)
+}
+
+func (ah *AdminHandler) AdminLegalDocumentation(c *gin.Context) {
+	sections := ah.AdminService.GetLegalSectionsFor("both")
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"version": "v1.0",
+		"data":    sections,
+	})
 }
