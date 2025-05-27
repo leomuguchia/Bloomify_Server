@@ -19,6 +19,7 @@ type UserService interface {
 	GetUserDevices(userID string) ([]models.Device, error)
 	SignOutOtherDevices(userID, currentDeviceID string) error
 	GetAllUsers() ([]models.User, error)
+	RemoveFromUser(userID, field string, values []any) (*models.User, error)
 	ResetPassword(email, providedOTP, newPassword, providedSessionID, currentDeviceID string) error
 }
 

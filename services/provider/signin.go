@@ -141,7 +141,7 @@ func (s *DefaultProviderService) AuthenticateProvider(email, password string, cu
 		"devices":   provider.Devices,
 		"updatedAt": time.Now(),
 	}
-	if err := s.Repo.UpdateSet(provider.ID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSetDocument(provider.ID, updateDoc); err != nil {
 		utils.GetLogger().Error("Failed to update provider with device token hash", zap.Error(err))
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}

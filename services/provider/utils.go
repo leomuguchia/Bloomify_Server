@@ -104,7 +104,7 @@ func (s *DefaultProviderService) RevokeProviderAuthToken(providerID, deviceID st
 	}
 
 	// Update the provider record using UpdateWithDocument.
-	if err := s.Repo.UpdateSet(providerID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSetDocument(providerID, updateDoc); err != nil {
 		return fmt.Errorf("failed to revoke provider auth token: %w", err)
 	}
 

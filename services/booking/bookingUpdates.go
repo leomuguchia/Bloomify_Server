@@ -144,8 +144,12 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 			ProfileImage: user.ProfileImage,
 			Rating:       user.Rating,
 			PhoneNumber:  user.PhoneNumber,
-			Location:     user.Location,
 		},
+	}
+
+	// Include user location if mode is in_home
+	if booking.Mode == "in_home" {
+		activeBooking.User.Location = user.Location
 	}
 
 	now := time.Now()
@@ -155,7 +159,7 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 		"notifications":  notification,
 		"activeBookings": activeBooking,
 	}
-	err = se.ProviderRepo.UpdatePush(provider.ID, pushDoc)
+	err = se.ProviderRepo.UpdatePushDocument(provider.ID, pushDoc)
 	if err != nil {
 		log.Printf("[UpdateProviderWithBookingNotification] Failed to update provider: %v", err)
 		return false
@@ -165,7 +169,7 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 	setDoc := bson.M{
 		"updatedAt": now,
 	}
-	err = se.ProviderRepo.UpdateSet(provider.ID, setDoc)
+	err = se.ProviderRepo.UpdateSetDocument(provider.ID, setDoc)
 	if err != nil {
 		return false
 	}

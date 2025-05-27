@@ -161,6 +161,7 @@ func main() {
 		VerifyOTPHandler:               userHandler.VerifyOTPHandler,
 		ResetPasswordHandler:           userHandler.ResetUserPasswordHandler,
 		UpdateSafetyPreferences:        userHandler.UpdateSafetyPreferences,
+		UpdateTrustedProviders:         userHandler.UpdateTrustedProviders,
 
 		// Admin endpoints
 		AdminHandler:            adminHandler,

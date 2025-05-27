@@ -37,6 +37,7 @@ func RegisterUserRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		api.DELETE("/devices", hb.SignOutOtherUserDevicesHandler)
 		api.POST("/fcm", hb.UpdateFCMTokenHandler)
 		api.PUT("/safety-preferences", hb.UpdateSafetyPreferences)
+		api.PUT("/trusted-providers", hb.UpdateTrustedProviders)
 	}
 }
 

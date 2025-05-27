@@ -107,7 +107,7 @@ func (s *DefaultProviderService) ResetPassword(email, providedOTP, newPassword, 
 		"passwordHash": string(newHash),
 		"updatedt":     time.Now(),
 	}
-	if err := s.Repo.UpdateSet(provider.ID, updateFields); err != nil {
+	if err := s.Repo.UpdateSetDocument(provider.ID, updateFields); err != nil {
 		utils.GetLogger().Error("ResetPassword: Failed to update provider password", zap.Error(err))
 		return fmt.Errorf("failed to update password")
 	}

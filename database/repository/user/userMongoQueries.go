@@ -2,38 +2,15 @@
 package userRepo
 
 import (
-	"context"
 	"fmt"
 	"time"
 
-	"bloomify/database"
 	"bloomify/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-// MongoUserRepo implements UserRepository using MongoDB.
-type MongoUserRepo struct {
-	coll *mongo.Collection
-}
-
-// NewMongoUserRepo creates a new instance of UserRepository using MongoDB.
-func NewMongoUserRepo() UserRepository {
-	coll := database.MongoClient.Database("bloomify").Collection("users")
-	repo := &MongoUserRepo{coll: coll}
-
-	if err := repo.ensureIndexes(); err != nil {
-		fmt.Printf("failed to create indexes: %v\n", err)
-	}
-	return repo
-}
-
-// newContext creates a context with the given timeout.
-func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), timeout)
-}
 
 // GetByIDWithProjection retrieves a user by its ID with an optional projection.
 func (r *MongoUserRepo) GetByIDWithProjection(id string, projection bson.M) (*models.User, error) {

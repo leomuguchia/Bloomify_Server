@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/zap"
 )
 
@@ -16,6 +17,11 @@ type UserHandler struct {
 	UserService     user.UserService
 	ProviderService provider.ProviderService
 	AdminService    admin.AdminService
+}
+
+type TrustedProvidersUpdateRequest struct {
+	Action           string                   `json:"action"`           // "add" or "remove"
+	TrustedProviders []models.TrustedProvider `json:"trustedProviders"` // must match your model
 }
 
 func NewUserHandler(userService user.UserService, providerService provider.ProviderService, adminService admin.AdminService) *UserHandler {
@@ -110,4 +116,60 @@ func (h *UserHandler) UpdateFCMTokenHandler(c *gin.Context) {
 
 	utils.Logger.Info("Successfully updated FCM token", zap.String("userID", userID))
 	c.JSON(http.StatusOK, updatedUser)
+}
+
+func (h *UserHandler) UpdateTrustedProviders(c *gin.Context) {
+	rawUserID, exists := c.Get("userID")
+	if !exists || rawUserID == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User ID not found in context"})
+		return
+	}
+	userID, ok := rawUserID.(string)
+	if !ok || userID == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req TrustedProvidersUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request format"})
+		return
+	}
+
+	if userID == "" || (req.Action != "add" && req.Action != "remove") || len(req.TrustedProviders) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing or invalid parameters"})
+		return
+	}
+
+	switch req.Action {
+	case "add":
+		user := models.User{
+			ID:               userID,
+			TrustedProviders: req.TrustedProviders,
+		}
+		updated, err := h.UserService.UpdateUser(user)
+		if err != nil {
+			utils.GetLogger().Error("Failed to add trusted providers", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add trusted providers"})
+			return
+		}
+		c.JSON(http.StatusOK, updated)
+
+	case "remove":
+		var providerMatches []interface{}
+		for _, tp := range req.TrustedProviders {
+			providerMatches = append(providerMatches, bson.M{"providerId": tp.ProviderID})
+		}
+
+		updated, err := h.UserService.RemoveFromUser(userID, "trustedProviders", providerMatches)
+		if err != nil {
+			utils.GetLogger().Error("Failed to remove trusted providers", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove trusted providers"})
+			return
+		}
+		c.JSON(http.StatusOK, updated)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported action"})
+	}
 }

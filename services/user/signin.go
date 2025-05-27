@@ -121,7 +121,7 @@ func (s *DefaultUserService) AuthenticateUser(email, password string, currentDev
 		"devices":   userRec.Devices,
 		"updatedAt": time.Now(),
 	}
-	if err := s.Repo.UpdateWithDocument(userRec.ID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSetDocument(userRec.ID, updateDoc); err != nil {
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}
 

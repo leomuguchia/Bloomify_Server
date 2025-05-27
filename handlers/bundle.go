@@ -56,6 +56,7 @@ type HandlerBundle struct {
 	UpdateFCMTokenHandler      gin.HandlerFunc
 	UserLegalDocumentation     gin.HandlerFunc
 	UpdateSafetyPreferences    gin.HandlerFunc
+	UpdateTrustedProviders     gin.HandlerFunc
 
 	// User device endpoints
 	GetUserDevicesHandler          gin.HandlerFunc

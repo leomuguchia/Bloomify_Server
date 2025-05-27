@@ -61,8 +61,7 @@ func (r *MongoUserRepo) Delete(id string) error {
 	return nil
 }
 
-// UpdateWithDocument updates a user using a custom update document.
-func (r *MongoUserRepo) UpdateWithDocument(id string, updateDoc bson.M) error {
+func (r *MongoUserRepo) UpdateSetDocument(id string, updateDoc bson.M) error {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
 
@@ -73,6 +72,53 @@ func (r *MongoUserRepo) UpdateWithDocument(id string, updateDoc bson.M) error {
 	result, err := r.coll.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update user with id %s: %w", id, err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user with id %s not found", id)
+	}
+	return nil
+}
+
+func (r *MongoUserRepo) UpdateAddToSetDocument(id string, updateDoc bson.M) error {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Wrap in $addToSet to ensure uniqueness
+	update := bson.M{"$addToSet": updateDoc}
+
+	filter := bson.M{"id": id}
+	result, err := r.coll.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update user with id %s: %w", id, err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user with id %s not found", id)
+	}
+	return nil
+}
+func (r *MongoUserRepo) PullFromArray(id, field string, value interface{}) error {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	var pullCondition interface{}
+
+	// If value is a slice, use $in with that slice; otherwise pull the single value.
+	switch v := value.(type) {
+	case []interface{}:
+		pullCondition = bson.M{"$in": v}
+	default:
+		pullCondition = v
+	}
+
+	update := bson.M{
+		"$pull": bson.M{
+			field: pullCondition,
+		},
+	}
+	filter := bson.M{"id": id}
+	result, err := r.coll.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to pull from %s for user %s: %w", field, id, err)
 	}
 	if result.MatchedCount == 0 {
 		return fmt.Errorf("user with id %s not found", id)

@@ -1,29 +1,49 @@
 package userRepo
 
 import (
+	"bloomify/database"
 	"bloomify/models"
+	"context"
+	"fmt"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // UserRepository defines methods for accessing and managing user data.
 type UserRepository interface {
-	// GetAllSafe retrieves all users, excluding sensitive information.
 	GetAllSafe() ([]models.User, error)
-	// Create inserts a new user record.
 	Create(user *models.User) error
-	// Update modifies an existing user record.
 	Update(user *models.User) error
-	// UpdateWithDocument updates a user record using an explicit update document.
-	UpdateWithDocument(id string, updateDoc bson.M) error
-	// Delete removes a user record by its ID.
+	UpdateSetDocument(id string, updateDoc bson.M) error
+	UpdateAddToSetDocument(id string, updateDoc bson.M) error
 	Delete(id string) error
-	// GetByIDWithProjection retrieves a user by its unique ID using the specified projection.
 	GetByIDWithProjection(id string, projection bson.M) (*models.User, error)
-	// GetByEmailWithProjection retrieves a user by its email using the specified projection.
 	GetByEmailWithProjection(email string, projection bson.M) (*models.User, error)
-	// GetAllWithProjection retrieves all users using the specified projection.
 	GetAllWithProjection(projection bson.M) ([]models.User, error)
-	// IsUserAvailable checks if a user with the given basic registration details already exists.
 	IsUserAvailable(basicReq models.UserBasicRegistrationData) (bool, error)
+	PullFromArray(id string, field string, value interface{}) error
+	// PullFromArray(id string, field string, value interface{}) error
+}
+
+// MongoUserRepo implements UserRepository using MongoDB.
+type MongoUserRepo struct {
+	coll *mongo.Collection
+}
+
+// NewMongoUserRepo creates a new instance of UserRepository using MongoDB.
+func NewMongoUserRepo() UserRepository {
+	coll := database.MongoClient.Database("bloomify").Collection("users")
+	repo := &MongoUserRepo{coll: coll}
+
+	if err := repo.ensureIndexes(); err != nil {
+		fmt.Printf("failed to create indexes: %v\n", err)
+	}
+	return repo
+}
+
+// newContext creates a context with the given timeout.
+func newContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), timeout)
 }

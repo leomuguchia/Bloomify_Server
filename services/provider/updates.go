@@ -95,7 +95,7 @@ func (s *DefaultProviderService) UpdateProvider(c context.Context, id string, up
 	updateFields["updatedAt"] = time.Now()
 	existing.UpdatedAt = time.Now()
 
-	if err := s.Repo.UpdateSet(existing.ID, updateFields); err != nil {
+	if err := s.Repo.UpdateSetDocument(existing.ID, updateFields); err != nil {
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (s *DefaultProviderService) UpdateProviderPassword(providerID, currentPassw
 		"devices":      existing.Devices,
 	}
 
-	if err := s.Repo.UpdateSet(providerID, updateDoc); err != nil {
+	if err := s.Repo.UpdateSetDocument(providerID, updateDoc); err != nil {
 		return nil, fmt.Errorf("failed to update provider password: %w", err)
 	}
 	return s.Repo.GetByIDWithProjection(providerID, nil)

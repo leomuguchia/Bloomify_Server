@@ -23,7 +23,7 @@ func (s *DefaultProviderService) AddHistoricalRecord(c context.Context, record m
 	update := bson.M{
 		"historicalRecordsIds": recordID,
 	}
-	if err := s.Repo.UpdatePush(record.ProviderID, update); err != nil {
+	if err := s.Repo.UpdatePushDocument(record.ProviderID, update); err != nil {
 		return "", fmt.Errorf("failed to push record ID into provider: %w", err)
 	}
 

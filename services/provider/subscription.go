@@ -42,7 +42,7 @@ func (ps *DefaultProviderService) EnableSubscription(providerID string) error {
 	updateFields := map[string]interface{}{
 		"subscriptionEnabled": true,
 	}
-	if err := ps.Repo.UpdateSet(providerID, updateFields); err != nil {
+	if err := ps.Repo.UpdateSetDocument(providerID, updateFields); err != nil {
 		return fmt.Errorf("failed to update provider subscription status: %w", err)
 	}
 	return nil
@@ -53,7 +53,7 @@ func (ps *DefaultProviderService) UpdateSubscriptionSettings(providerID string, 
 	updateFields := map[string]interface{}{
 		"subscriptionModel": settings,
 	}
-	if err := ps.Repo.UpdateSet(providerID, updateFields); err != nil {
+	if err := ps.Repo.UpdateSetDocument(providerID, updateFields); err != nil {
 		return fmt.Errorf("failed to update subscription settings: %w", err)
 	}
 	return nil

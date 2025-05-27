@@ -48,8 +48,9 @@ type ProviderRepository interface {
 	// GetByServiceTypeWithProjection retrieves providers by service type with a projection.
 	GetByServiceTypeWithProjection(service string, projection bson.M) ([]models.Provider, error)
 	// UpdateWithDocument patches a provider document with the specified update document.
-	UpdateSet(id string, updateDoc bson.M) error
-	UpdatePush(id string, updateDoc bson.M) error
+	UpdateSetDocument(id string, updateDoc bson.M) error
+	// UpdatePushDocument appends data to an array field in a provider document.
+	UpdatePushDocument(id string, updateDoc bson.M) error
 	// IsProviderAvailable checks if a provider with the given basic registration details already exists.
 	IsProviderAvailable(basicReq models.ProviderBasicRegistrationData) (bool, error)
 	FetchTopProviders(ctx context.Context, page, limit int) ([]models.Provider, error)
