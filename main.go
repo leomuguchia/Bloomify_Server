@@ -24,6 +24,7 @@ import (
 	ai "bloomify/services/intelligence"
 	"bloomify/services/notification"
 	"bloomify/services/provider"
+	"bloomify/services/storage"
 	"bloomify/services/user"
 	"bloomify/utils"
 
@@ -32,17 +33,12 @@ import (
 )
 
 func main() {
+	// Initialization
 	config.LoadConfig()
 	logger := utils.GetLogger()
-
 	database.InitDB()
 	utils.InitRedis()
 	utils.FirebaseInit()
-
-	cloudinaryStorageService, err := utils.Cloudinary()
-	if err != nil {
-		logger.Sugar().Fatalf("main: failed to initialize cloudinary storage service: %v", err)
-	}
 
 	// Gin setup
 	router := gin.New()
@@ -91,6 +87,14 @@ func main() {
 		NotificationSvc: notificationService,
 	}
 
+	storageService, err := storage.NewFirebaseStorageService(
+		config.FirebaseServiceAccountKeyPath,
+		utils.BucketName,
+	)
+	if err != nil {
+		logger.Sugar().Fatalf("failed to initialize storage service: %v", err)
+	}
+
 	aiCtxStore := ai.NewRedisContextStore(utils.GetAIContextCacheClient(), 30*time.Minute)
 	aiService := ai.NewDefaultAIService(
 		config.AppConfig.GeminiAPIKey,
@@ -104,7 +108,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService, providerService, adminService)
 	bookingHandler := handlers.NewBookingHandler(bookingService, matchingService, logger)
 	adminHandler := handlers.NewAdminHandler(userService, providerService, adminService)
-	storageHandler := handlers.NewStorageHandler(cloudinaryStorageService)
+	storageHandler := handlers.NewStorageHandler(storageService)
 	aiHandler := handlers.NewDefaultAIHandler(aiService)
 
 	// handlerbundle assembly
@@ -137,6 +141,7 @@ func main() {
 		ConfirmBooking:       bookingHandler.ConfirmBooking,
 		CancelSession:        bookingHandler.CancelSession,
 		GetAvailableServices: bookingHandler.GetAvailableServices,
+		GetServiceByID:       bookingHandler.GetServiceByID,
 		GetDirections:        bookingHandler.GetDirections,
 		GetPaymentIntent:     bookingHandler.GetPaymentIntent,
 		MatchNearbyProviders: bookingHandler.MatchNearbyProviders,
@@ -158,7 +163,6 @@ func main() {
 		GetUserDevicesHandler:          userHandler.GetUserDevicesHandler,
 		SignOutOtherUserDevicesHandler: userHandler.SignOutOtherUserDevicesHandler,
 		UpdateFCMTokenHandler:          userHandler.UpdateFCMTokenHandler,
-		VerifyOTPHandler:               userHandler.VerifyOTPHandler,
 		ResetPasswordHandler:           userHandler.ResetUserPasswordHandler,
 		UpdateSafetyPreferences:        userHandler.UpdateSafetyPreferences,
 		UpdateTrustedProviders:         userHandler.UpdateTrustedProviders,

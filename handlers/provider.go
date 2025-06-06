@@ -7,7 +7,6 @@ import (
 	"bloomify/models"
 	"bloomify/services/admin"
 	"bloomify/services/provider"
-	"bloomify/services/user"
 	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
@@ -85,7 +84,7 @@ func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 		status, err := h.Service.VerifyOTP(req.SessionID, device.DeviceID, req.OTP)
 		if err != nil {
 			logger.Error("Failed in OTP verification", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "OTP verification failed: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"sessionID": req.SessionID, "status": status})
@@ -111,7 +110,7 @@ func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 		providerAuthResp, err := h.Service.FinalizeRegistration(req.SessionID, *req.ServiceCatalogue)
 		if err != nil {
 			logger.Error("Failed to finalize registration", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration finalization failed: " + err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Registration finalization failed: " + err.Error()})
 			return
 		}
 		c.JSON(http.StatusCreated, providerAuthResp)
@@ -120,20 +119,13 @@ func (h *ProviderHandler) RegisterProviderHandler(c *gin.Context) {
 	}
 }
 
+// AuthenticateProviderHandler handles provider sign-in with a step-based approach
+// First request (without sessionID): Initiates authentication (returns code 100 if OTP required)
+// Subsequent request (with sessionID): Continues authentication (OTP verification or completion)
 func (h *ProviderHandler) AuthenticateProviderHandler(c *gin.Context) {
 	logger := utils.GetLogger()
 
-	var req struct {
-		Email     string `json:"email" binding:"required,email"`
-		Password  string `json:"password" binding:"required"`
-		SessionID string `json:"sessionID"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Error("Invalid authentication request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
+	// Extract device details from context
 	deviceID, ok := c.Get("deviceID")
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing device ID"})
@@ -151,21 +143,74 @@ func (h *ProviderHandler) AuthenticateProviderHandler(c *gin.Context) {
 		LastLogin:  time.Now(),
 	}
 
-	authResp, err := h.Service.AuthenticateProvider(req.Email, req.Password, currentDevice, req.SessionID)
-	if err != nil {
-		if otpErr, ok := err.(user.OTPPendingError); ok {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":     otpErr.Error(),
-				"sessionID": otpErr.SessionID,
-			})
-			return
-		}
-		logger.Error("Authentication failed", zap.String("email", req.Email), zap.Error(err))
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	var req struct {
+		Email     string `json:"email" binding:"required,email"`
+		Password  string `json:"password"`
+		Method    string `json:"method" binding:"required"`
+		SessionID string `json:"sessionID"`
+		OTP       string `json:"otp"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("Invalid authentication request", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, authResp)
+	// Handle different cases based on presence of sessionID and OTP
+	switch {
+	case req.SessionID == "":
+		// Initial authentication request
+		if req.Method == "password" && req.Password == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "password is required for password authentication"})
+			return
+		}
+
+		authResp, sessionID, code, err := h.Service.InitiateProviderAuthentication(req.Email, req.Method, req.Password, currentDevice)
+		if err != nil {
+			if code == 100 { // OTP required
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error":     "OTP verification required",
+					"code":      code,
+					"sessionID": sessionID,
+				})
+				return
+			}
+			logger.Error("Authentication failed", zap.String("email", req.Email), zap.Error(err))
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		if authResp != nil {
+			// Successful authentication without OTP
+			c.JSON(http.StatusOK, authResp)
+			return
+		}
+
+		// Shouldn't reach here if logic is correct
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected authentication state"})
+
+	case req.SessionID != "" && req.OTP == "":
+		// Check authentication status
+		status, err := h.Service.CheckProviderAuthenticationStatus(req.SessionID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": status})
+
+	case req.SessionID != "" && req.OTP != "":
+		// OTP verification
+		authResp, err := h.Service.VerifyProviderAuthenticationOTP(req.SessionID, req.OTP, currentDevice)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, authResp)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request parameters"})
+	}
 }
 
 func (h *ProviderHandler) RevokeProviderAuthTokenHandler(c *gin.Context) {

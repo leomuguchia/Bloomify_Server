@@ -148,13 +148,13 @@ func validateBasicRegistrationData(basicReq models.ProviderBasicRegistrationData
 	}
 
 	// Validate Address.
-	if basicReq.Address == "" {
-		return fmt.Errorf("address is required")
-	}
 	addressRegex := `^\d+\s+[a-zA-Z0-9\s,.-]+$`
 	reAddress := regexp.MustCompile(addressRegex)
-	if !reAddress.MatchString(basicReq.Address) {
-		return fmt.Errorf("invalid address format")
+
+	if basicReq.Address != "" {
+		if !reAddress.MatchString(basicReq.Address) {
+			return fmt.Errorf("invalid address format")
+		}
 	}
 
 	// Validate LocationGeo.

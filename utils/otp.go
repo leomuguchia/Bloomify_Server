@@ -107,9 +107,15 @@ func VerifyDeviceOTPRecord(userID, deviceID, providedOTP string) error {
 		return fmt.Errorf("OTP does not match")
 	}
 
-	// Delete the OTP after successful verification.
-	if err := client.Del(ctx, otpKey).Err(); err != nil {
-		GetLogger().Error("Failed to delete OTP after verification", zap.Error(err))
-	}
 	return nil
+}
+
+func DeleteDeviceOTP(userID, deviceID string) error {
+	otpKey := fmt.Sprintf("otp:%s:%s", userID, deviceID)
+	ctx := context.Background()
+	client := GetOTPCacheClient()
+	if client == nil {
+		return fmt.Errorf("OTP cache client not initialized")
+	}
+	return client.Del(ctx, otpKey).Err()
 }

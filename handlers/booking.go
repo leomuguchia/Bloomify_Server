@@ -232,21 +232,6 @@ func (h *BookingHandler) CancelSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "booking session cancelled"})
 }
 
-// GetAvailableServices handles GET /api/booking/services.
-func (h *BookingHandler) GetAvailableServices(c *gin.Context) {
-	services, err := h.BookingSvc.GetAvailableServices()
-	if err != nil {
-		h.Logger.Error("GetAvailableServices: failed to fetch services", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to fetch services",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, services)
-}
-
 func (h *BookingHandler) MatchNearbyProviders(c *gin.Context) {
 	var geo models.GeoPoint
 	if err := c.ShouldBindJSON(&geo); err != nil {

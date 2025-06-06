@@ -37,7 +37,7 @@ func (se *DefaultSchedulingEngine) NotifyUserWithBookingStatus(
 			provider.Profile.ProviderName, booking.Date)
 
 		if booking.UserPayment.PaymentMethod == "cash" {
-			message += fmt.Sprintf(" Please bring %s %.2f when you arrive.",
+			message += fmt.Sprintf(" Kindly have %s %.2f ready to complete the payment in cash.",
 				booking.UserPayment.Currency, booking.TotalPrice)
 		} else {
 			message += fmt.Sprintf(" %s %.2f has been processed.",

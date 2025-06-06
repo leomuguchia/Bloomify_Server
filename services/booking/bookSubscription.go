@@ -29,7 +29,6 @@ func (se *DefaultSchedulingEngine) bookSubscriptionSlots(
 	for d := 0; d < totalDays; d++ {
 		current := subDetails.StartDate.AddDate(0, 0, d)
 		wd := current.Weekday().String()
-		dom := current.Day()
 
 		switch subDetails.PlanType {
 		case "daily":
@@ -38,10 +37,6 @@ func (se *DefaultSchedulingEngine) bookSubscriptionSlots(
 			}
 		case "weekly":
 			if wd != subDetails.Weekday {
-				continue
-			}
-		case "monthly":
-			if dom != subDetails.DayOfMonth {
 				continue
 			}
 		default:

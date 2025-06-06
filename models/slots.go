@@ -7,6 +7,7 @@ type TimeSlot struct {
 	Start               int                `bson:"start" json:"start"`                             // minutes from midnight (e.g., 420 for 7:00 AM)
 	End                 int                `bson:"end" json:"end"`                                 // minutes from midnight (e.g., 780 for 1:00 PM)
 	Capacity            int                `bson:"capacity" json:"capacity"`                       // total units for the slot (e.g., 30 kids)
+	CapacityMode        CapacityMode       `bson:"capacityMode" json:"capacityMode"`               // "exclusive" or "batch"
 	SlotModel           string             `bson:"slotModel" json:"slotModel"`                     // "earlybird", "urgency", or "flatrate"
 	UnitType            string             `bson:"unitType" json:"unitType"`                       // e.g., "child", "kg", "hour"
 	Date                string             `bson:"date,omitempty" json:"date"`                     // e.g., "2025-02-25"
@@ -21,6 +22,21 @@ type TimeSlot struct {
 	BlockReason         string             `bson:"blockReason,omitempty" json:"blockReason,omitempty"`
 	BookingIDs          []string           `bson:"bookingIds,omitempty" json:"bookingIds,omitempty"`
 }
+
+type CapacityMode string
+
+const (
+	CapacitySingleUse CapacityMode = "exclusive" // Only 1 booking allowed
+	CapacityByUnit    CapacityMode = "batch"     // Bookings consume capacity (e.g. kg)
+)
+
+type SlotModel string
+
+const (
+	Standard  SlotModel = "flatrate"
+	EarlyBird SlotModel = "earlybird"
+	Urgency   SlotModel = "urgency"
+)
 
 // AvailableSlotResponse represents the detailed timeslot information including the user’s selected custom option and units.
 type AvailableSlotResponse struct {
@@ -50,6 +66,7 @@ type AvailableSlot struct {
 	CustomOptionKey           string             `json:"customOptionKey,omitempty"`
 	Catalogue                 ServiceCatalogue   `bson:"catalogue,omitempty" json:"catalogue,omitzero"`
 	OptionPricing             map[string]float64 `json:"optionPricing,omitempty"`
+	CapacityMode              CapacityMode       `bson:"capacityMode" json:"capacityMode"` // "exclusive" or "batch"
 }
 
 type EarlyBirdSlotData struct {

@@ -35,63 +35,6 @@ func validateServicePlan(plan models.ServicePlan) error {
 	return nil
 }
 
-func (svc *DefaultBookingSessionService) GetAvailableServices() ([]models.Service, error) {
-	services := []models.Service{
-		{
-			ID: "Babysitting", Icon: "🧒", UnitType: "child", ProviderTerm: "Babysitters",
-			Modes:        []string{models.ModeInHome},
-			CapacityMode: models.CapacityByUnit, // measured in children
-		},
-		{
-			ID: "Chauffeuring", Icon: "🚗", UnitType: "hour", ProviderTerm: "Chauffeurs",
-			Modes:        []string{models.ModeInHome},
-			CapacityMode: models.CapacitySingleUse, // usually one ride per booking
-		},
-		{
-			ID: "Laundry", Icon: "🧺", UnitType: "kg", ProviderTerm: "Laundry Services",
-			Modes:        []string{models.ModePickupDelivery, models.ModeInStore, models.ModeInHome},
-			CapacityMode: models.CapacityByUnit, // load is measured in kg
-		},
-		{
-			ID: "Cleaning", Icon: "🧹", UnitType: "hour", ProviderTerm: "Cleaners",
-			Modes:        []string{models.ModeInHome},
-			CapacityMode: models.CapacityByWorker, // depends on number of workers
-		},
-		{
-			ID: "Grooming", Icon: "🧔‍♂️", UnitType: "session", ProviderTerm: "Barbers & Stylists",
-			Modes:        []string{models.ModeInHome, models.ModeInStore},
-			CapacityMode: models.CapacitySingleUse, // one session at a time
-		},
-		{
-			ID: "Plumbing", Icon: "🔧", UnitType: "hour", ProviderTerm: "Plumbers",
-			Modes:        []string{models.ModeInHome},
-			CapacityMode: models.CapacityByWorker,
-		},
-		{
-			ID: "Electrical", Icon: "⚡", UnitType: "hour", ProviderTerm: "Electricians",
-			Modes:        []string{models.ModeInHome},
-			CapacityMode: models.CapacityByWorker,
-		},
-		{
-			ID: "Pet Sitting", Icon: "🐕", UnitType: "pet", ProviderTerm: "Pet Sitters",
-			Modes:        []string{models.ModeInHome},
-			CapacityMode: models.CapacityByUnit, // number of pets
-		},
-		{
-			ID: "Tutoring", Icon: "📚", UnitType: "session", ProviderTerm: "Tutors",
-			Modes:        []string{models.ModeInHome, models.ModeOnline},
-			CapacityMode: models.CapacitySingleUse, // 1 student per session
-		},
-		{
-			ID: "Fitness Training", Icon: "💪", UnitType: "session", ProviderTerm: "Trainers",
-			Modes:        []string{models.ModeInHome, models.ModeInStore, models.ModeOnline},
-			CapacityMode: models.CapacityByUnit, // can support group sessions (e.g. 5 people)
-		},
-	}
-
-	return services, nil
-}
-
 // CancelSession allows the client to explicitly cancel a booking session.
 // It deletes the session data from the cache.
 func (s *DefaultBookingSessionService) CancelSession(sessionID string) error {

@@ -74,7 +74,7 @@ func (s *DefaultProviderService) ResetPassword(email, providedOTP, newPassword, 
 		return OTPPendingError{SessionID: sessionID}
 	}
 
-	// 5. ProvidedOTP is present. Verify the provided OTP.
+	// 5. ProvidedOTP is present. Verify the provided OTP, but DO NOT delete it yet.
 	if err := utils.VerifyDeviceOTPRecord(provider.ID, "reset_password", providedOTP); err != nil {
 		return fmt.Errorf("OTP verification failed: %w", err)
 	}
@@ -95,7 +95,7 @@ func (s *DefaultProviderService) ResetPassword(email, providedOTP, newPassword, 
 		return err
 	}
 
-	// 8. Hash the new password (consistent with provider registration).
+	// 8. Hash the new password.
 	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		utils.GetLogger().Error("ResetPassword: Failed to hash new password", zap.Error(err))
@@ -112,7 +112,13 @@ func (s *DefaultProviderService) ResetPassword(email, providedOTP, newPassword, 
 		return fmt.Errorf("failed to update password")
 	}
 
-	// 10. Clear the password reset session.
+	// 10. Now delete OTP record from cache (explicitly).
+	if err := utils.DeleteDeviceOTP(provider.ID, "reset_password"); err != nil {
+		utils.GetLogger().Warn("ResetPassword: Failed to delete OTP after password reset", zap.Error(err))
+		// Proceed anyway.
+	}
+
+	// 11. Clear the password reset session.
 	_ = utils.DeleteAuthSession(sessionClient, sessionID)
 
 	utils.GetLogger().Sugar().Infof("ResetPassword: Password updated for provider %s", provider.ID)

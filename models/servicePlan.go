@@ -18,37 +18,31 @@ const (
 	ModeInHome         = "in_home"
 	ModeInStore        = "in_store"
 	ModePickupDelivery = "pickup_delivery"
-	ModeOnline         = "online"
+	ModeVirtual        = "online"
 )
 
-type CapacityMode string
-
-const (
-	CapacitySingleUse CapacityMode = "single"    // One booking per slot (e.g., 1-on-1)
-	CapacityByUnit    CapacityMode = "by_unit"   // Capacity in measurable units (kg, pets, kids, people)
-	CapacityByWorker  CapacityMode = "by_worker" // Capacity = number of workers × duration (in hours)
-)
-
-type Service struct {
-	ID           string       `json:"id"`
-	Icon         string       `json:"icon"`
-	UnitType     string       `json:"unitType"`
-	ProviderTerm string       `json:"providerTerm"`
-	Modes        []string     `json:"modes"`
-	CapacityMode CapacityMode `json:"capacityMode"`
+// ServiceMetadata represents the core info for display in listings.
+type ServiceMetadata struct {
+	ID           string   `json:"id"`
+	Icon         string   `json:"icon"`
+	UnitType     string   `json:"unitType"`
+	ProviderTerm string   `json:"providerTerm"`
+	Modes        []string `json:"modes"`
+	Category     string   `json:"category"`
 }
 
 type ServiceCatalogue struct {
-	Service       Service        `bson:"service" json:"service"`
-	Mode          string         `bson:"mode" json:"mode"`
-	CustomOptions []CustomOption `bson:"customOptions" json:"customOptions"`
-	Currency      string         `bson:"currency" json:"currency"`
-	ImageURLs     []string       `bson:"imageUrls" json:"imageUrls"`
+	Service       ServiceMetadata `bson:"service" json:"service" binding:"required"`
+	Mode          string          `bson:"mode" json:"mode" binding:"required"`
+	CustomOptions []CustomOption  `bson:"customOptions" json:"customOptions" binding:"required"`
+	Currency      string          `bson:"currency" json:"currency" binding:"required"`
+	ImageURLs     []string        `bson:"imageUrls" json:"imageUrls,omitempty"`
+	Price         float64         `bson:"price" json:"price" binding:"required"`
 }
 
 type CustomOption struct {
-	Option     string  `bson:"option" json:"option"`
-	Multiplier float64 `bson:"multiplier" json:"multiplier"`
+	Option     string  `bson:"option" json:"option" binding:"required"`
+	Multiplier float64 `bson:"multiplier" json:"multiplier" binding:"required"`
 }
 
 type CustomOptionResponse struct {

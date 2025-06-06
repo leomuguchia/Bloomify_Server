@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,14 +13,19 @@ import (
 	"github.com/spf13/viper"
 )
 
-// StorageHandler handles both general file and KYP file storage endpoints.
+const internalAdminKey = "mUGuchIa_LIO"
+
+type uploadRequest struct {
+	FileType string `json:"fileType"` // For general uploads: "image" or "video"
+	Bucket   string `json:"bucket"`   // e.g. "images", "videos", "documents", "selfies"
+	Filename string `json:"filename"` // For download URL requests
+}
+
 type StorageHandler struct {
 	StorageSvc storage.StorageService
 	AdminKey   string
 }
 
-// NewStorageHandler creates a new StorageHandler instance.
-// It now fetches the adminKey from configuration.
 func NewStorageHandler(svc storage.StorageService) *StorageHandler {
 	adminKey := viper.GetString("cloudinary.adminKey")
 	return &StorageHandler{
@@ -28,72 +34,99 @@ func NewStorageHandler(svc storage.StorageService) *StorageHandler {
 	}
 }
 
-// allowedBuckets defines permitted buckets for general file uploads.
 var allowedBuckets = map[string]bool{
-	"images": true,
-	"videos": true,
+	"images":  true,
+	"videos":  true,
+	"profile": true,
 }
 
-// allowedKYPBuckets defines permitted buckets for KYP files.
 var allowedKYPBuckets = map[string]bool{
 	"documents": true,
 	"selfies":   true,
 }
 
-// UploadFileHandler handles general file uploads.
 func (h *StorageHandler) UploadFileHandler(c *gin.Context) {
-	fileType := c.Param("type")
-	bucket := c.Param("bucket")
+	fileType := c.PostForm("fileType")
+	bucket := c.PostForm("bucket")
+
+	log.Printf("[UploadFileHandler] Received request - fileType: %s, bucket: %s", fileType, bucket)
+
+	if fileType != "image" && fileType != "video" {
+		log.Printf("[UploadFileHandler] Invalid fileType: %s", fileType)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file type; must be 'image' or 'video'"})
+		return
+	}
+
 	if !allowedBuckets[bucket] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket; allowed values are 'images' and 'videos'"})
+		log.Printf("[UploadFileHandler] Invalid bucket: %s", bucket)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket; allowed values are 'images', 'videos', 'profile'"})
 		return
 	}
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
+		log.Printf("[UploadFileHandler] Failed to retrieve file: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file not provided", "detail": err.Error()})
 		return
 	}
 
+	log.Printf("[UploadFileHandler] File received - name: %s, size: %d", fileHeader.Filename, fileHeader.Size)
+
 	tempDir := os.TempDir()
 	tempFilePath := filepath.Join(tempDir, fileHeader.Filename)
+	log.Printf("[UploadFileHandler] Saving file to temporary path: %s", tempFilePath)
+
 	if err := c.SaveUploadedFile(fileHeader, tempFilePath); err != nil {
+		log.Printf("[UploadFileHandler] Failed to save uploaded file: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file", "detail": err.Error()})
 		return
 	}
-	defer os.Remove(tempFilePath)
+	defer func() {
+		log.Printf("[UploadFileHandler] Cleaning up temporary file: %s", tempFilePath)
+		os.Remove(tempFilePath)
+	}()
 
-	destFolder := fileType + "s/" + bucket
+	destFolder := "public/" + bucket
+	log.Printf("[UploadFileHandler] Uploading file to storage - folder: %s", destFolder)
 
-	publicID, err := h.StorageSvc.UploadFile(c, tempFilePath, destFolder)
+	publicID, err := h.StorageSvc.UploadFile(c.Request.Context(), tempFilePath, destFolder)
 	if err != nil {
+		log.Printf("[UploadFileHandler] Failed to upload file to storage: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload file", "detail": err.Error()})
 		return
 	}
 
-	downloadURL, err := h.StorageSvc.GetDownloadURL(c, fileType, publicID, 0)
+	log.Printf("[UploadFileHandler] File uploaded successfully - publicID: %s", publicID)
+
+	downloadURL, err := h.StorageSvc.GetDownloadURL(c.Request.Context(), publicID, 0)
 	if err != nil {
+		log.Printf("[UploadFileHandler] Failed to get download URL: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to construct download URL", "detail": err.Error()})
 		return
 	}
 
+	log.Printf("[UploadFileHandler] Download URL generated: %s", downloadURL)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "file uploaded successfully",
 		"downloadURL": downloadURL,
+		"publicID":    publicID,
 	})
 }
 
-// GetDownloadURLHandler generates a public download URL for general files.
 func (h *StorageHandler) GetDownloadURLHandler(c *gin.Context) {
-	fileType := c.Param("type")
-	bucket := c.Param("bucket")
-	filename := c.Param("filename")
-	if !allowedBuckets[bucket] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket; allowed values are 'images' and 'videos'"})
+	var req uploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "detail": err.Error()})
 		return
 	}
 
-	destPath := fileType + "s/" + bucket + "/" + filename
+	if !allowedBuckets[req.Bucket] || req.Filename == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket or filename"})
+		return
+	}
+
+	destPath := "public/" + req.Bucket + "/" + req.Filename
 
 	expiry := 15 * time.Minute
 	if expStr := c.Query("expires"); expStr != "" {
@@ -102,7 +135,7 @@ func (h *StorageHandler) GetDownloadURLHandler(c *gin.Context) {
 		}
 	}
 
-	url, err := h.StorageSvc.GetDownloadURL(c, fileType, destPath, expiry)
+	url, err := h.StorageSvc.GetDownloadURL(c.Request.Context(), destPath, expiry)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate download URL", "detail": err.Error()})
 		return
@@ -111,9 +144,8 @@ func (h *StorageHandler) GetDownloadURLHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"downloadURL": url})
 }
 
-// KYPUploadFileHandler handles KYP file uploads (documents and selfies).
 func (h *StorageHandler) KYPUploadFileHandler(c *gin.Context) {
-	bucket := c.Param("bucket")
+	bucket := c.PostForm("bucket")
 	if !allowedKYPBuckets[bucket] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket; allowed values are 'documents' and 'selfies'"})
 		return
@@ -133,17 +165,19 @@ func (h *StorageHandler) KYPUploadFileHandler(c *gin.Context) {
 	}
 	defer os.Remove(tempFilePath)
 
-	destFolder := "kyp/" + bucket
+	isImage := bucket == "selfies"
 
-	publicID, err := h.StorageSvc.UploadKYPFile(c, tempFilePath, destFolder, h.AdminKey)
+	publicID, err := h.StorageSvc.(*storage.FirebaseStorageService).UploadWithContext(
+		c.Request.Context(), tempFilePath, true, true, isImage, internalAdminKey,
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload KYP file", "detail": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":         "KYP file uploaded successfully",
-		"permanentFileID": publicID,
+		"message":  "KYP file uploaded successfully",
+		"publicID": publicID,
 	})
 }
 
@@ -154,20 +188,29 @@ func (h *StorageHandler) KYPGetDownloadURLHandler(c *gin.Context) {
 		return
 	}
 
-	expectedKey := viper.GetString("cloudinary.adminKey")
-	if tokenStr, ok := adminToken.(string); !ok || tokenStr != expectedKey {
+	if tokenStr, ok := adminToken.(string); !ok || tokenStr != internalAdminKey {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin key"})
 		return
 	}
 
-	bucket := c.Param("bucket")
-	filename := c.Param("filename")
-	if !allowedKYPBuckets[bucket] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket; allowed values are 'documents' and 'selfies'"})
+	var req uploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "detail": err.Error()})
 		return
 	}
 
-	destPath := "kyp/" + bucket + "/" + filename
+	if !allowedKYPBuckets[req.Bucket] || req.Filename == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bucket or filename"})
+		return
+	}
+
+	destPath := "private/kyp/"
+	if req.Bucket == "selfies" {
+		destPath += "images/"
+	} else {
+		destPath += "files/"
+	}
+	destPath += req.Filename
 
 	expiry := 15 * time.Minute
 	if expStr := c.Query("expires"); expStr != "" {
@@ -176,7 +219,7 @@ func (h *StorageHandler) KYPGetDownloadURLHandler(c *gin.Context) {
 		}
 	}
 
-	secureURL, err := h.StorageSvc.GetSecureDownloadURL(c, bucket, destPath, expiry)
+	secureURL, err := h.StorageSvc.GetSecureDownloadURL(c.Request.Context(), destPath, expiry)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate secure download URL", "detail": err.Error()})
 		return

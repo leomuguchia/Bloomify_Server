@@ -75,6 +75,7 @@ func (s *DefaultUserService) ResetPassword(email, providedOTP, newPassword, prov
 
 	// Verify OTP if not already verified.
 	if authSession.Status != "otp_verified" {
+		// Just verify OTP, do NOT delete it here.
 		if err := utils.VerifyDeviceOTPRecord(userRec.ID, "reset_password", providedOTP); err != nil {
 			utils.GetLogger().Error("ResetPassword: OTP verification failed", zap.Error(err))
 			return fmt.Errorf("OTP verification failed: %w", err)
@@ -138,7 +139,14 @@ func (s *DefaultUserService) ResetPassword(email, providedOTP, newPassword, prov
 		return fmt.Errorf("failed to update password")
 	}
 
+	// Now delete the OTP record explicitly AFTER password update success.
+	if err := utils.DeleteDeviceOTP(authSession.UserID, "reset_password"); err != nil {
+		utils.GetLogger().Warn("ResetPassword: Failed to delete OTP after password reset", zap.Error(err))
+	}
+
+	// Clear the password reset session.
 	_ = utils.DeleteAuthSession(sessionClient, sessionID)
+
 	utils.GetLogger().Sugar().Infof("ResetPassword: Password updated for user %s", userRec.ID)
 	return nil
 }

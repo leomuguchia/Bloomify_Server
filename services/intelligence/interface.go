@@ -90,7 +90,7 @@ func (s *DefaultAIService) handleChatOrRecommend(
 	intent, svcType string,
 ) (*models.AIResponse, error) {
 	// We only use service names in the system prompt—no actions emitted
-	services, err := s.bookSvc.GetAvailableServices()
+	services, err := s.bookSvc.GetAvailableServices("")
 	if err != nil {
 		return nil, fmt.Errorf("load services: %w", err)
 	}
@@ -140,7 +140,7 @@ func (s *DefaultAIService) handleBookingFlow(
 	switch aiCtx.BookingStep {
 	case 1:
 		// Build minimal ServicePlan
-		services, _ := s.bookSvc.GetAvailableServices()
+		services, _ := s.bookSvc.GetAvailableServices("")
 		var unitType string
 		for _, svc := range services {
 			if svc.ID == aiCtx.ServiceType {
@@ -222,7 +222,7 @@ func (s *DefaultAIService) getIntentAndService(
 	ctx context.Context,
 	text string,
 ) (string, string, error) {
-	services, err := s.bookSvc.GetAvailableServices()
+	services, err := s.bookSvc.GetAvailableServices("")
 	if err != nil {
 		return "", "", err
 	}

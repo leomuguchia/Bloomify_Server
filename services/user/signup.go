@@ -2,6 +2,7 @@ package user
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"bloomify/models"
@@ -19,6 +20,9 @@ func (s *DefaultUserService) InitiateRegistration(basicReq models.UserBasicRegis
 	if basicReq.Email == "" || basicReq.Password == "" || basicReq.Username == "" || basicReq.PhoneNumber == "" {
 		return "", 0, fmt.Errorf("all fields are required")
 	}
+
+	// Convert email to lowercase for consistency
+	basicReq.Email = strings.ToLower(basicReq.Email)
 
 	// Check if username/email is available
 	available, err := s.Repo.IsUserAvailable(basicReq)
@@ -77,7 +81,9 @@ func (s *DefaultUserService) VerifyRegistrationOTP(sessionID string, deviceID st
 		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
-	if err := utils.VerifyDeviceOTPRecord(regSession.BasicData.Email, deviceID, providedOTP); err != nil {
+	emailLower := strings.ToLower(regSession.BasicData.Email)
+
+	if err := utils.VerifyDeviceOTPRecord(emailLower, deviceID, providedOTP); err != nil {
 		return 0, fmt.Errorf("OTP verification failed: %w", err)
 	}
 
@@ -106,6 +112,8 @@ func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences 
 		return nil, fmt.Errorf("registration session missing basic data")
 	}
 
+	emailLower := strings.ToLower(regSession.BasicData.Email)
+
 	if err := VerifyPasswordComplexity(regSession.BasicData.Password); err != nil {
 		return nil, err
 	}
@@ -126,7 +134,7 @@ func (s *DefaultUserService) FinalizeRegistration(sessionID string, preferences 
 
 	userObj := models.User{
 		Username:       regSession.BasicData.Username,
-		Email:          regSession.BasicData.Email,
+		Email:          emailLower,
 		PhoneNumber:    regSession.BasicData.PhoneNumber,
 		PasswordHash:   string(hashedPassword),
 		Password:       "",

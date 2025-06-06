@@ -11,7 +11,8 @@ type BookingSessionService interface {
 	UpdateSession(sessionID string, selectedProviderID string, weekIndex int) (*models.BookingSession, error)
 	ConfirmBooking(sessionID string, confirmedSlot models.AvailableSlotResponse) (*models.PublicBookingData, error)
 	CancelSession(sessionID string) error
-	GetAvailableServices() ([]models.Service, error)
+	GetAvailableServices(region string) ([]models.ServiceMetadata, error)
+	GetServiceByID(serviceID string, countryCode string, currency string) (*ServiceDetails, error)
 }
 
 // DefaultBookingSessionService implements BookingSessionService.

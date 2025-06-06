@@ -1,0 +1,37 @@
+📌 TODO: Seasonal Bias Pricing Logic
+🔄 Overview
+Implement seasonal pricing adjustments for service categories based on annual demand patterns. This will stack with existing geo and currency pricing logic.
+
+🧠 What It Will Do
+Apply a seasonal multiplier to base USD price before currency conversion.
+
+Adjust prices up or down depending on time of year and service type.
+
+🧩 Suggested Formula
+finalPrice = basePrice * geoBias * seasonBias * customMultiplier
+🧰 Steps to Implement
+ Create GetSeasonalBias(serviceID string, t time.Time) float64
+
+Option 1: Hardcoded logic by month/service
+
+Option 2: Config-driven (e.g. seasonBias.json)
+
+ Integrate seasonBias into GetServiceByID(), before currency conversion.
+
+ Add tests for different months and services.
+
+🧪 Example Rules
+Service	Season	Bias
+LawnCare	Apr–Aug (spring/summer)	1.2
+MealPrep	Nov–Dec (holidays)	1.4
+Childcare	Jun, Dec (school breaks)	1.3
+Chauffeuring	May, Dec (events)	1.3
+Tutoring	Apr–Jun, Sep–Nov	1.2
+PersonalCare	Feb, May, Dec	1.4
+
+⚙️ Optional
+ Add admin dashboard controls to toggle or adjust seasonal bias values.
+
+ Store seasonal configs in MongoDB for real-time updates.
+
+ Build analytics to refine seasonal bias with real user data.

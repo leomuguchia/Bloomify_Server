@@ -31,7 +31,6 @@ type SubscriptionDetails struct {
 	PlanType     string    `json:"planType"`               // "daily","weekly","monthly"
 	ExemptedDays []string  `json:"exemptedDays,omitempty"` // for daily only
 	Weekday      string    `json:"weekday,omitempty"`      // for weekly only, e.g. "Tuesday"
-	DayOfMonth   int       `json:"dayOfMonth,omitempty"`   // for monthly only, e.g. 15
 }
 
 // BookingRequest is the struct sent by the client when requesting a booking.

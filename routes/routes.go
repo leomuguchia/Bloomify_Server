@@ -107,6 +107,9 @@ func RegisterHealthRoute(r *gin.Engine) {
 
 func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	bookingGroup := r.Group("/api/booking")
+	bookingGroup.GET("/services/:region", hb.GetAvailableServices)
+	bookingGroup.POST("/service", hb.GetServiceByID)
+
 	bookingGroup.Use(
 		middleware.DeviceDetailsMiddleware(),
 		middleware.JWTAuthUserMiddleware(hb.UserRepo),
@@ -117,7 +120,6 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		bookingGroup.PUT("/session/:sessionID", hb.UpdateSession)
 		bookingGroup.POST("/confirm", hb.ConfirmBooking)
 		bookingGroup.DELETE("/session/:sessionID", hb.CancelSession)
-		bookingGroup.GET("/services", hb.GetAvailableServices)
 		bookingGroup.GET("/directions", hb.GetDirections)
 		bookingGroup.POST("/payment", hb.GetPaymentIntent)
 		bookingGroup.POST("/nearby", hb.MatchNearbyProviders)
@@ -128,21 +130,18 @@ func RegisterStorageRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	public := r.Group("/storage")
 	public.Use(middleware.DeviceDetailsMiddleware())
 	{
-		public.POST("/:type/:bucket/upload", hb.UploadFileHandler)
-		public.GET("/:type/:bucket/:filename", hb.GetDownloadURLHandler)
-		public.POST("/kyp/:bucket/upload", hb.KYPUploadFileHandler)
+		public.POST("/upload", hb.UploadFileHandler)
+		public.GET("/public", hb.GetDownloadURLHandler)
+		public.POST("/kyp/upload", hb.KYPUploadFileHandler)
 	}
 
-	// Protected routes for KYP downloads (admin-only).
+	// Protected routes for KYP downloads (admin-only)
 	protected := r.Group("/storage")
 	protected.Use(middleware.DeviceDetailsMiddleware(), middleware.JWTAuthAdminMiddleware())
 	{
-		protected.GET("/kyp/:bucket/:publicID", hb.KYPGetDownloadURLHandler)
+		// KYP file downloads
+		protected.GET("/kyp", hb.KYPGetDownloadURLHandler)
 	}
-}
-
-func RegisterOTPRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
-	r.POST("/api/verify-otp", middleware.DeviceDetailsMiddleware(), hb.VerifyOTPHandler)
 }
 
 func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
@@ -160,6 +159,5 @@ func RegisterRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	RegisterHealthRoute(r)
 	RegisterBookingRoutes(r, hb)
 	RegisterAdminRoutes(r, hb)
-	RegisterOTPRoutes(r, hb)
 	RegisterStorageRoutes(r, hb)
 }

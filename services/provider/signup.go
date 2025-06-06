@@ -3,6 +3,7 @@ package provider
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"bloomify/models"
@@ -13,6 +14,7 @@ import (
 )
 
 func (s *DefaultProviderService) RegisterBasic(basicReq models.ProviderBasicRegistrationData, device models.Device) (string, int, error) {
+	basicReq.Email = strings.ToLower(basicReq.Email)
 	if err := validateBasicRegistrationData(basicReq); err != nil {
 		return "", 0, fmt.Errorf("validation error: %w", err)
 	}
@@ -83,8 +85,16 @@ func (s *DefaultProviderService) VerifyKYP(sessionID string, kypData models.KYPV
 		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
-	if kypData.DocumentURL == "" || kypData.LegalName == "" || kypData.SelfieURL == "" {
-		return 0, fmt.Errorf("missing verification details")
+	if kypData.Type == "individual" {
+		if kypData.DocumentURL == "" || kypData.LegalName == "" || kypData.SelfieURL == "" {
+			return 10, fmt.Errorf("missing verification details for individual")
+		}
+	} else if kypData.Type == "business" {
+		if kypData.DocumentURL == "" || kypData.LegalName == "" || kypData.ContactName == "" || kypData.ContactEmail == "" || kypData.DocumentType == "" {
+			return 10, fmt.Errorf("missing verification details for business")
+		}
+	} else {
+		return 10, fmt.Errorf("invalid provider type: %s", kypData.Type)
 	}
 
 	session.KYPData = kypData
@@ -124,7 +134,6 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 		ID: GenerateProviderID(),
 		Profile: models.Profile{
 			ProviderName: session.BasicData.ProviderName,
-			// Assuming ProviderType should be set; if not available from BasicData, set a default.
 			ProviderType: session.BasicData.ProviderType,
 			Email:        session.BasicData.Email,
 			PhoneNumber:  session.BasicData.PhoneNumber,

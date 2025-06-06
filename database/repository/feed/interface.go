@@ -4,17 +4,18 @@ import (
 	"bloomify/models"
 	"context"
 	"errors"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type FeedRepository interface {
-	UpsertFeedBlock(ctx context.Context, block *models.FeedBlock) error
-	GetFeedBlockByTheme(ctx context.Context, theme string) (*models.FeedBlock, error)
-	GetAllFeedBlocks(ctx context.Context, limit, offset int) ([]models.FeedBlock, error)
-	DeleteFeedBlock(ctx context.Context, theme string) error
+	SaveBlock(ctx context.Context, block models.FeedBlock) error
+	LoadAllBlocks(ctx context.Context) ([]models.FeedBlock, error)
+	IncrementAccess(ctx context.Context, id string) error
+	DeleteBlock(ctx context.Context, id string) error
 }
 
 type MongoFeedRepo struct {
@@ -23,34 +24,18 @@ type MongoFeedRepo struct {
 
 func NewMongoFeedRepo(db *mongo.Database) FeedRepository {
 	return &MongoFeedRepo{
-		coll: db.Collection("feed_blocks"),
+		coll: db.Collection("feed"),
 	}
 }
 
-func (r *MongoFeedRepo) UpsertFeedBlock(ctx context.Context, block *models.FeedBlock) error {
-	if block.Theme == "" {
-		return errors.New("feed block must have a theme")
-	}
-	filter := bson.M{"theme": block.Theme}
-	update := bson.M{"$set": block}
-	opts := options.Update().SetUpsert(true)
-
-	_, err := r.coll.UpdateOne(ctx, filter, update, opts)
+func (m *MongoFeedRepo) SaveBlock(ctx context.Context, block models.FeedBlock) error {
+	block.CreatedAt = time.Now()
+	_, err := m.coll.InsertOne(ctx, block)
 	return err
 }
 
-func (r *MongoFeedRepo) GetFeedBlockByTheme(ctx context.Context, theme string) (*models.FeedBlock, error) {
-	var block models.FeedBlock
-	err := r.coll.FindOne(ctx, bson.M{"theme": theme}).Decode(&block)
-	if err != nil {
-		return nil, err
-	}
-	return &block, nil
-}
-
-func (r *MongoFeedRepo) GetAllFeedBlocks(ctx context.Context, limit, offset int) ([]models.FeedBlock, error) {
-	opts := options.Find().SetLimit(int64(limit)).SetSkip(int64(offset)).SetSort(bson.D{{"theme", 1}})
-	cursor, err := r.coll.Find(ctx, bson.M{}, opts)
+func (m *MongoFeedRepo) LoadAllBlocks(ctx context.Context) ([]models.FeedBlock, error) {
+	cursor, err := m.coll.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +48,22 @@ func (r *MongoFeedRepo) GetAllFeedBlocks(ctx context.Context, limit, offset int)
 	return blocks, nil
 }
 
-func (r *MongoFeedRepo) DeleteFeedBlock(ctx context.Context, theme string) error {
-	_, err := r.coll.DeleteOne(ctx, bson.M{"theme": theme})
+func (m *MongoFeedRepo) IncrementAccess(ctx context.Context, id string) error {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid feed block id")
+	}
+	_, err = m.coll.UpdateByID(ctx, objID, bson.M{
+		"$inc": bson.M{"accessCount": 1},
+	})
+	return err
+}
+
+func (m *MongoFeedRepo) DeleteBlock(ctx context.Context, id string) error {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid feed block id")
+	}
+	_, err = m.coll.DeleteOne(ctx, bson.M{"_id": objID})
 	return err
 }

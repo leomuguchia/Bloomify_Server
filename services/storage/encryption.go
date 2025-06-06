@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bloomify/config"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -10,7 +11,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"cloud.google.com/go/storage"
 )
 
 // encryptFile encrypts the file at localFilePath using AES-256 GCM with the given adminKey.
@@ -58,4 +62,26 @@ func encryptFile(localFilePath, adminKey string) (string, error) {
 	}
 
 	return tempFilePath, nil
+}
+
+// GenerateSignedURL creates a signed GET URL for an object valid for expires duration
+func GenerateSignedURL(bucketName, objectName string, sa *config.ServiceAccount, expires time.Duration) (string, error) {
+	privateKey := []byte(sa.PrivateKey)
+
+	// Replace literal \n with actual newlines if needed
+	privateKey = []byte(strings.ReplaceAll(string(privateKey), `\n`, "\n"))
+
+	opts := &storage.SignedURLOptions{
+		GoogleAccessID: sa.ClientEmail,
+		PrivateKey:     privateKey,
+		Method:         "GET",
+		Expires:        time.Now().Add(expires),
+	}
+
+	url, err := storage.SignedURL(bucketName, objectName, opts)
+	if err != nil {
+		return "", err
+	}
+
+	return url, nil
 }

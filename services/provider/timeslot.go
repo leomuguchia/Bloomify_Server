@@ -1,4 +1,3 @@
-// File: services/provider/timeslot.go
 package provider
 
 import (
@@ -9,9 +8,6 @@ import (
 	"bloomify/models"
 )
 
-// SetupTimeslots handles a full, week-by-week timeslot setup from the front end.
-// It reads models.SetupTimeslotsRequest, expands each WeeklyTemplate into concrete
-// TimeSlot instances, persists them via TimeSlotRepo, and links the IDs back to the provider.
 func (s *DefaultProviderService) SetupTimeslots(
 	ctx context.Context,
 	providerID string,
@@ -23,14 +19,16 @@ func (s *DefaultProviderService) SetupTimeslots(
 		return nil, fmt.Errorf("provider not found")
 	}
 
-	// 2. Expand each week’s template into actual slots
+	// 2. Prepare to expand weekly templates
 	var allSlots []models.TimeSlot
+
 	for wi, week := range req.Weeks {
 		anchor, err := time.Parse("2006-01-02", week.AnchorDate)
 		if err != nil {
 			return nil, fmt.Errorf("week %d: invalid anchorDate %q", wi+1, week.AnchorDate)
 		}
 
+		// Validate and normalize base slots
 		for i, bs := range week.BaseSlots {
 			if bs.Date != week.AnchorDate {
 				return nil, fmt.Errorf("week %d, slot %d: base slot date %q must equal anchorDate", wi+1, i+1, bs.Date)
@@ -38,13 +36,37 @@ func (s *DefaultProviderService) SetupTimeslots(
 			if bs.Start >= bs.End {
 				return nil, fmt.Errorf("week %d, slot %d: start must be before end", wi+1, i+1)
 			}
-			if prov.Profile.ProviderType == "individual" && bs.Capacity != 1 {
-				return nil, fmt.Errorf("week %d, slot %d: individual capacity must be 1; got %d", wi+1, i+1, bs.Capacity)
+
+			// Infer CapacityMode if missing
+			if bs.CapacityMode == "" {
+				if prov.Profile.ProviderType == "individual" {
+					bs.CapacityMode = models.CapacitySingleUse
+				} else {
+					bs.CapacityMode = models.CapacityByUnit
+				}
 			}
+
+			// Validate and normalize capacity based on mode
+			switch bs.CapacityMode {
+			case models.CapacitySingleUse:
+				bs.Capacity = 1
+				bs.UnitType = "hour"
+			case models.CapacityByUnit:
+				if bs.Capacity < 1 {
+					return nil, fmt.Errorf("week %d, slot %d: CapacityByUnit requires capacity >= 1", wi+1, i+1)
+				}
+			default:
+				return nil, fmt.Errorf("week %d, slot %d: unknown capacity mode %q", wi+1, i+1, bs.CapacityMode)
+			}
+
+			// Store normalized slot back
+			week.BaseSlots[i] = bs
 		}
 
+		// Calculate start of week (Monday)
 		monday := anchor.AddDate(0, 0, -int((anchor.Weekday()+6)%7))
 
+		// Expand slots for each active day
 		for _, wd := range week.ActiveDays {
 			delta := (int(wd) - int(monday.Weekday()) + 7) % 7
 			slotDate := monday.AddDate(0, 0, delta).Format("2006-01-02")
@@ -70,7 +92,7 @@ func (s *DefaultProviderService) SetupTimeslots(
 		return nil, fmt.Errorf("failed to create timeslots: %w", err)
 	}
 
-	// 4. Activate provider & add MinimalSlotDTOs
+	// 4. Activate provider & link slot refs
 	prov.Profile.Status = "active"
 	var slotRefs []models.MinimalSlotDTO
 	for i, id := range ids {

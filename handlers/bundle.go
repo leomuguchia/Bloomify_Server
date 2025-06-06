@@ -36,6 +36,7 @@ type HandlerBundle struct {
 	ConfirmBooking       gin.HandlerFunc
 	CancelSession        gin.HandlerFunc
 	GetAvailableServices gin.HandlerFunc
+	GetServiceByID       gin.HandlerFunc
 	GetDirections        gin.HandlerFunc
 	GetPaymentIntent     gin.HandlerFunc
 	MatchNearbyProviders gin.HandlerFunc
@@ -61,9 +62,6 @@ type HandlerBundle struct {
 	// User device endpoints
 	GetUserDevicesHandler          gin.HandlerFunc
 	SignOutOtherUserDevicesHandler gin.HandlerFunc
-
-	// OTP endpoints (for user OTP verification, if separate)
-	VerifyOTPHandler gin.HandlerFunc
 
 	// Password reset endpoints for users
 	ResetPasswordHandler gin.HandlerFunc

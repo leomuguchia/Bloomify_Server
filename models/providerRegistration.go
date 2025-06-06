@@ -3,20 +3,25 @@ package models
 import "time"
 
 type ProviderBasicRegistrationData struct {
-	ProviderName string   `json:"providerName"`
-	ProviderType string   `json:"providerType"`
-	Email        string   `json:"email"`
-	Password     string   `json:"password"`
-	PhoneNumber  string   `json:"phoneNumber"`
-	Address      string   `json:"address,omitempty"`
-	LocationGeo  GeoPoint `json:"locationGeo"`
-	Description  string   `json:"description"`
+	ProviderName    string   `json:"providerName" binding:"required"`
+	ProviderType    string   `json:"providerType" binding:"required"`
+	ProfileImageUrl string   `json:"profileImageUrl,omitempty"`
+	Email           string   `json:"email" binding:"required"`
+	Password        string   `json:"password" binding:"required"`
+	PhoneNumber     string   `json:"phoneNumber" binding:"required"`
+	Address         string   `json:"address,omitempty"`
+	LocationGeo     GeoPoint `json:"locationGeo" binding:"required"`
+	Description     string   `json:"description" binding:"required"`
 }
 
 type KYPVerificationData struct {
-	LegalName   string `json:"legalName"`
-	DocumentURL string `json:"documentUrl"`
-	SelfieURL   string `json:"selfieUrl"`
+	Type         string `json:"type"` // "individual" or "business"
+	LegalName    string `json:"legalName"`
+	DocumentURL  string `json:"documentUrl"`
+	DocumentType string `json:"documentType"` // e.g., "passport", "license", "taxID"
+	SelfieURL    string `json:"selfieUrl"`    // required for individuals, optional for business contact person
+	ContactName  string `json:"contactName"`  // optional for businesses
+	ContactEmail string `json:"contactEmail"` // optional for businesses
 }
 
 // RegistrationSession holds all transient data during multi‑step registration.
@@ -58,6 +63,6 @@ type ProviderAuthResponse struct {
 	ID          string    `json:"id"`
 	Token       string    `json:"token"`
 	Profile     Profile   `json:"profile"`
-	CreatedAt   time.Time `json:"created_at"`
-	ServiceType string    `json:"service_type,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	ServiceType string    `json:"serviceType,omitempty"`
 }

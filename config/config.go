@@ -1,7 +1,10 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -31,10 +34,23 @@ type Config struct {
 	OpenAIAPIKey             string `mapstructure:"OPENAI_KEY"`
 	StripeKey                string `mapstructure:"STRIPE_KEY"`
 	GeminiAPIKey             string `mapstructure:"GEMINI_KEY"`
+	ExchangeRateAPIKey       string `mapstructure:"EXCHANGE_RATE_API_KEY"`
 }
 
 var AppConfig Config
 var FirebaseServiceAccountKeyPath string = "config/bloom-firebase-service-account.json"
+var CountryBiasMap map[string]float64
+
+func LoadCountryBiasMap(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read country bias file: %w", err)
+	}
+	if err := json.Unmarshal(data, &CountryBiasMap); err != nil {
+		return fmt.Errorf("failed to parse country bias JSON: %w", err)
+	}
+	return nil
+}
 
 func LoadConfig() {
 	viper.SetConfigName("c")
@@ -63,6 +79,9 @@ func LoadConfig() {
 	if err := viper.Unmarshal(&AppConfig); err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	// country bias map from json
+	LoadCountryBiasMap("config/countryBias.json")
 }
 
 func GetEnv() string {

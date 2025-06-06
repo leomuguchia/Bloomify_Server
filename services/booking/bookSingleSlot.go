@@ -132,14 +132,21 @@ func (se *DefaultSchedulingEngine) bookSingleSlot(
 	}
 
 	// Check capacity usage
-	used, err := se.Repo.SumOverlappingBookings(provider.ID, date, slot.Start, slot.End, &booking.Priority)
-	if err != nil {
-		log.Printf("[bookSingleSlot] Capacity check error: %v", err)
+	var used int
+	if slot.CapacityMode == models.CapacitySingleUse {
+		if err := se.TimeslotsRepo.SetTimeSlotBlockReason(ctx, provider.ID, slot.ID, date, true, "booked exclusively"); err != nil {
+			log.Printf("[bookSingleSlot] Failed to block slot: %v", err)
+		}
 	} else {
-		log.Printf("[bookSingleSlot] Capacity usage: %d/%d", used, slot.Capacity)
-		if used >= slot.Capacity {
-			if err := se.TimeslotsRepo.SetTimeSlotBlockReason(ctx, provider.ID, slot.ID, date, true, "capacity full"); err != nil {
-				log.Printf("[bookSingleSlot] Failed to block slot: %v", err)
+		used, err = se.Repo.SumOverlappingBookings(provider.ID, date, slot.Start, slot.End, &booking.Priority)
+		if err != nil {
+			log.Printf("[bookSingleSlot] Capacity check error: %v", err)
+		} else {
+			log.Printf("[bookSingleSlot] Capacity usage: %d/%d", used, slot.Capacity)
+			if used >= slot.Capacity {
+				if err := se.TimeslotsRepo.SetTimeSlotBlockReason(ctx, provider.ID, slot.ID, date, true, "capacity full"); err != nil {
+					log.Printf("[bookSingleSlot] Failed to block slot: %v", err)
+				}
 			}
 		}
 	}
