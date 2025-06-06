@@ -4,6 +4,7 @@ import (
 	"bloomify/models"
 	"bloomify/services/socialAuth.go"
 	"bloomify/utils"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -67,7 +68,7 @@ func (s *DefaultProviderService) InitiateProviderAuthentication(email, method, p
 		return nil, "", 0, fmt.Errorf("unsupported authentication method")
 	}
 
-	sessionClient := utils.GetAuthCacheClient()
+	sessionClient := utils.GetProviderAuthCacheClient()
 	sessionID := fmt.Sprintf("%s:%s", provider.ID, currentDevice.DeviceID)
 
 	// Check if device is already registered
@@ -116,7 +117,7 @@ func (s *DefaultProviderService) InitiateProviderAuthentication(email, method, p
 
 // CheckProviderAuthenticationStatus returns the current status of an authentication session
 func (s *DefaultProviderService) CheckProviderAuthenticationStatus(sessionID string) (string, error) {
-	sessionClient := utils.GetAuthCacheClient()
+	sessionClient := utils.GetProviderAuthCacheClient()
 	authSession, err := utils.GetAuthSession(sessionClient, sessionID)
 	if err != nil {
 		return "", fmt.Errorf("invalid or expired session")
@@ -126,7 +127,7 @@ func (s *DefaultProviderService) CheckProviderAuthenticationStatus(sessionID str
 
 // VerifyProviderAuthenticationOTP verifies the OTP and completes authentication
 func (s *DefaultProviderService) VerifyProviderAuthenticationOTP(sessionID, otp string, currentDevice models.Device) (*models.ProviderAuthResponse, error) {
-	sessionClient := utils.GetAuthCacheClient()
+	sessionClient := utils.GetProviderAuthCacheClient()
 	authSession, err := utils.GetAuthSession(sessionClient, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid or expired session")
@@ -153,11 +154,9 @@ func (s *DefaultProviderService) VerifyProviderAuthenticationOTP(sessionID, otp 
 	return s.completeProviderAuthentication(provider, currentDevice)
 }
 
-// completeProviderAuthentication handles the final steps of provider authentication
 func (s *DefaultProviderService) completeProviderAuthentication(provider *models.Provider, currentDevice models.Device) (*models.ProviderAuthResponse, error) {
-	sessionClient := utils.GetAuthCacheClient()
+	sessionClient := utils.GetProviderAuthCacheClient()
 	sessionID := fmt.Sprintf("%s:%s", provider.ID, currentDevice.DeviceID)
-	// ctx := context.Background()
 
 	// Check if device is already registered
 	deviceExists := false
@@ -187,7 +186,13 @@ func (s *DefaultProviderService) completeProviderAuthentication(provider *models
 	}
 	tokenHash := utils.HashToken(token)
 
-	// Update device token
+	// Invalidate the existing cached token hash for this device
+	cacheKey := utils.ProviderAuthCachePrefix + provider.ID + ":" + currentDevice.DeviceID
+	if sessionClient != nil {
+		_ = sessionClient.Del(context.Background(), cacheKey).Err()
+	}
+
+	// Update device token hash & last login time
 	for idx, d := range provider.Devices {
 		if d.DeviceID == currentDevice.DeviceID {
 			provider.Devices[idx].TokenHash = tokenHash
@@ -196,7 +201,7 @@ func (s *DefaultProviderService) completeProviderAuthentication(provider *models
 		}
 	}
 
-	// Update provider record
+	// Update provider record in DB
 	updateDoc := bson.M{
 		"devices":   provider.Devices,
 		"updatedAt": time.Now(),
@@ -205,7 +210,7 @@ func (s *DefaultProviderService) completeProviderAuthentication(provider *models
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}
 
-	// Clear the auth session
+	// Clear the auth session (e.g. OTP/session tracking)
 	_ = utils.DeleteAuthSession(sessionClient, sessionID)
 
 	return &models.ProviderAuthResponse{

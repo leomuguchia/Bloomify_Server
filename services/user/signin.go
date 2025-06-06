@@ -4,7 +4,9 @@ import (
 	"bloomify/models"
 	"bloomify/services/socialAuth.go"
 	"bloomify/utils"
+	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -176,6 +178,14 @@ func (s *DefaultUserService) completeAuthentication(userRec *models.User, curren
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}
 	tokenHash := utils.HashToken(token)
+
+	// clear any existing token for the device
+	if sessionClient != nil {
+		cacheKey := utils.AuthCachePrefix + userRec.ID + ":" + currentDevice.DeviceID
+		if err := sessionClient.Del(context.Background(), cacheKey).Err(); err != nil {
+			log.Printf("Failed to clear stale token cache: %v", err)
+		}
+	}
 
 	// Update device token
 	for idx, d := range userRec.Devices {

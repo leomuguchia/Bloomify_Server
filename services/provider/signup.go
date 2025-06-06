@@ -43,7 +43,7 @@ func (s *DefaultProviderService) RegisterBasic(basicReq models.ProviderBasicRegi
 		Devices:       []models.Device{device},
 	}
 
-	authCacheClient := utils.GetAuthCacheClient()
+	authCacheClient := utils.GetProviderAuthCacheClient()
 	if err := SaveRegistrationSession(authCacheClient, sessionID, session, 30*time.Minute); err != nil {
 		return "", 0, fmt.Errorf("failed to save registration session: %w", err)
 	}
@@ -55,7 +55,7 @@ func (s *DefaultProviderService) RegisterBasic(basicReq models.ProviderBasicRegi
 // It retrieves the session, validates the OTP using sessionID and deviceID,
 // updates the session's OTP status upon success, and returns status 105.
 func (s *DefaultProviderService) VerifyOTP(sessionID string, deviceID string, providedOTP string) (int, error) {
-	authCacheClient := utils.GetAuthCacheClient()
+	authCacheClient := utils.GetProviderAuthCacheClient()
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
@@ -78,7 +78,7 @@ func (s *DefaultProviderService) VerifyOTP(sessionID string, deviceID string, pr
 // VerifyKYP handles Step 2: KYP Verification.
 // It retrieves the registration session and updates it with the provided KYP details.
 func (s *DefaultProviderService) VerifyKYP(sessionID string, kypData models.KYPVerificationData) (int, error) {
-	authCacheClient := utils.GetAuthCacheClient()
+	authCacheClient := utils.GetProviderAuthCacheClient()
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *DefaultProviderService) VerifyKYP(sessionID string, kypData models.KYPV
 // converts it into a full Provider model, generates a JWT token (using your utils functions),
 // updates the device's token hash, persists the Provider record, and clears the session.
 func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogueData models.ServiceCatalogue) (*models.ProviderAuthResponse, error) {
-	authCacheClient := utils.GetAuthCacheClient()
+	authCacheClient := utils.GetProviderAuthCacheClient()
 
 	session, err := GetRegistrationSession(authCacheClient, sessionID)
 	if err != nil {
