@@ -7,6 +7,7 @@ import (
 	"bloomify/models"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Create inserts a new provider document.
@@ -87,5 +88,52 @@ func (r *MongoProviderRepo) UpdatePushDocument(id string, updateDoc bson.M) erro
 	if result.MatchedCount == 0 {
 		return fmt.Errorf("provider with id %s not found", id)
 	}
+	return nil
+}
+
+func (r *MongoProviderRepo) MarkNotificationsAsRead(id string, notificationIDs []string) error {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Create array filters for the specific notifications to update
+	arrayFilters := options.ArrayFilters{
+		Filters: []any{
+			bson.M{
+				"elem.id": bson.M{"$in": notificationIDs},
+			},
+		},
+	}
+
+	// Update operation to:
+	// 1. Set read=true for matching notifications
+	// 2. Update their updatedAt timestamp
+	// 3. Update the provider's updatedAt field
+	update := bson.M{
+		"$set": bson.M{
+			"notifications.$[elem].read":      true,
+			"notifications.$[elem].updatedAt": time.Now(),
+			"updatedAt":                       time.Now(),
+		},
+	}
+
+	opts := options.Update().SetArrayFilters(arrayFilters)
+	filter := bson.M{"id": id}
+
+	result, err := r.coll.UpdateOne(
+		ctx,
+		filter,
+		update,
+		opts,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to mark notifications as read for provider %s: %w", id, err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("provider with id %s not found", id)
+	}
+	if result.ModifiedCount == 0 {
+		return fmt.Errorf("no notifications were updated (possibly already read or IDs not found)")
+	}
+
 	return nil
 }

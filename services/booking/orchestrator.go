@@ -99,7 +99,7 @@ func (s *DefaultBookingSessionService) UpdateSession(sessionID string, selectedP
 		Profile:          selectedDTO.Profile,
 	}
 
-	availabilityResult, err := s.SchedulerEngine.GetWeeklyAvailableSlots(selectedProvider, weekIndex)
+	availabilityResult, err := s.SchedulerEngine.GetWeeklyAvailableSlots(selectedProvider, weekIndex, session.ServicePlan.Units)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute availability for provider: %w", err)
 	}

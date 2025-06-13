@@ -32,8 +32,6 @@ type AdvancedVerification struct {
 type Security struct {
 	Password     string `bson:"-" json:"password,omitempty"`
 	PasswordHash string `bson:"passwordHash" json:"-"`
-	Token        string `bson:"-" json:"token,omitempty"`
-	TokenHash    string `bson:"tokenHash" json:"-"`
 	FCMToken     string `bson:"fcmToken" json:"fcmToken"`
 }
 
@@ -87,4 +85,5 @@ type ActiveBookingDTO struct {
 	CreatedAt time.Time   `bson:"createdAt" json:"createdAt"`
 	End       int         `bson:"end" json:"end"`
 	User      UserMinimal `bson:"user" json:"user"`
+	Mode      string      `bson:"mode" json:"mode"`
 }

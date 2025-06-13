@@ -29,6 +29,7 @@ type HandlerBundle struct {
 	// Provider device endpoints
 	GetProviderDevicesHandler          gin.HandlerFunc
 	SignOutOtherProviderDevicesHandler gin.HandlerFunc
+	UpdateProviderFCMTokenHandler      gin.HandlerFunc
 
 	// Booking endpoints
 	InitiateSession      gin.HandlerFunc

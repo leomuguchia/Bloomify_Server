@@ -8,6 +8,7 @@ import (
 	"bloomify/models"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Create inserts a new user document.
@@ -123,5 +124,52 @@ func (r *MongoUserRepo) PullFromArray(id, field string, value interface{}) error
 	if result.MatchedCount == 0 {
 		return fmt.Errorf("user with id %s not found", id)
 	}
+	return nil
+}
+
+func (r *MongoUserRepo) MarkNotificationsAsRead(id string, notificationIDs []string) error {
+	ctx, cancel := newContext(5 * time.Second)
+	defer cancel()
+
+	// Create array filters for the specific notifications to update
+	arrayFilters := options.ArrayFilters{
+		Filters: []any{
+			bson.M{
+				"elem.id": bson.M{"$in": notificationIDs},
+			},
+		},
+	}
+
+	// Update operation to:
+	// 1. Set read=true for matching notifications
+	// 2. Update their updatedAt timestamp
+	// 3. Update the user's updatedAt field
+	update := bson.M{
+		"$set": bson.M{
+			"notifications.$[elem].read":      true,
+			"notifications.$[elem].updatedAt": time.Now(),
+			"updatedAt":                       time.Now(),
+		},
+	}
+
+	opts := options.Update().SetArrayFilters(arrayFilters)
+	filter := bson.M{"id": id}
+
+	result, err := r.coll.UpdateOne(
+		ctx,
+		filter,
+		update,
+		opts,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to mark notifications as read for user %s: %w", id, err)
+	}
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("user with id %s not found", id)
+	}
+	if result.ModifiedCount == 0 {
+		return fmt.Errorf("no notifications were updated (possibly already read or IDs not found)")
+	}
+
 	return nil
 }

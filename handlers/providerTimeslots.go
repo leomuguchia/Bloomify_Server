@@ -54,7 +54,7 @@ func (h *ProviderHandler) GetTimeslotsHandler(c *gin.Context) {
 	providerID, _ := providerIDValue.(string)
 
 	var body struct {
-		Date string `json:"date" binding:"required"` // Required field
+		Date string `json:"date" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || body.Date == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing or invalid date in request body"})

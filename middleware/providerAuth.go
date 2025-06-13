@@ -166,7 +166,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 			// In strict mode, abort; in unstrict mode, proceed without full access.
 			if !optional {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error": "Token mismatch",
+					"error": "Token mismatch from cache",
 					"code":  0,
 				})
 				return
@@ -187,7 +187,7 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 		}
 
 		// Cache miss: Query the database.
-		proj := bson.M{"id": 1, "tokenHash": 1}
+		proj := bson.M{"id": 1, "devices": 1}
 		prov, err := providerRepo.GetByIDWithProjection(providerID, proj)
 		if err != nil || prov == nil {
 			logger.Error("JWTAuthProviderMiddleware: provider not found in repository", zap.String("providerID", providerID), zap.Error(err))
@@ -202,16 +202,22 @@ func JWTAuthProviderMiddleware(providerRepo providerRepo.ProviderRepository, opt
 			return
 		}
 
-		if computedHash != prov.Security.TokenHash {
-			logger.Error("JWTAuthProviderMiddleware: token hash mismatch from DB", zap.String("providerID", providerID))
-			if !optional {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error": "Token mismatch",
-					"code":  0,
-				})
-				return
+		// Find the device with the matching deviceID in the user's devices.
+		var deviceTokenHash string
+		found := false
+		for _, d := range prov.Devices {
+			if d.DeviceID == tokenDeviceID {
+				deviceTokenHash = d.TokenHash
+				found = true
+				break
 			}
-			c.Next()
+		}
+
+		if !found || deviceTokenHash == "" || deviceTokenHash != computedHash {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Token mismatch",
+				"code":  0,
+			})
 			return
 		}
 

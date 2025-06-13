@@ -94,7 +94,7 @@ func (h *ProviderHandler) AdvanceVerifyProviderHandler(c *gin.Context) {
 func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
 	id := c.Param("id")
 
-	var updates map[string]interface{}
+	var updates map[string]any
 	if err := c.BindJSON(&updates); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return

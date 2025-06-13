@@ -6,6 +6,7 @@ import (
 	"bloomify/utils"
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -64,6 +65,18 @@ func (s *DefaultProviderService) InitiateProviderAuthentication(email, method, p
 		if userInfo.Email != email {
 			return nil, "", 0, fmt.Errorf("email doesn't match google account")
 		}
+	case "facebook":
+		// Validate Facebook token (password contains the Facebook access token)
+		if password == "" {
+			return nil, "", 0, fmt.Errorf("facebook token is required")
+		}
+		userInfo, err := socialAuth.ValidateFacebookToken(password, "your-facebook-app-id", "your-facebook-app-secret")
+		if err != nil {
+			return nil, "", 0, fmt.Errorf("invalid facebook token: %v", err)
+		}
+		if userInfo.Email != email {
+			return nil, "", 0, fmt.Errorf("email doesn't match facebook account")
+		}
 	default:
 		return nil, "", 0, fmt.Errorf("unsupported authentication method")
 	}
@@ -82,7 +95,7 @@ func (s *DefaultProviderService) InitiateProviderAuthentication(email, method, p
 
 	if deviceExists {
 		// Device is known - proceed with immediate authentication
-		authResp, err := s.completeProviderAuthentication(provider, currentDevice)
+		authResp, err := s.completeProviderAuthentication(provider.ID, currentDevice)
 		if err != nil {
 			return nil, "", 0, err
 		}
@@ -139,7 +152,7 @@ func (s *DefaultProviderService) VerifyProviderAuthenticationOTP(sessionID, otp 
 	}
 
 	// Fetch full provider record
-	provider, err := s.Repo.GetByID(authSession.UserID)
+	provider, err := s.Repo.GetByIDWithProjection(authSession.UserID, bson.M{})
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed, please try again")
 	}
@@ -151,12 +164,18 @@ func (s *DefaultProviderService) VerifyProviderAuthenticationOTP(sessionID, otp 
 	}
 
 	// Complete authentication
-	return s.completeProviderAuthentication(provider, currentDevice)
+	return s.completeProviderAuthentication(provider.ID, currentDevice)
 }
 
-func (s *DefaultProviderService) completeProviderAuthentication(provider *models.Provider, currentDevice models.Device) (*models.ProviderAuthResponse, error) {
+func (s *DefaultProviderService) completeProviderAuthentication(providerId string, currentDevice models.Device) (*models.ProviderAuthResponse, error) {
 	sessionClient := utils.GetProviderAuthCacheClient()
-	sessionID := fmt.Sprintf("%s:%s", provider.ID, currentDevice.DeviceID)
+	sessionID := fmt.Sprintf("%s:%s", providerId, currentDevice.DeviceID)
+
+	// Fetch full provider record
+	provider, err := s.Repo.GetByIDWithProjection(providerId, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("authentication failed, please try again")
+	}
 
 	// Check if device is already registered
 	deviceExists := false
@@ -186,10 +205,12 @@ func (s *DefaultProviderService) completeProviderAuthentication(provider *models
 	}
 	tokenHash := utils.HashToken(token)
 
-	// Invalidate the existing cached token hash for this device
-	cacheKey := utils.ProviderAuthCachePrefix + provider.ID + ":" + currentDevice.DeviceID
+	// clear any existing token for the device
 	if sessionClient != nil {
-		_ = sessionClient.Del(context.Background(), cacheKey).Err()
+		cacheKey := utils.ProviderAuthCachePrefix + providerId + ":" + currentDevice.DeviceID
+		if err := sessionClient.Del(context.Background(), cacheKey).Err(); err != nil {
+			log.Printf("Failed to clear stale token cache: %v", err)
+		}
 	}
 
 	// Update device token hash & last login time

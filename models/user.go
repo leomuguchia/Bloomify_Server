@@ -49,3 +49,25 @@ type TrustedProvider struct {
 	ServiceType  string    `bson:"serviceType" json:"serviceType"`
 	CreatedAt    time.Time `bson:"createdAt" json:"createdAt"`
 }
+
+type UserUpdateRequest struct {
+	ID                    *string            `bson:"id" json:"id"`
+	Username              *string            `json:"username,omitempty"`
+	Email                 *string            `json:"email,omitempty"`
+	PhoneNumber           *string            `json:"phoneNumber,omitempty"`
+	FCMToken              *string            `json:"fcmToken,omitempty"`
+	ProfileImage          *string            `json:"profileImage,omitempty"`
+	Preferences           *[]string          `json:"preferences,omitempty"`
+	Devices               *[]Device          `json:"devices,omitempty"`
+	Rating                *int               `json:"rating,omitempty"`
+	ActiveBookings        *[]string          `json:"activeBookings,omitempty"`
+	Notifications         *[]Notification    `json:"notifications,omitempty"`
+	Location              *GeoPoint          `json:"location,omitempty"`
+	BookingHistory        *[]string          `json:"bookingHistory,omitempty"`
+	LastBookingTime       *time.Time         `json:"lastBookingTime,omitempty"`
+	SafetySettings        *SafetySettings    `json:"safetySettings,omitempty"`
+	TrustedProviders      *[]TrustedProvider `json:"trustedProviders,omitempty"`
+	UpdatedAt             *time.Time         `json:"updatedAt,omitempty"`
+	MarkNotificationsRead *[]string          `json:"markNotificationsRead,omitempty"`
+	RemoveNotifications   *[]string          `json:"removeNotifications,omitempty"`
+}

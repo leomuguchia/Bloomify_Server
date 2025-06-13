@@ -20,6 +20,33 @@ func (s *DefaultProviderService) UpdateProvider(c context.Context, id string, up
 	}
 
 	updateFields := bson.M{}
+	hasNotificationUpdates := false
+
+	// Handle notification updates first if present
+	if markRead, ok := updates["markNotificationsRead"]; ok {
+		var notificationIDs []string
+
+		// Handle both []string and []interface{} input types
+		switch v := markRead.(type) {
+		case []string:
+			notificationIDs = v
+		case []interface{}:
+			for _, id := range v {
+				if strID, ok := id.(string); ok {
+					notificationIDs = append(notificationIDs, strID)
+				}
+			}
+		}
+
+		if len(notificationIDs) > 0 {
+			err := s.Repo.MarkNotificationsAsRead(id, notificationIDs)
+			if err != nil {
+				return nil, fmt.Errorf("failed to mark notifications as read: %w", err)
+			}
+			hasNotificationUpdates = true
+			delete(updates, "markNotificationsRead")
+		}
+	}
 
 	if v, ok := updates["providerName"].(string); ok && v != "" {
 		updateFields["profile.providerName"] = v
@@ -68,9 +95,9 @@ func (s *DefaultProviderService) UpdateProvider(c context.Context, id string, up
 		}
 	}
 
-	if geo, ok := updates["locationGeo"].(map[string]interface{}); ok {
+	if geo, ok := updates["locationGeo"].(map[string]any); ok {
 		if t, ok := geo["type"].(string); ok && t == "Point" {
-			if coords, ok := geo["coordinates"].([]interface{}); ok && len(coords) == 2 {
+			if coords, ok := geo["coordinates"].([]any); ok && len(coords) == 2 {
 				var newCoords []float64
 				for _, cVal := range coords {
 					switch v := cVal.(type) {
@@ -92,11 +119,23 @@ func (s *DefaultProviderService) UpdateProvider(c context.Context, id string, up
 		}
 	}
 
+	if v, ok := updates["fcmToken"].(string); ok && v != "" {
+		updateFields["security.fcmToken"] = v
+		existing.Security.FCMToken = v
+	}
+
 	updateFields["updatedAt"] = time.Now()
 	existing.UpdatedAt = time.Now()
 
-	if err := s.Repo.UpdateSetDocument(existing.ID, updateFields); err != nil {
-		return nil, fmt.Errorf("failed to update provider: %w", err)
+	// Validate we have actual updates (either fields or notifications)
+	if len(updateFields) == 1 && !hasNotificationUpdates {
+		return nil, fmt.Errorf("no valid update fields provided")
+	}
+
+	if len(updateFields) > 1 {
+		if err := s.Repo.UpdateSetDocument(existing.ID, updateFields); err != nil {
+			return nil, fmt.Errorf("failed to update provider: %w", err)
+		}
 	}
 
 	return s.GetProviderByID(c, id, true)

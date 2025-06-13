@@ -17,7 +17,7 @@ type UserService interface {
 	VerifyAuthenticationOTP(sessionID, otp string, currentDevice models.Device) (*AuthResponse, error)
 
 	// User Management
-	UpdateUser(user models.User) (*models.User, error)
+	UpdateUser(user models.UserUpdateRequest) (*models.User, error)
 	GetUserByID(userID string) (*models.User, error)
 	GetUserByEmail(email string) (*models.User, error)
 	DeleteUser(userID string) error

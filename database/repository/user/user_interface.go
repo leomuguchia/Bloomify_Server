@@ -24,7 +24,7 @@ type UserRepository interface {
 	GetAllWithProjection(projection bson.M) ([]models.User, error)
 	IsUserAvailable(basicReq models.UserBasicRegistrationData) (bool, error)
 	PullFromArray(id string, field string, value interface{}) error
-	// PullFromArray(id string, field string, value interface{}) error
+	MarkNotificationsAsRead(id string, notificationIDs []string) error
 }
 
 // MongoUserRepo implements UserRepository using MongoDB.

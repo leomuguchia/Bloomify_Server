@@ -64,7 +64,7 @@ func getRemainingUnits(ts models.TimeSlot) (int, bool) {
 	}
 }
 
-func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, now time.Time, currency string) ([]models.AvailableSlot, error) {
+func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, now time.Time, currency string, units int, provider models.Provider) ([]models.AvailableSlot, error) {
 	var availableSlots []models.AvailableSlot
 	logger := utils.GetLogger()
 
@@ -88,11 +88,6 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 					return
 				}
 
-				remaining, ok := getRemainingUnits(ts)
-				if !ok || remaining <= 0 {
-					return
-				}
-
 				slotID := ts.ID
 				slot := models.AvailableSlot{
 					ID:            slotID,
@@ -105,7 +100,42 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 					CapacityMode:  ts.CapacityMode,
 				}
 
-				slot.RegularCapacityRemaining = remaining
+				// Determine remaining capacity
+				var remaining int
+				var ok bool
+
+				if provider.Profile.ProviderType == "individual" {
+					// Calculate slot duration in minutes
+					durationMinutes := ts.End - ts.Start
+					if durationMinutes <= 0 {
+						logger.Warn("invalid slot duration", zap.String("slotID", ts.ID), zap.Int("start", ts.Start), zap.Int("end", ts.End))
+						return
+					}
+
+					// Round duration to nearest hour
+					durationHours := int(math.Round(float64(durationMinutes) / 60.0))
+					if durationHours <= 0 {
+						slot.Message = fmt.Sprintf("Slot duration (%d min) too short for booking", durationMinutes)
+						return
+					}
+
+					// Set capacity to duration in hours
+					remaining = durationHours
+					ok = true
+					slot.RegularCapacityRemaining = remaining
+
+					slot.Message = fmt.Sprintf(
+						"You will book the entire %d %s slot",
+						durationHours, ts.UnitType,
+					)
+				} else {
+					remaining, ok = getRemainingUnits(ts)
+					if !ok || remaining <= 0 {
+						return
+					}
+					slot.RegularCapacityRemaining = remaining
+				}
+
 				if slot.Catalogue.Currency == "" {
 					slot.Catalogue.Currency = currency
 				}
@@ -113,37 +143,61 @@ func BuildAvailableSlots(enrichedSlots []models.TimeSlot, weekStart, weekEnd, no
 				switch ts.SlotModel {
 				case "urgency":
 					if ts.Urgency != nil {
-						slot.PriorityPricePerUnit = ts.BasePrice * (1 + ts.Urgency.PrioritySurchargeRate)
-						for _, option := range ts.Catalogue.CustomOptions {
-							price := slot.PriorityPricePerUnit * option.Multiplier
-							slot.OptionPricing[option.Option] = math.Round(price*100) / 100
+						if remaining >= units {
+							slot.RegularPricePerUnit = math.Round(ts.BasePrice)
+							for _, option := range ts.Catalogue.CustomOptions {
+								price := ts.BasePrice * option.Multiplier
+								slot.OptionPricing[option.Option] = math.Round(price)
+							}
+						} else if slot.PriorityCapacityRemaining >= units {
+							slot.PriorityPricePerUnit = math.Round(ts.BasePrice * (1 + ts.Urgency.PrioritySurchargeRate))
+							for _, option := range ts.Catalogue.CustomOptions {
+								price := slot.PriorityPricePerUnit * option.Multiplier
+								slot.OptionPricing[option.Option] = math.Round(price)
+							}
+						} else if remaining > 0 {
+							slot.RegularPricePerUnit = math.Round(ts.BasePrice)
+							for _, option := range ts.Catalogue.CustomOptions {
+								price := ts.BasePrice * option.Multiplier
+								slot.OptionPricing[option.Option] = math.Round(price)
+							}
+							slot.Message = fmt.Sprintf("Only %d of %d %s available", remaining, units, slot.UnitType)
+						} else {
+							logger.Warn("capacity is full", zap.String("slotID", ts.ID))
+							return
 						}
 					}
 				case "earlybird":
-					if ts.EarlyBird != nil { // Add nil check here
-						nextPrice := GetEarlyBirdNextUnitPrice(ts.BasePrice, *ts.EarlyBird, ts.Capacity, ts.BookedUnitsStandard)
-						slot.RegularPricePerUnit = nextPrice
-						for _, option := range ts.Catalogue.CustomOptions {
-							price := nextPrice * option.Multiplier
-							slot.OptionPricing[option.Option] = math.Round(price*100) / 100
-						}
+					var price float64
+					if ts.EarlyBird != nil {
+						price = GetEarlyBirdNextUnitPrice(ts.BasePrice, *ts.EarlyBird, ts.Capacity, ts.BookedUnitsStandard)
 					} else {
-						// Handle case where EarlyBird is nil - maybe use base price?
-						slot.RegularPricePerUnit = ts.BasePrice
-						for _, option := range ts.Catalogue.CustomOptions {
-							price := ts.BasePrice * option.Multiplier
-							slot.OptionPricing[option.Option] = math.Round(price*100) / 100
-						}
+						price = ts.BasePrice
+					}
+					price = math.Round(price)
+					slot.RegularPricePerUnit = price
+					for _, option := range ts.Catalogue.CustomOptions {
+						p := price * option.Multiplier
+						slot.OptionPricing[option.Option] = math.Round(p)
+					}
+					if remaining < units {
+						slot.Message = fmt.Sprintf("Only %d of %d %s available", remaining, units, slot.UnitType)
 					}
 				case "flatrate":
-					slot.RegularPricePerUnit = ts.BasePrice
+					slot.RegularPricePerUnit = math.Round(ts.BasePrice)
 					for _, option := range ts.Catalogue.CustomOptions {
 						price := ts.BasePrice * option.Multiplier
-						slot.OptionPricing[option.Option] = math.Round(price*100) / 100
+						slot.OptionPricing[option.Option] = math.Round(price)
+					}
+					if remaining < units {
+						slot.Message = fmt.Sprintf("Only %d of %d %s available", remaining, units, slot.UnitType)
 					}
 				}
 
-				if ts.CapacityMode == models.CapacityByUnit && ts.Capacity > 0 && float64(remaining)/float64(ts.Capacity) < 0.3 {
+				if ts.CapacityMode == models.CapacityByUnit &&
+					ts.Capacity > 0 &&
+					float64(remaining)/float64(ts.Capacity) < 0.3 &&
+					slot.Message == "" {
 					slot.Message = fmt.Sprintf("Only %d %s remaining", remaining, ts.UnitType)
 				}
 

@@ -4,8 +4,10 @@ import (
 	"net/http"
 
 	"bloomify/services/provider"
+	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type ProviderDeviceHandler struct {
@@ -71,4 +73,41 @@ func (h *ProviderDeviceHandler) SignOutOtherProviderDevicesHandler(c *gin.Contex
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Signed out of other devices successfully"})
+}
+
+func (h *ProviderDeviceHandler) UpdateProviderFCMTokenHandler(c *gin.Context) {
+	rawProviderID, exists := c.Get("providerID")
+	if !exists || rawProviderID == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Provider ID not found in context"})
+		return
+	}
+	providerID, ok := rawProviderID.(string)
+	if !ok || providerID == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid provider ID"})
+		return
+	}
+
+	var req struct {
+		FCMToken string `json:"fcmToken" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	utils.Logger.Info("Updating FCM token for provider", zap.String("providerID", providerID), zap.String("newFCMToken", req.FCMToken))
+
+	updates := map[string]interface{}{
+		"fcmToken": req.FCMToken,
+	}
+
+	updatedProvider, err := h.ProviderService.UpdateProvider(c, providerID, updates)
+	if err != nil {
+		utils.Logger.Error("Failed to update FCM token for provider", zap.String("providerID", providerID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	utils.Logger.Info("Successfully updated provider FCM token", zap.String("providerID", providerID))
+	c.JSON(http.StatusOK, updatedProvider)
 }

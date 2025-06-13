@@ -58,6 +58,18 @@ func (s *DefaultUserService) InitiateAuthentication(email, method, password stri
 		if strings.ToLower(userInfo.Email) != emailLower {
 			return nil, "", 0, fmt.Errorf("email doesn't match google account")
 		}
+	case "facebook":
+		// Validate Facebook token (password contains the Facebook access token)
+		if password == "" {
+			return nil, "", 0, fmt.Errorf("facebook token is required")
+		}
+		userInfo, err := socialAuth.ValidateFacebookToken(password, "your-facebook-app-id", "your-facebook-app-secret")
+		if err != nil {
+			return nil, "", 0, fmt.Errorf("invalid facebook token: %v", err)
+		}
+		if strings.ToLower(userInfo.Email) != emailLower {
+			return nil, "", 0, fmt.Errorf("email doesn't match facebook account")
+		}
 	default:
 		return nil, "", 0, fmt.Errorf("unsupported authentication method")
 	}

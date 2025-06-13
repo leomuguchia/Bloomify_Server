@@ -79,7 +79,7 @@ func ValidateAndBook(
 	}
 
 	// 4) Recompute per‑unit and validate user’s returned per‑unit price
-	expectedPerUnit := math.Round(baseUnitPrice*multiplier*100) / 100
+	expectedPerUnit := math.Round(baseUnitPrice * multiplier)
 	if math.Round(customOptionResp.Price*100)/100 != expectedPerUnit {
 		return nil, fmt.Errorf(
 			"custom option price mismatch: got %.2f, expected %.2f",

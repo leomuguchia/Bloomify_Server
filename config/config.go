@@ -39,7 +39,7 @@ type Config struct {
 
 var AppConfig Config
 var FirebaseServiceAccountKeyPath string = "config/bloom-firebase-service-account.json"
-var CountryBiasMap map[string]float64
+var CountryBiasMap map[string]map[string]float64
 
 func LoadCountryBiasMap(path string) error {
 	data, err := os.ReadFile(path)
@@ -49,6 +49,7 @@ func LoadCountryBiasMap(path string) error {
 	if err := json.Unmarshal(data, &CountryBiasMap); err != nil {
 		return fmt.Errorf("failed to parse country bias JSON: %w", err)
 	}
+	log.Println("Successfully loaded country bias map")
 	return nil
 }
 

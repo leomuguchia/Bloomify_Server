@@ -66,12 +66,15 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 			protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
 			protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
 			protected.PUT("/password/:id", hb.UpdateProviderPasswordHandler)
+			protected.POST("/fcm", hb.UpdateProviderFCMTokenHandler)
+
 			// Provider device endpoints
 			protected.GET("/devices", hb.GetProviderDevicesHandler)
 			protected.DELETE("/devices", hb.SignOutOtherProviderDevicesHandler)
+
 			//Timeslot management endpoints
 			protected.PUT("/timeslots/:id", hb.SetupTimeslotsHandler)
-			protected.GET("/timeslots", hb.GetTimeslotsHandler)
+			protected.POST("/timeslots", hb.GetTimeslotsHandler)
 			protected.DELETE("/timeslot", hb.DeleteTimeslotHandler)
 		}
 	}

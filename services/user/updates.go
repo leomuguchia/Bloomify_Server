@@ -12,94 +12,113 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func (s *DefaultUserService) UpdateUser(user models.User) (*models.User, error) {
+func (s *DefaultUserService) UpdateUser(req models.UserUpdateRequest) (*models.User, error) {
+	var userID = req.ID
 	logger := utils.GetLogger()
-	logger.Debug("UpdateUser called", zap.Any("user", user))
+	if userID != nil {
+		logger.Debug("UpdateUser called", zap.String("userID", *userID), zap.Any("updateRequest", req))
+	} else {
+		logger.Debug("UpdateUser called with nil userID", zap.Any("updateRequest", req))
+	}
 
 	setFields := bson.M{
 		"updatedAt": time.Now(),
 	}
 	pushFields := bson.M{}
+	hasNotificationUpdates := false
 
-	// Collect fields for $set
-	if user.Username != "" {
-		setFields["username"] = user.Username
+	// Collect fields for $set based on non-nil fields
+	if req.Username != nil {
+		setFields["username"] = *req.Username
 	}
-	if user.Email != "" {
-		setFields["email"] = user.Email
+	if req.Email != nil {
+		setFields["email"] = *req.Email
 	}
-	if user.PhoneNumber != "" {
-		setFields["phoneNumber"] = user.PhoneNumber
+	if req.PhoneNumber != nil {
+		setFields["phoneNumber"] = *req.PhoneNumber
 	}
-	if user.FCMToken != "" {
-		setFields["fcmToken"] = user.FCMToken
+	if req.FCMToken != nil {
+		setFields["fcmToken"] = *req.FCMToken
 	}
-	if user.ProfileImage != "" {
-		setFields["profileImage"] = user.ProfileImage
+	if req.ProfileImage != nil {
+		setFields["profileImage"] = *req.ProfileImage
 	}
-	if user.Preferences != nil {
-		setFields["preferences"] = user.Preferences
+	if req.Preferences != nil {
+		setFields["preferences"] = *req.Preferences
 	}
-	if user.Devices != nil {
-		setFields["devices"] = user.Devices
+	if req.Devices != nil {
+		setFields["devices"] = *req.Devices
 	}
-	if user.Rating != 0 {
-		setFields["rating"] = user.Rating
+	if req.Rating != nil {
+		setFields["rating"] = *req.Rating
 	}
-	if user.ActiveBookings != nil {
-		setFields["activeBookings"] = user.ActiveBookings
+	if req.ActiveBookings != nil {
+		setFields["activeBookings"] = *req.ActiveBookings
 	}
-	if user.BookingHistory != nil {
-		setFields["bookingHistory"] = user.BookingHistory
+	if req.BookingHistory != nil {
+		setFields["bookingHistory"] = *req.BookingHistory
 	}
-	if user.Notifications != nil {
-		setFields["notifications"] = user.Notifications
+	if req.Notifications != nil {
+		setFields["notifications"] = *req.Notifications
 	}
-	if !user.LastBookingTime.IsZero() {
-		setFields["lastBookingTime"] = user.LastBookingTime
+	if req.LastBookingTime != nil && !req.LastBookingTime.IsZero() {
+		setFields["lastBookingTime"] = *req.LastBookingTime
 	}
-	if len(user.Location.Coordinates) > 0 {
-		setFields["location"] = user.Location
+	if req.Location != nil && len(req.Location.Coordinates) > 0 {
+		setFields["location"] = *req.Location
 	}
-	if user.SafetySettings != (models.SafetySettings{}) {
-		setFields["safetySettings"] = user.SafetySettings
-	}
-
-	// Collect fields for $push
-	if len(user.TrustedProviders) > 0 {
-		pushFields["trustedProviders"] = bson.M{"$each": user.TrustedProviders}
+	if req.SafetySettings != nil {
+		setFields["safetySettings"] = *req.SafetySettings
 	}
 
-	// Validate input
-	if user.ID == "" {
+	// Handle $push / $addToSet
+	if req.TrustedProviders != nil && len(*req.TrustedProviders) > 0 {
+		pushFields["trustedProviders"] = bson.M{"$each": *req.TrustedProviders}
+	}
+
+	// Handle notification updates first (mark as read)
+	if req.MarkNotificationsRead != nil && len(*req.MarkNotificationsRead) > 0 {
+		err := s.Repo.MarkNotificationsAsRead(*userID, *req.MarkNotificationsRead)
+		if err != nil {
+			logger.Error("Failed to mark notifications as read",
+				zap.String("userID", *userID),
+				zap.Any("notificationIDs", *req.MarkNotificationsRead),
+				zap.Error(err))
+			return nil, fmt.Errorf("failed to mark notifications as read: %w", err)
+		}
+		hasNotificationUpdates = true
+	}
+
+	// Validate
+	if userID == nil || *userID == "" {
 		logger.Error("User ID is required for update")
 		return nil, fmt.Errorf("user ID is required for update")
 	}
-	if len(setFields) == 1 && len(pushFields) == 0 {
+	if len(setFields) == 1 && len(pushFields) == 0 && !hasNotificationUpdates {
 		logger.Warn("No updatable fields provided")
 		return nil, fmt.Errorf("no updatable fields provided")
 	}
 
 	// Apply $set
 	if len(setFields) > 1 { // more than just "updatedAt"
-		if err := s.Repo.UpdateSetDocument(user.ID, setFields); err != nil {
-			logger.Error("Failed to apply $set update", zap.String("userID", user.ID), zap.Error(err))
+		if err := s.Repo.UpdateSetDocument(*userID, setFields); err != nil {
+			logger.Error("Failed to apply $set update", zap.String("userID", *userID), zap.Error(err))
 			return nil, fmt.Errorf("failed to update user: %w", err)
 		}
 	}
 
 	// Apply $push
 	if len(pushFields) > 0 {
-		if err := s.Repo.UpdateAddToSetDocument(user.ID, pushFields); err != nil {
-			logger.Error("Failed to apply $push update", zap.String("userID", user.ID), zap.Error(err))
+		if err := s.Repo.UpdateAddToSetDocument(*userID, pushFields); err != nil {
+			logger.Error("Failed to apply $push update", zap.String("userID", *userID), zap.Error(err))
 			return nil, fmt.Errorf("failed to update user: %w", err)
 		}
 	}
 
 	// Fetch updated user
-	updatedUser, err := s.Repo.GetByIDWithProjection(user.ID, nil)
+	updatedUser, err := s.Repo.GetByIDWithProjection(*userID, nil)
 	if err != nil {
-		logger.Error("Failed to fetch updated user", zap.String("userID", user.ID), zap.Error(err))
+		logger.Error("Failed to fetch updated user", zap.String("userID", *userID), zap.Error(err))
 		return nil, err
 	}
 

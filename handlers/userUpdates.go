@@ -30,9 +30,9 @@ func (h *UserHandler) UpdateSafetyPreferences(c *gin.Context) {
 	}
 
 	// Build a partial User object
-	u := models.User{
-		ID: userID,
-		SafetySettings: models.SafetySettings{
+	u := models.UserUpdateRequest{
+		ID: &userID,
+		SafetySettings: &models.SafetySettings{
 			NoShowThresholdMinutes: payload.NoShowThresholdMinutes,
 			SafetyReminderMinutes:  payload.SafetyReminderMinutes,
 			RequireInsured:         payload.RequireInsured,

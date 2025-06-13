@@ -4,6 +4,7 @@ import (
 	"bloomify/models"
 	"bloomify/utils"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -33,11 +34,11 @@ var globalRegions = []string{
 
 // price range is in default currrency USD
 var servicesMap = map[string]ServiceDetails{
-	"HouseCleaning": {
+	"Cleaning": {
 		Metadata: models.ServiceMetadata{
-			ID:           "HouseCleaning",
+			ID:           "Cleaning",
 			Icon:         "🧹",
-			UnitType:     "hour",
+			UnitType:     "hours",
 			ProviderTerm: "Cleaners",
 			Modes:        []string{models.ModeInHome},
 			Category:     "Domestic Services",
@@ -51,11 +52,11 @@ var servicesMap = map[string]ServiceDetails{
 		},
 		Availability: globalRegions,
 	},
-	"LaundryService": {
+	"Laundry": {
 		Metadata: models.ServiceMetadata{
-			ID:           "LaundryService",
+			ID:           "Laundry",
 			Icon:         "🧺",
-			UnitType:     "kg",
+			UnitType:     "kgs",
 			ProviderTerm: "Laundry Providers",
 			Modes:        []string{models.ModePickupDelivery, models.ModeInHome},
 			Category:     "Domestic Services",
@@ -73,7 +74,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "MealPrep",
 			Icon:         "🍽️",
-			UnitType:     "meal",
+			UnitType:     "sessions",
 			ProviderTerm: "Personal Chefs",
 			Modes:        []string{models.ModeInHome, models.ModePickupDelivery},
 			Category:     "Lifestyle & Personal Services",
@@ -91,7 +92,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "Handyman",
 			Icon:         "🔧",
-			UnitType:     "hour",
+			UnitType:     "hours",
 			ProviderTerm: "Handymen",
 			Modes:        []string{models.ModeInHome},
 			Category:     "Domestic Services",
@@ -109,7 +110,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "LawnCare",
 			Icon:         "🌿",
-			UnitType:     "hour",
+			UnitType:     "hours",
 			ProviderTerm: "Gardeners",
 			Modes:        []string{models.ModeInHome},
 			Category:     "Domestic Services",
@@ -127,7 +128,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "PetCare",
 			Icon:         "🐾",
-			UnitType:     "session",
+			UnitType:     "hours",
 			ProviderTerm: "Pet Sitters",
 			Modes:        []string{models.ModeInHome},
 			Category:     "Lifestyle & Personal Services",
@@ -145,8 +146,8 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "Childcare",
 			Icon:         "🧒",
-			UnitType:     "child",
-			ProviderTerm: "Childcare Providers",
+			UnitType:     "children",
+			ProviderTerm: "Nannies",
 			Modes:        []string{models.ModeInHome, models.ModeInStore},
 			Category:     "Lifestyle & Personal Services",
 		},
@@ -163,7 +164,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "Tutoring",
 			Icon:         "📚",
-			UnitType:     "session",
+			UnitType:     "sessions",
 			ProviderTerm: "Tutors",
 			Modes:        []string{models.ModeInHome, models.ModeVirtual},
 			Category:     "Lifestyle & Personal Services",
@@ -181,7 +182,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "TechSupport",
 			Icon:         "🖥️",
-			UnitType:     "session",
+			UnitType:     "sessions",
 			ProviderTerm: "IT Technicians",
 			Modes:        []string{models.ModeInHome, models.ModeInStore, models.ModeVirtual},
 			Category:     "Professional/Office Services",
@@ -199,7 +200,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "ErrandRunner",
 			Icon:         "🛍️",
-			UnitType:     "hour",
+			UnitType:     "hours",
 			ProviderTerm: "Concierges",
 			Modes:        []string{models.ModeInHome, models.ModePickupDelivery},
 			Category:     "Lifestyle & Personal Services",
@@ -217,8 +218,8 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "Chauffeuring",
 			Icon:         "🚗",
-			UnitType:     "hour",
-			ProviderTerm: "Private Drivers",
+			UnitType:     "hours",
+			ProviderTerm: "Chaeuffeurs",
 			Modes:        []string{models.ModeInHome},
 			Category:     "Lifestyle & Personal Services",
 		},
@@ -236,7 +237,7 @@ var servicesMap = map[string]ServiceDetails{
 		Metadata: models.ServiceMetadata{
 			ID:           "PersonalCare",
 			Icon:         "💇‍♂️",
-			UnitType:     "session",
+			UnitType:     "sessions",
 			ProviderTerm: "Personal Care Specialists",
 			Modes:        []string{models.ModeInHome, models.ModeInStore},
 			Category:     "Personal Care",
@@ -253,14 +254,19 @@ var servicesMap = map[string]ServiceDetails{
 	},
 }
 
+// GetServicesMap returns the static map of all service details.
+func GetServicesMap() map[string]ServiceDetails {
+	return servicesMap
+}
+
 // GetAvailableServices returns all services metadata available for the specified region.
 // If region == "", it returns all services.
 func (svc *DefaultBookingSessionService) GetAvailableServices(region string) ([]models.ServiceMetadata, error) {
 	services := make([]models.ServiceMetadata, 0, len(servicesMap))
 
 	for _, details := range servicesMap {
-		// If no region filter is provided, include every service.
-		if region != "" {
+		// If a region filter is provided, check availability
+		if region != "" && region != "global" {
 			found := false
 			regionLower := strings.ToLower(region)
 			for _, avail := range details.Availability {
@@ -274,7 +280,7 @@ func (svc *DefaultBookingSessionService) GetAvailableServices(region string) ([]
 			}
 		}
 
-		// Build and append the metadata
+		// Append service metadata (no filtering or region matched)
 		svcMeta := details.Metadata
 		services = append(services, models.ServiceMetadata{
 			ID:           svcMeta.ID,
@@ -317,8 +323,10 @@ func (svc *DefaultBookingSessionService) GetServiceByID(serviceID string, countr
 	// Apply geo pricing and convert currency
 	if details.PriceRange != nil {
 		bias := 0.5
-		geoBias := utils.GetGeoPricingBias(countryCode)
-
+		geoBias, err := utils.GetGeoPricingBias(countryCode)
+		if err != nil {
+			return nil, fmt.Errorf("invalid country code %s: %w", countryCode, err)
+		}
 		biasedMin := details.PriceRange.Min * geoBias
 		biasedMax := details.PriceRange.Max * geoBias
 		biasedSuggested := biasedMin + bias*(biasedMax-biasedMin)
@@ -336,10 +344,15 @@ func (svc *DefaultBookingSessionService) GetServiceByID(serviceID string, countr
 			return nil, fmt.Errorf("currency conversion failed: %v", err)
 		}
 
+		// Round all prices to nearest whole number
+		roundedMin := math.Round(convertedMin)
+		roundedMax := math.Round(convertedMax)
+		roundedSuggested := math.Round(convertedSuggested)
+
 		details.PriceRange = &PriceRange{
-			Min:       convertedMin,
-			Max:       convertedMax,
-			Suggested: convertedSuggested,
+			Min:       roundedMin,
+			Max:       roundedMax,
+			Suggested: roundedSuggested,
 			Currency:  currency,
 		}
 	}

@@ -134,6 +134,7 @@ func main() {
 		GetProviderDevicesHandler:          providerDeviceHandler.GetProviderDevicesHandler,
 		SignOutOtherProviderDevicesHandler: providerDeviceHandler.SignOutOtherProviderDevicesHandler,
 		ProviderLegalDocumentation:         providerHandler.ProviderLegalDocumentation,
+		UpdateProviderFCMTokenHandler:      providerDeviceHandler.UpdateProviderFCMTokenHandler,
 
 		// Booking endpoints
 		InitiateSession:      bookingHandler.InitiateSession,

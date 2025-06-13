@@ -104,9 +104,9 @@ func (h *UserHandler) UpdateFCMTokenHandler(c *gin.Context) {
 	// Log the update attempt
 	utils.Logger.Info("Updating FCM token", zap.String("userID", userID), zap.String("newFCMToken", req.FCMToken))
 
-	updatedUser, err := h.UserService.UpdateUser(models.User{
-		ID:       userID,
-		FCMToken: req.FCMToken,
+	updatedUser, err := h.UserService.UpdateUser(models.UserUpdateRequest{
+		ID:       &userID,
+		FCMToken: &req.FCMToken,
 	})
 	if err != nil {
 		utils.Logger.Error("Failed to update FCM token", zap.String("userID", userID), zap.Error(err))
@@ -143,9 +143,9 @@ func (h *UserHandler) UpdateTrustedProviders(c *gin.Context) {
 
 	switch req.Action {
 	case "add":
-		user := models.User{
-			ID:               userID,
-			TrustedProviders: req.TrustedProviders,
+		user := models.UserUpdateRequest{
+			ID:               &userID,
+			TrustedProviders: &req.TrustedProviders,
 		}
 		updated, err := h.UserService.UpdateUser(user)
 		if err != nil {

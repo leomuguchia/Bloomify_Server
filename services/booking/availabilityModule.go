@@ -36,6 +36,7 @@ type AvailableSlotsResult struct {
 func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 	provider models.Provider,
 	weekIndex int,
+	units int,
 ) (AvailableSlotsResult, error) {
 	logger := utils.GetLogger()
 	now := time.Now()
@@ -85,7 +86,7 @@ func (se *DefaultSchedulingEngine) GetWeeklyAvailableSlots(
 		}, nil
 	}
 
-	slots, err := BuildAvailableSlots(enriched, weekStart, weekEnd, now, provider.PaymentDetails.Currency)
+	slots, err := BuildAvailableSlots(enriched, weekStart, weekEnd, now, provider.PaymentDetails.Currency, units, provider)
 	if err != nil {
 		return AvailableSlotsResult{}, fmt.Errorf("failed to build available slots: %w", err)
 	}

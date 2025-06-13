@@ -54,6 +54,7 @@ type ProviderRepository interface {
 	// IsProviderAvailable checks if a provider with the given basic registration details already exists.
 	IsProviderAvailable(basicReq models.ProviderBasicRegistrationData) (bool, error)
 	FetchTopProviders(ctx context.Context, page, limit int) ([]models.Provider, error)
+	MarkNotificationsAsRead(id string, notificationIDs []string) error
 }
 
 // MongoProviderRepo implements ProviderRepository using MongoDB.
