@@ -12,6 +12,7 @@ import (
 type SchedulerRepository interface {
 	SumOverlappingBookings(providerID, date string, start, end int, priorityFilter *bool) (int, error)
 	CreateBooking(booking *models.Booking) error
+	GetBookingByID(ctx context.Context, bookingID string) (*models.Booking, error)
 	UpdateBooking(bookingID string, updatedBooking *models.Booking) error
 	CancelBooking(bookingID string) error
 	BookSingleSlotTransactionally(

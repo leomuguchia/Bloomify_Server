@@ -3,6 +3,9 @@ package user
 import (
 	userRepo "bloomify/database/repository/user"
 	"bloomify/models"
+	"fmt"
+
+	"github.com/hibiken/asynq"
 )
 
 type UserService interface {
@@ -36,7 +39,21 @@ type UserService interface {
 
 // DefaultUserService is the production implementation.
 type DefaultUserService struct {
-	Repo userRepo.UserRepository
+	Repo        userRepo.UserRepository
+	AsynqClient *asynq.Client
+}
+
+func NewDefaultUserService(
+	repo userRepo.UserRepository,
+	asynqClient *asynq.Client,
+) (*DefaultUserService, error) {
+	if repo == nil || asynqClient == nil {
+		return nil, fmt.Errorf("user service initialization error: repo or asynq client is nil")
+	}
+	return &DefaultUserService{
+		Repo:        repo,
+		AsynqClient: asynqClient,
+	}, nil
 }
 
 // NewPasswordRequiredError indicates that a new password is required after OTP verification.

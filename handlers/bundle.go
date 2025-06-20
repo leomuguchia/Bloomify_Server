@@ -25,6 +25,7 @@ type HandlerBundle struct {
 	GetTimeslotsHandler            gin.HandlerFunc
 	DeleteTimeslotHandler          gin.HandlerFunc
 	ProviderLegalDocumentation     gin.HandlerFunc
+	VerifyBooking                  gin.HandlerFunc
 
 	// Provider device endpoints
 	GetProviderDevicesHandler          gin.HandlerFunc
@@ -41,6 +42,8 @@ type HandlerBundle struct {
 	GetDirections        gin.HandlerFunc
 	GetPaymentIntent     gin.HandlerFunc
 	MatchNearbyProviders gin.HandlerFunc
+	GeocodeAddress       gin.HandlerFunc
+	ReverseGeocode       gin.HandlerFunc
 
 	// AI endpoints
 	AIChatHandler gin.HandlerFunc

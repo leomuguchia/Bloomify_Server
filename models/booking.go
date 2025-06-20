@@ -5,24 +5,26 @@ import "time"
 
 // Booking represents the stored booking record.
 type Booking struct {
-	ID           string               `bson:"id" json:"id"`
-	ProviderID   string               `bson:"providerId" json:"providerId"`
-	TimeSlotID   string               `bson:"timeSlotId" json:"timeSlotId"`
-	ServiceType  string               `bson:"serviceType" json:"serviceType"`
-	UserID       string               `bson:"userId" json:"userId"`
-	Units        int                  `bson:"units" json:"units"`
-	UnitType     string               `bson:"unitType" json:"unitType"`
-	TotalPrice   float64              `bson:"totalPrice" json:"totalPrice"`
-	Status       string               `bson:"status" json:"status"`
-	CreatedAt    time.Time            `bson:"createdAt" json:"createdAt"`
-	Date         string               `bson:"date" json:"date"`
-	Start        int                  `bson:"start" json:"start"`
-	End          int                  `bson:"end" json:"end"`
-	Priority     bool                 `bson:"priority,omitempty" json:"priority,omitempty"`
-	CustomOption CustomOptionResponse `bson:"customOption,omitempty" json:"customOption,omitzero"`
-	Invoice      Invoice              `bson:"invoice,omitempty" json:"invoice,omitzero"`
-	UserPayment  UserPayment          `bson:"userPayment" json:"userPayment,omitzero"`
-	Mode         string               `bson:"mode" json:"mode"`
+	ID                 string               `bson:"id" json:"id"`
+	ProviderID         string               `bson:"providerId" json:"providerId"`
+	UserID             string               `bson:"userId" json:"userId"`
+	TimeSlotID         string               `bson:"timeSlotId" json:"timeSlotId"`
+	ServiceType        string               `bson:"serviceType" json:"serviceType"`
+	Units              int                  `bson:"units" json:"units"`
+	UnitType           string               `bson:"unitType" json:"unitType"`
+	TotalPrice         float64              `bson:"totalPrice" json:"totalPrice"`
+	Status             string               `bson:"status" json:"status"`
+	CreatedAt          time.Time            `bson:"createdAt" json:"createdAt"`
+	Date               string               `bson:"date" json:"date"`
+	Start              int                  `bson:"start" json:"start"`
+	End                int                  `bson:"end" json:"end"`
+	Priority           bool                 `bson:"priority,omitempty" json:"priority,omitempty"`
+	CustomOption       CustomOptionResponse `bson:"customOption,omitempty" json:"customOption,omitzero"`
+	Invoice            Invoice              `bson:"invoice,omitempty" json:"invoice,omitzero"`
+	UserPayment        UserPayment          `bson:"userPayment" json:"userPayment,omitzero"`
+	Mode               string               `bson:"mode" json:"mode"`
+	UserMinimal        UserMinimal          `bson:"userMinimal,omitempty" json:"userMinimal,omitzero"`
+	MinimalProviderDTO MinimalProviderDTO   `bson:"minimalProviderDTO,omitempty" json:"minimalProviderDTO,omitzero"`
 }
 
 type SubscriptionDetails struct {

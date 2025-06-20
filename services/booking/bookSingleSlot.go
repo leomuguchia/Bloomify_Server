@@ -34,7 +34,7 @@ func (se *DefaultSchedulingEngine) bookSingleSlot(
 	}
 
 	log.Printf("[bookSingleSlot] Validating and pricing booking for provider %s, slot %s", provider.ID, slot.ID)
-	confirmation, err := ValidateAndBook(provider.ID, slot, *booking, &customOption)
+	confirmation, err := ValidateAndBook(provider.ID, slot, *booking, &customOption, provider)
 	if err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}

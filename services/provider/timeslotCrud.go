@@ -1,4 +1,3 @@
-// File: services/provider/timeslot.go
 package provider
 
 import (
@@ -8,7 +7,6 @@ import (
 	"bloomify/models"
 )
 
-// GetTimeslots fetches all unblocked timeslots for that provider on the given date.
 func (s *DefaultProviderService) GetTimeslots(
 	ctx context.Context,
 	providerID, date string,
@@ -20,7 +18,6 @@ func (s *DefaultProviderService) GetTimeslots(
 	return slots, nil
 }
 
-// GetTimeslot retrieves one specific timeslot for a provider on a date.
 func (s *DefaultProviderService) GetTimeslot(
 	ctx context.Context,
 	providerID, slotID, date string,
@@ -32,13 +29,10 @@ func (s *DefaultProviderService) GetTimeslot(
 	return slot, nil
 }
 
-// DeleteTimeslot deletes a single timeslot and returns the updated DTO.
 func (s *DefaultProviderService) DeleteTimeslot(
 	ctx context.Context,
 	providerID, slotID, date string,
 ) (*models.ProviderTimeslotDTO, error) {
-
-	// 1) Verify slot exists and is unbooked
 	slot, err := s.Timeslot.GetByIDWithDate(ctx, providerID, slotID, date)
 	if err != nil {
 		return nil, fmt.Errorf("timeslot not found: %w", err)
@@ -47,12 +41,10 @@ func (s *DefaultProviderService) DeleteTimeslot(
 		return nil, fmt.Errorf("cannot delete timeslot %s: bookings exist", slotID)
 	}
 
-	// 2) Delete it
 	if err := s.Timeslot.DeleteByID(ctx, providerID, slotID); err != nil {
 		return nil, fmt.Errorf("failed to delete timeslot: %w", err)
 	}
 
-	// 3) Remove from provider record
 	prov, err := s.Repo.GetByIDWithProjection(providerID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
@@ -70,11 +62,36 @@ func (s *DefaultProviderService) DeleteTimeslot(
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
-	// 4) Re-fetch remaining slots for DTO
 	remaining, _ := s.Timeslot.GetByProviderIDAndDate(ctx, providerID, date)
 	return &models.ProviderTimeslotDTO{
 		ID:        prov.ID,
 		Status:    prov.Profile.Status,
 		TimeSlots: remaining,
 	}, nil
+}
+
+func (s *DefaultProviderService) VerifyBooking(
+	ctx context.Context,
+	providerID string,
+	date string,
+	bookingID string,
+) (*models.Booking, error) {
+	slots, err := s.Timeslot.GetByProviderIDAndDate(ctx, providerID, date)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch timeslots: %w", err)
+	}
+
+	for _, slot := range slots {
+		for _, id := range slot.BookingIDs {
+			if id == bookingID {
+				booking, err := s.SchedulerRepo.GetBookingByID(ctx, bookingID)
+				if err != nil {
+					return nil, fmt.Errorf("booking exists in timeslot but not found in DB: %w", err)
+				}
+				return booking, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("booking not found or not linked to this provider/date")
 }

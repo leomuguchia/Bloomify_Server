@@ -3,16 +3,42 @@ package provider
 import (
 	providerRepo "bloomify/database/repository/provider"
 	recordsRepo "bloomify/database/repository/records"
+	schedulerRepo "bloomify/database/repository/scheduler"
 	timeslotRepo "bloomify/database/repository/timeslot"
 	"bloomify/models"
 	"context"
+	"fmt"
+
+	"github.com/hibiken/asynq"
 )
 
 // DefaultProviderService is the production implementation.
 type DefaultProviderService struct {
-	Repo        providerRepo.ProviderRepository
-	Timeslot    timeslotRepo.TimeSlotRepository
-	RecordsRepo recordsRepo.HistoricalRecordRepository
+	Repo          providerRepo.ProviderRepository
+	Timeslot      timeslotRepo.TimeSlotRepository
+	RecordsRepo   recordsRepo.HistoricalRecordRepository
+	AsynqClient   *asynq.Client
+	SchedulerRepo schedulerRepo.SchedulerRepository
+}
+
+func NewDefaultProviderService(
+	repo providerRepo.ProviderRepository,
+	timeslot timeslotRepo.TimeSlotRepository,
+	recordsRepo recordsRepo.HistoricalRecordRepository,
+	asynqClient *asynq.Client,
+	schedulerRepo schedulerRepo.SchedulerRepository,
+) (*DefaultProviderService, error) {
+	if repo == nil || timeslot == nil || recordsRepo == nil || asynqClient == nil {
+		return nil, fmt.Errorf("provider service initialization error: one or more dependencies are nil")
+	}
+
+	return &DefaultProviderService{
+		Repo:          repo,
+		Timeslot:      timeslot,
+		RecordsRepo:   recordsRepo,
+		AsynqClient:   asynqClient,
+		SchedulerRepo: schedulerRepo,
+	}, nil
 }
 
 type ProviderService interface {
@@ -41,6 +67,7 @@ type ProviderService interface {
 	GetTimeslots(c context.Context, providerID, date string) ([]models.TimeSlot, error)
 	GetTimeslot(c context.Context, providerID, timeslotID, date string) (*models.TimeSlot, error)
 	DeleteTimeslot(c context.Context, providerID, timeslotID, date string) (*models.ProviderTimeslotDTO, error)
+	VerifyBooking(ctx context.Context, providerID string, date string, bookingID string) (*models.Booking, error)
 
 	// Other methods
 	GetAllProviders() ([]models.Provider, error)

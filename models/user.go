@@ -19,6 +19,7 @@ type User struct {
 	Rating           int               `bson:"rating" json:"rating,omitempty"`
 	ActiveBookings   []string          `bson:"activeBookings" json:"activeBookings,omitempty"`
 	Notifications    []Notification    `bson:"notifications" json:"notifications,omitempty"`
+	Reminders        []Reminder        `bson:"reminders,omitempty" json:"reminders,omitempty"`
 	Location         GeoPoint          `bson:"location" json:"location,omitempty"`
 	BookingHistory   []string          `bson:"bookingHistory" json:"bookingHistory,omitempty"`
 	LastBookingTime  time.Time         `bson:"lastBookingTime" json:"lastBookingTime,omitempty"`
@@ -62,6 +63,7 @@ type UserUpdateRequest struct {
 	Rating                *int               `json:"rating,omitempty"`
 	ActiveBookings        *[]string          `json:"activeBookings,omitempty"`
 	Notifications         *[]Notification    `json:"notifications,omitempty"`
+	Reminders             *[]Reminder        `json:"reminders,omitempty"`
 	Location              *GeoPoint          `json:"location,omitempty"`
 	BookingHistory        *[]string          `json:"bookingHistory,omitempty"`
 	LastBookingTime       *time.Time         `json:"lastBookingTime,omitempty"`

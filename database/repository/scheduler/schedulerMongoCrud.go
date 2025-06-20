@@ -21,6 +21,19 @@ func (repo *MongoSchedulerRepo) CreateBooking(booking *models.Booking) error {
 	return nil
 }
 
+// GetBookingByID retrieves a booking by its ID.
+func (repo *MongoSchedulerRepo) GetBookingByID(ctx context.Context, bookingID string) (*models.Booking, error) {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var booking models.Booking
+	err := repo.bookingColl.FindOne(ctxWithTimeout, bson.M{"id": bookingID}).Decode(&booking)
+	if err != nil {
+		return nil, fmt.Errorf("booking not found: %w", err)
+	}
+	return &booking, nil
+}
+
 // UpdateBooking modifies an existing booking document.
 func (repo *MongoSchedulerRepo) UpdateBooking(bookingID string, updatedBooking *models.Booking) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

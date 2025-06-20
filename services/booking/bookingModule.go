@@ -64,6 +64,19 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models
 		return nil, fmt.Errorf("invalid custom option %q", req.CustomOption.Option)
 	}
 
+	user, err := se.UserService.GetUserByID(req.UserID)
+	if err != nil {
+		log.Printf("[NotifyUserWithBookingStatus] Failed to fetch user %s: %v", req.UserID, err)
+		return nil, err
+	}
+
+	providerPtr, err := se.ProviderRepo.GetByIDWithProjection(req.ProviderID, nil)
+	if err != nil {
+		log.Printf("[BookSlot] Failed to fetch provider %s: %v", req.ProviderID, err)
+		return nil, err
+	}
+	provider = *providerPtr
+
 	booking := &models.Booking{
 		ID:           uuid.New().String(),
 		ProviderID:   provider.ID,
@@ -78,6 +91,22 @@ func (se *DefaultSchedulingEngine) BookSlot(provider models.Provider, req models
 		UserPayment:  req.UserPayment,
 		ServiceType:  enrichedSlot.Catalogue.Service.ID,
 		Mode:         req.Mode,
+		UserMinimal: models.UserMinimal{
+			ID:           user.ID,
+			Username:     user.Username,
+			ProfileImage: user.ProfileImage,
+			Rating:       user.Rating,
+			Location:     user.Location,
+			PhoneNumber:  user.PhoneNumber,
+		},
+		MinimalProviderDTO: models.MinimalProviderDTO{
+			ID:           req.ProviderID,
+			ProviderName: provider.Profile.ProviderName,
+			ProfileImage: provider.Profile.ProfileImage,
+			Location:     provider.Profile.LocationGeo,
+			Rating:       provider.Profile.Rating,
+			Verified:     provider.Profile.AdvancedVerified,
+		},
 	}
 
 	log.Printf("[BookSlot] Creating booking record: %+v", booking)

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"time"
 
 	"github.com/google/uuid"
@@ -85,6 +86,7 @@ func (se *DefaultSchedulingEngine) NotifyUserWithBookingStatus(
 			"currency":       booking.UserPayment.Currency,
 			"status":         booking.Status,
 			"actionRequired": actionRequired,
+			"role":           "user",
 		},
 		CreatedAt: time.Now(),
 		Read:      false,
@@ -148,7 +150,11 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 	slot models.TimeSlot,
 	used int,
 ) bool {
-	remaining := slot.Capacity - used
+	remaining, ok := getRemainingUnits(slot, *provider)
+	if !ok {
+		log.Printf("[UpdateProviderWithBookingNotification] Could not determine remaining units for slot %s", slot.ID)
+		return false
+	}
 	startHour := slot.Start / 60
 	startMin := slot.Start % 60
 	endHour := slot.End / 60
@@ -268,10 +274,9 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 			"timeSlotId":     slot.ID,
 			"remainingSpots": fmt.Sprintf("%d", remaining),
 			"serviceMode":    booking.Mode,
+			"role":           "provider",
 		}
-		for k, v := range userDetails {
-			notificationData[k] = v
-		}
+		maps.Copy(notificationData, userDetails)
 
 		err := se.Notification.SendProviderPushNotification(
 			context.Background(),

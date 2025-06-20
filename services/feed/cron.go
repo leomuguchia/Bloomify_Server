@@ -1,8 +1,7 @@
-package cron
+package feed
 
 import (
 	providerRepo "bloomify/database/repository/provider"
-	"bloomify/services/feed"
 	"context"
 	"log"
 	"time"

@@ -61,7 +61,7 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 			// middleware.DeviceAuthMiddlewareProvider(hb.ProviderRepo),
 		)
 		{
-			protected.PATCH("/update/:id", hb.UpdateProviderHandler)
+			protected.PUT("/update/:id", hb.UpdateProviderHandler)
 			protected.DELETE("/delete/:id", hb.DeleteProviderHandler)
 			protected.PUT("/advance-verify/:id", hb.AdvanceVerifyProviderHandler)
 			protected.DELETE("/revoke/:id", hb.RevokeProviderAuthTokenHandler)
@@ -76,17 +76,20 @@ func RegisterProviderRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 			protected.PUT("/timeslots/:id", hb.SetupTimeslotsHandler)
 			protected.POST("/timeslots", hb.GetTimeslotsHandler)
 			protected.DELETE("/timeslot", hb.DeleteTimeslotHandler)
+			protected.GET("/booking/:bookingId", hb.VerifyBooking)
 		}
 	}
 }
 
 func RegisterAdminRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	adminGroup := r.Group("/api/admin")
+	adminGroup.Use(middleware.DeviceDetailsMiddleware()) // Extract device details
 	{
 		adminGroup.Use(middleware.JWTAuthAdminMiddleware())
 		adminGroup.GET("/users", hb.GetAllUsersHandler)
 		adminGroup.GET("/providers", hb.GetAllProvidersHandler)
 		adminGroup.POST("/legal", hb.AdminLegalDocumentation)
+		adminGroup.GET("/health", hb.AdminHandler.SystemHealthHandler)
 	}
 }
 
@@ -124,6 +127,8 @@ func RegisterBookingRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 		bookingGroup.POST("/confirm", hb.ConfirmBooking)
 		bookingGroup.DELETE("/session/:sessionID", hb.CancelSession)
 		bookingGroup.GET("/directions", hb.GetDirections)
+		bookingGroup.GET("/geocode", hb.GeocodeAddress)
+		bookingGroup.GET("/reverse", hb.ReverseGeocode)
 		bookingGroup.POST("/payment", hb.GetPaymentIntent)
 		bookingGroup.POST("/nearby", hb.MatchNearbyProviders)
 	}

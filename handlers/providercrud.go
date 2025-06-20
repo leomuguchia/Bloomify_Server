@@ -100,8 +100,16 @@ func (h *ProviderHandler) UpdateProviderHandler(c *gin.Context) {
 		return
 	}
 
-	// Remove the id field if provided in the payload.
+	// Log check for nil service
+	if h.Service == nil {
+		utils.GetLogger().Error("ProviderHandler.Service is nil")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error: Service is nil"})
+		return
+	}
+
 	delete(updates, "id")
+
+	utils.GetLogger().Info("Calling UpdateProvider", zap.Any("updates", updates))
 
 	updatedProvider, err := h.Service.UpdateProvider(c.Request.Context(), id, updates)
 	if err != nil {

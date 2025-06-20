@@ -103,3 +103,30 @@ func (h *ProviderHandler) DeleteTimeslotHandler(c *gin.Context) {
 		"provider": dto,
 	})
 }
+
+func (h *ProviderHandler) VerifyBooking(c *gin.Context) {
+	providerIDValue, exists := c.Get("providerID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Provider not authenticated"})
+		return
+	}
+	providerID, _ := providerIDValue.(string)
+	bookingID := c.Param("bookingId")
+	date := c.Query("date")
+
+	if providerID == "" || date == "" {
+		c.JSON(400, gin.H{"error": "providerId and date are required"})
+		return
+	}
+
+	booking, err := h.Service.VerifyBooking(c.Request.Context(), providerID, date, bookingID)
+	if err != nil {
+		c.JSON(404, gin.H{"valid": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"valid":   true,
+		"booking": booking,
+	})
+}

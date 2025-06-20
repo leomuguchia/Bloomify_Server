@@ -2,6 +2,7 @@ package user
 
 import (
 	"bloomify/models"
+	"bloomify/services/tasks"
 	"bloomify/utils"
 	"context"
 	"fmt"
@@ -74,6 +75,42 @@ func (s *DefaultUserService) UpdateUser(req models.UserUpdateRequest) (*models.U
 	// Handle $push / $addToSet
 	if req.TrustedProviders != nil && len(*req.TrustedProviders) > 0 {
 		pushFields["trustedProviders"] = bson.M{"$each": *req.TrustedProviders}
+	}
+
+	// Handle reminders + scheduling
+	if req.Reminders != nil && len(*req.Reminders) > 0 {
+		pushFields["reminders"] = bson.M{"$each": *req.Reminders}
+
+		for _, reminder := range *req.Reminders {
+			if !reminder.FireDate.IsZero() {
+				payload := models.ReminderPayload{
+					ID:         *userID,
+					ReminderID: reminder.ID,
+					Title:      reminder.Title,
+					Body:       reminder.Body,
+					FireDate:   reminder.FireDate.Format(time.RFC3339),
+					Target:     "user",
+				}
+
+				task, opts, err := tasks.NewReminderTask(payload, reminder.FireDate)
+				if err != nil {
+					logger.Error("Failed to create reminder task for user",
+						zap.Error(err),
+						zap.String("reminderID", reminder.ID),
+					)
+					continue
+				}
+
+				_, err = s.AsynqClient.Enqueue(task, opts...)
+				if err != nil {
+					logger.Error("Failed to enqueue reminder task for user",
+						zap.Error(err),
+						zap.String("reminderID", reminder.ID),
+						zap.String("userID", *userID),
+					)
+				}
+			}
+		}
 	}
 
 	// Handle notification updates first (mark as read)

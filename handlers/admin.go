@@ -7,6 +7,7 @@ import (
 	"bloomify/services/admin"
 	"bloomify/services/provider"
 	"bloomify/services/user"
+	"bloomify/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -57,5 +58,16 @@ func (ah *AdminHandler) AdminLegalDocumentation(c *gin.Context) {
 		"status":  "success",
 		"version": "v1.0",
 		"data":    sections,
+	})
+}
+
+// SystemHealthHandler returns the current health status of Redis and Mongo.
+func (ah *AdminHandler) SystemHealthHandler(c *gin.Context) {
+	status := utils.GetHealthStatus()
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"message": "Health check snapshot",
+		"data":    status,
 	})
 }

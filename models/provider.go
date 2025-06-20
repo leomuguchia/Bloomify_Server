@@ -74,10 +74,11 @@ type Provider struct {
 	UpdatedAt            time.Time             `bson:"updatedAt" json:"updatedAt,omitzero"`
 	Devices              []Device              `bson:"devices,omitempty" json:"devices,omitempty"`
 	SubscriptionEnabled  bool                  `bson:"subscriptionEnabled" json:"subscriptionEnabled"` // Set to true if provider qualifies for recurring bookings
-	SubscriptionModel    SubscriptionModel     `bson:"subscriptionModel" json:"subscriptionModel"`     // NEW FIELD
+	SubscriptionModel    SubscriptionModel     `bson:"subscriptionModel" json:"subscriptionModel"`
 	SubscriptionBooking  []SubscriptionBooking `bson:"subscriptionBooking,omitempty" json:"subscriptionBooking,omitempty"`
 	ActiveBookings       []ActiveBookingDTO    `bson:"activeBookings,omitempty" json:"activeBookings,omitempty"`
 	Notifications        []Notification        `bson:"notifications,omitempty" json:"notifications,omitempty"`
+	Reminders            []Reminder            `bson:"reminders,omitempty" json:"reminders,omitempty"`
 }
 
 type ActiveBookingDTO struct {

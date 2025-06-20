@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"bloomify/config"
+	"bloomify/cron"
 	"bloomify/database"
 	providerRepo "bloomify/database/repository/provider"
 	recordsRepo "bloomify/database/repository/records"
@@ -40,6 +41,8 @@ func main() {
 	utils.InitRedis()
 	utils.FirebaseInit()
 
+	utils.StartHealthMonitor(utils.GetAllRedisClients(), database.MongoClient)
+
 	// Gin setup
 	router := gin.New()
 	router.Use(gin.Recovery(), utils.ErrorHandler(), gin.Logger())
@@ -54,18 +57,33 @@ func main() {
 	recordsRepo := recordsRepo.NewMongoRecordRepo()
 
 	// services
-	userService := &user.DefaultUserService{Repo: userRepo}
-	adminService := &admin.DefaultAdminService{}
-
-	providerService := &provider.DefaultProviderService{
-		Repo:        provRepo,
-		Timeslot:    timeslotRepo,
-		RecordsRepo: recordsRepo,
+	userService, err := user.NewDefaultUserService(
+		userRepo,
+		utils.GetReminderQueueClient(),
+	)
+	if err != nil {
+		logger.Sugar().Fatalf("failed to initialize user service: %v", err)
 	}
 
-	notificationService := &notification.DefaultNotificationService{
-		User:     userService,
-		Provider: providerService,
+	adminService := &admin.DefaultAdminService{}
+
+	providerService, err := provider.NewDefaultProviderService(
+		provRepo,
+		timeslotRepo,
+		recordsRepo,
+		utils.GetReminderQueueClient(),
+		schedulerRepo,
+	)
+	if err != nil {
+		logger.Sugar().Fatalf("failed to initialize provider service: %v", err)
+	}
+
+	notificationService, err := notification.NewDefaultNotificationService(
+		userService,
+		providerService,
+	)
+	if err != nil {
+		logger.Sugar().Fatalf("failed to initialize notification service: %v", err)
 	}
 
 	matchingService := &booking.DefaultMatchingService{ProviderRepo: provRepo}
@@ -102,6 +120,9 @@ func main() {
 		bookingService,
 	)
 
+	// cron
+	cron.InitReminderWorker(notificationService)
+
 	// handlers
 	providerHandler := handlers.NewProviderHandler(providerService, adminService)
 	providerDeviceHandler := handlers.NewProviderDeviceHandler(providerService)
@@ -129,6 +150,7 @@ func main() {
 		GetTimeslotsHandler:            providerHandler.GetTimeslotsHandler,
 		DeleteTimeslotHandler:          providerHandler.DeleteTimeslotHandler,
 		ResetProviderPasswordHandler:   providerHandler.ResetProviderPasswordHandler,
+		VerifyBooking:                  providerHandler.VerifyBooking,
 
 		// Provider device endpoints
 		GetProviderDevicesHandler:          providerDeviceHandler.GetProviderDevicesHandler,
@@ -146,6 +168,8 @@ func main() {
 		GetDirections:        bookingHandler.GetDirections,
 		GetPaymentIntent:     bookingHandler.GetPaymentIntent,
 		MatchNearbyProviders: bookingHandler.MatchNearbyProviders,
+		GeocodeAddress:       bookingHandler.GeocodeAddress,
+		ReverseGeocode:       bookingHandler.ReverseGeocode,
 
 		// AI endpoints
 		AISTTHandler:  aiHandler.AISTTHandler,

@@ -67,3 +67,73 @@ func (hb *BookingHandler) GetDirections(c *gin.Context) {
 	polyline := directions.Routes[0].OverviewPolyline.Points
 	c.JSON(http.StatusOK, gin.H{"polyline": polyline})
 }
+
+func (hb *BookingHandler) GeocodeAddress(c *gin.Context) {
+	address := c.Query("address")
+	if address == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required query parameter: address"})
+		return
+	}
+
+	apiKey := config.AppConfig.GoogleAPIKey
+	if apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "API authentication error"})
+		return
+	}
+
+	url := fmt.Sprintf(
+		"https://maps.googleapis.com/maps/api/geocode/json?address=%s&key=%s",
+		address, apiKey,
+	)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Geocoding request failed"})
+		return
+	}
+	defer resp.Body.Close()
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode geocoding response"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"results": data["results"]})
+}
+
+func (hb *BookingHandler) ReverseGeocode(c *gin.Context) {
+	latitude := c.Query("latitude")
+	longitude := c.Query("longitude")
+
+	if latitude == "" || longitude == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required query parameters: latitude, longitude"})
+		return
+	}
+
+	apiKey := config.AppConfig.GoogleAPIKey
+	if apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "API authentication error"})
+		return
+	}
+
+	url := fmt.Sprintf(
+		"https://maps.googleapis.com/maps/api/geocode/json?latlng=%s,%s&key=%s",
+		latitude, longitude, apiKey,
+	)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Reverse geocoding request failed"})
+		return
+	}
+	defer resp.Body.Close()
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode reverse geocoding response"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"results": data["results"]})
+}

@@ -1,4 +1,3 @@
-// File: utils/cache.go
 package utils
 
 import (
@@ -9,6 +8,7 @@ import (
 	"bloomify/config"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/hibiken/asynq"
 )
 
 var (
@@ -19,8 +19,10 @@ var (
 	TestCacheClient         *redis.Client
 	AIContextCacheClient    *redis.Client
 	FeedCacheClient         *redis.Client
+	ReminderQueueClient     *asynq.Client
 )
 
+// --- Booking Cache ---
 func InitBookingCache() {
 	log.Printf("Attempting to connect to Redis (Booking Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisBookingCacheDB)
 	BookingCacheClient = redis.NewClient(&redis.Options{
@@ -36,8 +38,6 @@ func InitBookingCache() {
 	}
 	log.Println("Connected to Redis (Booking Cache) successfully.")
 }
-
-// GetBookingCacheClient returns the generic cache client.
 func GetBookingCacheClient() *redis.Client {
 	if BookingCacheClient == nil {
 		InitBookingCache()
@@ -45,32 +45,7 @@ func GetBookingCacheClient() *redis.Client {
 	return BookingCacheClient
 }
 
-// InitAIContextCache initializes the Redis client for AI context caching.
-func InitAIContextCache() {
-	log.Printf("Attempting to connect to Redis (AI Context Cache) at %s using DB %d",
-		config.AppConfig.RedisAddr, config.AppConfig.RedisAIContextDB)
-	AIContextCacheClient = redis.NewClient(&redis.Options{
-		Addr:     config.AppConfig.RedisAddr,
-		Password: config.AppConfig.RedisPassword,
-		DB:       config.AppConfig.RedisAIContextDB,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if _, err := AIContextCacheClient.Ping(ctx).Result(); err != nil {
-		log.Fatalf("Failed to connect to Redis (AI Context Cache): %v", err)
-	}
-	log.Println("Connected to Redis (AI Context Cache) successfully.")
-}
-
-// GetAIContextCacheClient returns the Redis client for AI context caching.
-func GetAIContextCacheClient() *redis.Client {
-	if AIContextCacheClient == nil {
-		InitAIContextCache()
-	}
-	return AIContextCacheClient
-}
-
-// InitAuthCache initializes the Redis client for authorization caching using the DB from AppConfig for auth cache.
+// --- Auth Cache ---
 func InitAuthCache() {
 	log.Printf("Attempting to connect to Redis (Auth Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisAuthDB)
 	AuthCacheClient = redis.NewClient(&redis.Options{
@@ -86,8 +61,6 @@ func InitAuthCache() {
 	}
 	log.Println("Connected to Redis (Auth Cache) successfully.")
 }
-
-// GetAuthCacheClient returns the Redis client for authorization caching.
 func GetAuthCacheClient() *redis.Client {
 	if AuthCacheClient == nil {
 		InitAuthCache()
@@ -95,6 +68,7 @@ func GetAuthCacheClient() *redis.Client {
 	return AuthCacheClient
 }
 
+// --- Provider Auth Cache ---
 const ProviderAuthCachePrefix = "auth:provider:"
 
 func InitProviderAuthCache() {
@@ -112,7 +86,6 @@ func InitProviderAuthCache() {
 	}
 	log.Println("Connected to Redis (Provider Auth Cache) successfully.")
 }
-
 func GetProviderAuthCacheClient() *redis.Client {
 	if ProviderAuthCacheClient == nil {
 		InitProviderAuthCache()
@@ -120,32 +93,7 @@ func GetProviderAuthCacheClient() *redis.Client {
 	return ProviderAuthCacheClient
 }
 
-const FeedCachePrefix = "feed:aggregates:"
-
-func InitFeedCache() {
-	log.Printf("Attempting to connect to Redis (Feed Auth Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisFeedDB)
-	FeedCacheClient = redis.NewClient(&redis.Options{
-		Addr:     config.AppConfig.RedisAddr,
-		Password: config.AppConfig.RedisPassword,
-		DB:       config.AppConfig.RedisFeedDB,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_, err := FeedCacheClient.Ping(ctx).Result()
-	if err != nil {
-		log.Fatalf("Failed to connect to Redis (Feed Cache): %v", err)
-	}
-	log.Println("Connected to Redis (Feed Cache) successfully.")
-}
-
-func GetFeedCacheClient() *redis.Client {
-	if FeedCacheClient == nil {
-		InitFeedCache()
-	}
-	return FeedCacheClient
-}
-
-// InitOTPCache initializes the Redis client for OTP caching using the DB from AppConfig for OTP cache.
+// --- OTP Cache ---
 func InitOTPCache() {
 	log.Printf("Attempting to connect to Redis (OTP Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisOTPDB)
 	OTPCacheClient = redis.NewClient(&redis.Options{
@@ -161,8 +109,6 @@ func InitOTPCache() {
 	}
 	log.Println("Connected to Redis (OTP Cache) successfully.")
 }
-
-// GetOTPCacheClient returns the Redis client for OTP caching.
 func GetOTPCacheClient() *redis.Client {
 	if OTPCacheClient == nil {
 		InitOTPCache()
@@ -170,7 +116,54 @@ func GetOTPCacheClient() *redis.Client {
 	return OTPCacheClient
 }
 
-// InitTestCache initializes the Redis client for testing purposes using hard-coded values.
+// --- AI Context Cache ---
+func InitAIContextCache() {
+	log.Printf("Attempting to connect to Redis (AI Context Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisAIContextDB)
+	AIContextCacheClient = redis.NewClient(&redis.Options{
+		Addr:     config.AppConfig.RedisAddr,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisAIContextDB,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := AIContextCacheClient.Ping(ctx).Result(); err != nil {
+		log.Fatalf("Failed to connect to Redis (AI Context Cache): %v", err)
+	}
+	log.Println("Connected to Redis (AI Context Cache) successfully.")
+}
+func GetAIContextCacheClient() *redis.Client {
+	if AIContextCacheClient == nil {
+		InitAIContextCache()
+	}
+	return AIContextCacheClient
+}
+
+// --- Feed Cache ---
+const FeedCachePrefix = "feed:aggregates:"
+
+func InitFeedCache() {
+	log.Printf("Attempting to connect to Redis (Feed Cache) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisFeedDB)
+	FeedCacheClient = redis.NewClient(&redis.Options{
+		Addr:     config.AppConfig.RedisAddr,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisFeedDB,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := FeedCacheClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis (Feed Cache): %v", err)
+	}
+	log.Println("Connected to Redis (Feed Cache) successfully.")
+}
+func GetFeedCacheClient() *redis.Client {
+	if FeedCacheClient == nil {
+		InitFeedCache()
+	}
+	return FeedCacheClient
+}
+
+// --- Test Cache ---
 func InitTestCache() {
 	const (
 		testAddr = "localhost:6379"
@@ -179,7 +172,7 @@ func InitTestCache() {
 	log.Printf("Attempting to connect to Redis (Test Cache) at %s using DB %d", testAddr, testDB)
 	TestCacheClient = redis.NewClient(&redis.Options{
 		Addr:     testAddr,
-		Password: "", // No password
+		Password: "",
 		DB:       testDB,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -190,8 +183,6 @@ func InitTestCache() {
 	}
 	log.Println("Connected to Redis (Test Cache) successfully.")
 }
-
-// GetTestCacheClient returns the Redis client for testing purposes.
 func GetTestCacheClient() *redis.Client {
 	if TestCacheClient == nil {
 		InitTestCache()
@@ -199,12 +190,46 @@ func GetTestCacheClient() *redis.Client {
 	return TestCacheClient
 }
 
-// InitRedis initializes all Redis clients at once.
+// --- Reminder Queue (Asynq) ---
+func InitReminderQueue() {
+	log.Printf("Initializing Redis Asynq Client (Reminder Queue) at %s using DB %d", config.AppConfig.RedisAddr, config.AppConfig.RedisReminderQueueDB)
+	ReminderQueueClient = asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     config.AppConfig.RedisAddr,
+		Password: config.AppConfig.RedisPassword,
+		DB:       config.AppConfig.RedisReminderQueueDB,
+	})
+	log.Println("ReminderQueueClient initialized successfully.")
+}
+func GetReminderQueueClient() *asynq.Client {
+	if ReminderQueueClient == nil {
+		InitReminderQueue()
+	}
+	return ReminderQueueClient
+}
+
+// --- Redis Initialization ---
 func InitRedis() {
 	InitBookingCache()
 	InitAuthCache()
 	InitAIContextCache()
 	InitOTPCache()
+	InitFeedCache()
+	InitProviderAuthCache()
 	InitTestCache()
+	InitReminderQueue()
+
 	GetLogger().Sugar().Info("All Redis clients have been successfully initialized.")
+}
+
+// --- Aggregate Getter ---
+func GetAllRedisClients() []*redis.Client {
+	return []*redis.Client{
+		GetBookingCacheClient(),
+		GetAuthCacheClient(),
+		GetProviderAuthCacheClient(),
+		GetOTPCacheClient(),
+		GetFeedCacheClient(),
+		GetAIContextCacheClient(),
+		GetTestCacheClient(),
+	}
 }
