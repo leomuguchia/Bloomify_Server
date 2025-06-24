@@ -85,15 +85,16 @@ func (s *DefaultProviderService) VerifyKYP(sessionID string, kypData models.KYPV
 		return 0, fmt.Errorf("failed to retrieve registration session")
 	}
 
-	if kypData.Type == "individual" {
+	switch kypData.Type {
+	case "freelancer":
 		if kypData.DocumentURL == "" || kypData.LegalName == "" || kypData.SelfieURL == "" {
-			return 10, fmt.Errorf("missing verification details for individual")
+			return 10, fmt.Errorf("missing verification details for freelancer")
 		}
-	} else if kypData.Type == "business" {
+	case "business":
 		if kypData.DocumentURL == "" || kypData.LegalName == "" || kypData.ContactName == "" || kypData.ContactEmail == "" || kypData.DocumentType == "" {
 			return 10, fmt.Errorf("missing verification details for business")
 		}
-	} else {
+	default:
 		return 10, fmt.Errorf("invalid provider type: %s", kypData.Type)
 	}
 
@@ -198,11 +199,11 @@ func (s *DefaultProviderService) FinalizeRegistration(sessionID string, catalogu
 
 	// Build and return the authentication response.
 	resp := &models.ProviderAuthResponse{
-		ID:          provider.ID,
-		Token:       token,
-		Profile:     provider.Profile,
-		CreatedAt:   provider.CreatedAt,
-		ServiceType: provider.ServiceCatalogue.Service.ID,
+		ID:               provider.ID,
+		Token:            token,
+		Profile:          provider.Profile,
+		CreatedAt:        provider.CreatedAt,
+		ServiceCatalogue: provider.ServiceCatalogue,
 	}
 	return resp, nil
 }

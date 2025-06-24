@@ -114,8 +114,7 @@ func main() {
 	}
 
 	aiCtxStore := ai.NewRedisContextStore(utils.GetAIContextCacheClient(), 30*time.Minute)
-	aiService := ai.NewDefaultAIService(
-		config.AppConfig.GeminiAPIKey,
+	aiService := ai.NewLocalAIService(
 		aiCtxStore,
 		bookingService,
 	)
@@ -124,7 +123,7 @@ func main() {
 	cron.InitReminderWorker(notificationService)
 
 	// handlers
-	providerHandler := handlers.NewProviderHandler(providerService, adminService)
+	providerHandler := handlers.NewProviderHandler(providerService, adminService, notificationService)
 	providerDeviceHandler := handlers.NewProviderDeviceHandler(providerService)
 	userHandler := handlers.NewUserHandler(userService, providerService, adminService)
 	bookingHandler := handlers.NewBookingHandler(bookingService, matchingService, logger)

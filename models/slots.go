@@ -23,6 +23,17 @@ type TimeSlot struct {
 	BookingIDs          []string           `bson:"bookingIds,omitempty" json:"bookingIds,omitempty"`
 }
 
+type EarlyBirdSlotData struct {
+	EarlyBirdDiscountRate float64 `bson:"earlyBirdDiscountRate" json:"earlyBirdDiscountRate"` // e.g., 0.25 for 25% discount
+	LateSurchargeRate     float64 `bson:"lateSurchargeRate" json:"lateSurchargeRate"`         // e.g., 0.25 for 25% surcharge
+}
+
+type UrgencySlotData struct {
+	PrioritySurchargeRate float64 `bson:"prioritySurchargeRate" json:"prioritySurchargeRate"`           // e.g., 0.50 for 50% surcharge
+	ReservedPriority      int     `bson:"reservedPriority,omitempty" json:"reservedPriority,omitempty"` // capacity reserved for urgent bookings
+	PriorityActive        bool    `bson:"priorityActive" json:"priorityActive"`
+}
+
 type CapacityMode string
 
 const (
@@ -67,17 +78,6 @@ type AvailableSlot struct {
 	Catalogue                 ServiceCatalogue   `bson:"catalogue,omitempty" json:"catalogue,omitzero"`
 	OptionPricing             map[string]float64 `json:"optionPricing,omitempty"`
 	CapacityMode              CapacityMode       `bson:"capacityMode" json:"capacityMode"` // "exclusive" or "batch"
-}
-
-type EarlyBirdSlotData struct {
-	EarlyBirdDiscountRate float64 `bson:"earlyBirdDiscountRate" json:"earlyBirdDiscountRate"` // e.g., 0.25 for 25% discount
-	LateSurchargeRate     float64 `bson:"lateSurchargeRate" json:"lateSurchargeRate"`         // e.g., 0.25 for 25% surcharge
-}
-
-type UrgencySlotData struct {
-	PrioritySurchargeRate float64 `bson:"prioritySurchargeRate" json:"prioritySurchargeRate"`           // e.g., 0.50 for 50% surcharge
-	ReservedPriority      int     `bson:"reservedPriority,omitempty" json:"reservedPriority,omitempty"` // capacity reserved for urgent bookings
-	PriorityActive        bool    `bson:"priorityActive" json:"priorityActive"`
 }
 
 // ProviderTimeslotDTO represents a minimal view for timeslot setup.

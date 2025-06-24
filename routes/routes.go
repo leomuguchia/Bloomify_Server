@@ -97,7 +97,7 @@ func RegisterAIRoutes(r *gin.Engine, hb *handlers.HandlerBundle) {
 	aiGroup := r.Group("/api/ai")
 	aiGroup.Use(
 		middleware.DeviceDetailsMiddleware(),
-		middleware.JWTAuthUserMiddleware(hb.UserRepo),
+		middleware.RoleBasedAuthMiddleware(hb.UserRepo, hb.ProviderRepo),
 	)
 	{
 		aiGroup.POST("/stt", hb.AISTTHandler)

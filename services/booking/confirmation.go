@@ -21,7 +21,7 @@ func ValidateAndBook(
 		return nil, fmt.Errorf("booking time [%d–%d] outside slot [%d–%d]", booking.Start, booking.End, slot.Start, slot.End)
 	}
 
-	// 2. Validate remaining units for individual/single-use or capacity logic
+	// 2. Validate remaining units for freelancer/single-use or capacity logic
 	remaining, ok := getRemainingUnits(slot, provider)
 	if !ok || remaining <= 0 {
 		return nil, fmt.Errorf("slot is no longer available")

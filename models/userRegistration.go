@@ -3,11 +3,11 @@ package models
 import "time"
 
 type UserBasicRegistrationData struct {
-	Username        string `json:"username" binding:"required"`
-	Email           string `json:"email" binding:"required"`
-	Password        string `json:"password" binding:"required"`
-	PhoneNumber     string `json:"phoneNumber" binding:"required"`
-	ProfileImageUrl string `json:"profileImageUrl"`
+	Username     string `json:"username" binding:"required"`
+	Email        string `json:"email" binding:"required"`
+	Password     string `json:"password" binding:"required"`
+	PhoneNumber  string `json:"phoneNumber" binding:"required"`
+	ProfileImage string `json:"profileImage"`
 }
 
 type UserRegistrationRequest struct {

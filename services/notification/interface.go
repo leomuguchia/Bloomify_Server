@@ -3,7 +3,9 @@ package notification
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"bloomify/models"
 	"bloomify/services/provider"
 	"bloomify/services/user"
 	"bloomify/utils"
@@ -15,6 +17,7 @@ import (
 type NotificationService interface {
 	SendUserPushNotification(ctx context.Context, userID, title, body string, data map[string]string) error
 	SendProviderPushNotification(ctx context.Context, providerID, title, body string, data map[string]string) error
+	NotifyScheduleUpdate(ctx context.Context, providerID string, req models.SetupTimeslotsRequest) error
 }
 
 // DefaultNotificationService is the production implementation.
@@ -127,4 +130,59 @@ func (s *DefaultNotificationService) SendProviderPushNotification(
 	}
 
 	return nil
+}
+
+func (s *DefaultNotificationService) NotifyScheduleUpdate(
+	ctx context.Context,
+	providerID string,
+	req models.SetupTimeslotsRequest,
+) error {
+	// fetch provider (we need this for token anyway)
+	prov, err := s.provider.GetProviderByID(ctx, providerID, true)
+	if err != nil || prov.Security.FCMToken == "" {
+		return nil // fail silently if no push target
+	}
+
+	daySet := map[string]bool{}
+	dayOrder := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	var startDate string
+	totalWeeks := len(req.Weeks)
+
+	for i, week := range req.Weeks {
+		if i == 0 {
+			startDate = week.StartDate
+		}
+		for _, d := range week.ActiveDays {
+			daySet[d] = true
+		}
+	}
+
+	var daysList []string
+	for _, d := range dayOrder {
+		if daySet[d] {
+			daysList = append(daysList, d)
+		}
+	}
+
+	title := "You’ve updated your work schedule 🗓️"
+	body := fmt.Sprintf(
+		"Your service is now scheduled across %d week%s. Active days include %s — starting %s. We’ll remind you as your days approach!",
+		totalWeeks,
+		plural(totalWeeks),
+		strings.Join(daysList, ", "),
+		startDate,
+	)
+
+	return s.SendProviderPushNotification(ctx, providerID, title, body, map[string]string{
+		"type": "schedule_update",
+		"role": "provider",
+	})
+}
+
+// plural returns "s" if n is not 1, otherwise returns an empty string.
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }

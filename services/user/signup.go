@@ -49,10 +49,11 @@ func (s *DefaultUserService) InitiateRegistration(basicReq models.UserBasicRegis
 	regSession := models.UserRegistrationSession{
 		TempID: sessionID,
 		BasicData: &models.UserBasicRegistrationData{
-			Username:    basicReq.Username,
-			Email:       basicReq.Email,
-			Password:    basicReq.Password,
-			PhoneNumber: basicReq.PhoneNumber,
+			Username:     basicReq.Username,
+			Email:        basicReq.Email,
+			Password:     basicReq.Password,
+			PhoneNumber:  basicReq.PhoneNumber,
+			ProfileImage: basicReq.ProfileImage,
 		},
 		OTPStatus:     "pending",
 		CreatedAt:     time.Now(),

@@ -2,6 +2,7 @@ package providerRepo
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	"bloomify/models"
@@ -40,9 +41,6 @@ func (r *MongoProviderRepo) GetByIDWithProjection(id string, projection bson.M) 
 
 	return &provider, nil
 }
-
-// GetByEmailWithProjection retrieves a provider by its email using a projection.
-// Pass nil for projection to retrieve the full document with sensitive fields omitted by default.
 func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bson.M) (*models.Provider, error) {
 	ctx, cancel := newContext(5 * time.Second)
 	defer cancel()
@@ -59,8 +57,17 @@ func (r *MongoProviderRepo) GetByEmailWithProjection(email string, projection bs
 	}
 
 	opts := options.FindOne().SetProjection(proj)
+
+	// Case-insensitive match using regex
+	filter := bson.M{
+		"profile.email": bson.M{
+			"$regex":   fmt.Sprintf("^%s$", regexp.QuoteMeta(email)),
+			"$options": "i",
+		},
+	}
+
 	var provider models.Provider
-	if err := r.coll.FindOne(ctx, bson.M{"profile.email": email}, opts).Decode(&provider); err != nil {
+	if err := r.coll.FindOne(ctx, filter, opts).Decode(&provider); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}

@@ -3,10 +3,16 @@ package provider
 import (
 	"context"
 	"fmt"
+	"math"
+	"strings"
 	"time"
 
 	"bloomify/models"
 )
+
+var dayOrder = map[string]int{
+	"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6,
+}
 
 func (s *DefaultProviderService) SetupTimeslots(
 	ctx context.Context,
@@ -19,80 +25,62 @@ func (s *DefaultProviderService) SetupTimeslots(
 		return nil, fmt.Errorf("provider not found")
 	}
 
-	// 2. Prepare to expand weekly templates
 	var allSlots []models.TimeSlot
 
 	for wi, week := range req.Weeks {
-		anchor, err := time.Parse("2006-01-02", week.AnchorDate)
+		// Parse anchor date
+		weekStart, err := time.Parse("2006-01-02", week.StartDate)
 		if err != nil {
-			return nil, fmt.Errorf("week %d: invalid anchorDate %q", wi+1, week.AnchorDate)
+			return nil, fmt.Errorf("week %d: invalid startDate %q", wi+1, week.StartDate)
 		}
 
-		// Validate and normalize base slots
 		for i, bs := range week.BaseSlots {
-			if bs.Date != week.AnchorDate {
-				return nil, fmt.Errorf("week %d, slot %d: base slot date %q must equal anchorDate", wi+1, i+1, bs.Date)
-			}
-			if bs.Start >= bs.End {
-				return nil, fmt.Errorf("week %d, slot %d: start must be before end", wi+1, i+1)
-			}
+			// Reset stateful fields
+			bs.BookedUnitsStandard = 0
+			bs.BookedUnitsPriority = 0
+			bs.Blocked = false
+			bs.BlockReason = ""
+			bs.BookingIDs = nil
 
-			// Infer CapacityMode if missing
+			// Infer capacity mode
 			if bs.CapacityMode == "" {
-				if prov.Profile.ProviderType == "individual" {
+				if prov.Profile.ProviderType == "freelancer" {
 					bs.CapacityMode = models.CapacitySingleUse
 				} else {
 					bs.CapacityMode = models.CapacityByUnit
 				}
 			}
 
-			// Validate and normalize capacity based on mode
-			switch bs.CapacityMode {
-			case models.CapacitySingleUse:
-				bs.Capacity = 1
-				bs.UnitType = "hour"
-			case models.CapacityByUnit:
-				if bs.Capacity < 1 {
-					return nil, fmt.Errorf("week %d, slot %d: CapacityByUnit requires capacity >= 1", wi+1, i+1)
-				}
-			default:
-				return nil, fmt.Errorf("week %d, slot %d: unknown capacity mode %q", wi+1, i+1, bs.CapacityMode)
+			// Validate slot
+			if err := validateSlotStructure(bs, *prov, wi, i); err != nil {
+				return nil, err
 			}
 
-			// Store normalized slot back
-			week.BaseSlots[i] = bs
-		}
+			// Expand across active days
+			for _, wd := range week.ActiveDays {
+				dayIdx, ok := dayOrder[strings.Title(wd)]
+				if !ok {
+					return nil, fmt.Errorf("week %d: invalid weekday %q", wi+1, wd)
+				}
 
-		// Calculate start of week (Monday)
-		monday := anchor.AddDate(0, 0, -int((anchor.Weekday()+6)%7))
+				slotDate := weekStart.AddDate(0, 0, dayIdx).Format("2006-01-02")
 
-		// Expand slots for each active day
-		for _, wd := range week.ActiveDays {
-			delta := (int(wd) - int(monday.Weekday()) + 7) % 7
-			slotDate := monday.AddDate(0, 0, delta).Format("2006-01-02")
-
-			for _, base := range week.BaseSlots {
-				slot := base
+				slot := bs
 				slot.ID = ""
 				slot.ProviderID = providerID
 				slot.Date = slotDate
-				slot.BookedUnitsStandard = 0
-				slot.BookedUnitsPriority = 0
-				slot.Blocked = false
-				slot.BlockReason = ""
-				slot.BookingIDs = nil
 				allSlots = append(allSlots, slot)
 			}
 		}
 	}
 
-	// 3. Insert into DB
+	// 2. Persist
 	ids, err := s.Timeslot.CreateMany(ctx, allSlots)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create timeslots: %w", err)
 	}
 
-	// 4. Activate provider & link slot refs
+	// 3. Update provider
 	prov.Profile.Status = "active"
 	var slotRefs []models.MinimalSlotDTO
 	for i, id := range ids {
@@ -110,10 +98,54 @@ func (s *DefaultProviderService) SetupTimeslots(
 		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
-	// 5. Return DTO
 	return &models.ProviderTimeslotDTO{
 		ID:        prov.ID,
 		Status:    prov.Profile.Status,
 		TimeSlots: allSlots,
 	}, nil
+}
+
+func validateSlotStructure(slot models.TimeSlot, provider models.Provider, weekIdx, slotIdx int) error {
+	if slot.Start >= slot.End {
+		return fmt.Errorf("week %d, slot %d: start must be before end", weekIdx+1, slotIdx+1)
+	}
+	if slot.CapacityMode == models.CapacityByUnit && slot.Capacity < 1 {
+		return fmt.Errorf("week %d, slot %d: CapacityByUnit requires capacity >= 1", weekIdx+1, slotIdx+1)
+	}
+
+	if _, ok := getRemainingUnits(slot, provider); !ok {
+		return fmt.Errorf("week %d, slot %d: invalid slot configuration", weekIdx+1, slotIdx+1)
+	}
+	return nil
+}
+
+func getRemainingUnits(ts models.TimeSlot, provider models.Provider) (int, bool) {
+	if provider.Profile.ProviderType == "freelancer" || ts.CapacityMode == models.CapacitySingleUse {
+		if ts.SlotModel != "flatrate" {
+			ts.SlotModel = "flatrate"
+		}
+		duration := ts.End - ts.Start
+		if duration <= 0 {
+			return 0, false
+		}
+		hours := int(math.Floor(float64(duration) / 60.0))
+		if hours <= 0 {
+			return 0, false
+		}
+		return hours, true
+	}
+
+	if ts.CapacityMode == models.CapacityByUnit {
+		switch ts.SlotModel {
+		case "urgency":
+			if ts.Urgency == nil || !ts.Urgency.PriorityActive {
+				return 0, false
+			}
+			normal := ts.Capacity - ts.Urgency.ReservedPriority
+			return normal, true
+		case "earlybird", "flatrate":
+			return ts.Capacity, true
+		}
+	}
+	return 0, false
 }

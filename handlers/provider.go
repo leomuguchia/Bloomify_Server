@@ -6,6 +6,7 @@ import (
 
 	"bloomify/models"
 	"bloomify/services/admin"
+	"bloomify/services/notification"
 	"bloomify/services/provider"
 	"bloomify/utils"
 
@@ -16,12 +17,14 @@ import (
 type ProviderHandler struct {
 	Service      provider.ProviderService
 	AdminService admin.AdminService
+	Notification notification.NotificationService
 }
 
-func NewProviderHandler(ps provider.ProviderService, as admin.AdminService) *ProviderHandler {
+func NewProviderHandler(ps provider.ProviderService, as admin.AdminService, ns notification.NotificationService) *ProviderHandler {
 	return &ProviderHandler{
 		Service:      ps,
 		AdminService: as,
+		Notification: ns,
 	}
 }
 
@@ -177,7 +180,6 @@ func (h *ProviderHandler) AuthenticateProviderHandler(c *gin.Context) {
 			return
 		}
 
-		// Actual error
 		if err != nil {
 			logger.Error("Authentication failed", zap.String("email", req.Email), zap.Error(err))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})

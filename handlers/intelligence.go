@@ -10,11 +10,11 @@ import (
 
 // DefaultAIHandler handles AI requests.
 type DefaultAIHandler struct {
-	svc *ai.DefaultAIService
+	svc *ai.LocalAIService
 }
 
 // NewDefaultAIHandler initializes the handler.
-func NewDefaultAIHandler(svc *ai.DefaultAIService) *DefaultAIHandler {
+func NewDefaultAIHandler(svc *ai.LocalAIService) *DefaultAIHandler {
 	return &DefaultAIHandler{svc: svc}
 }
 

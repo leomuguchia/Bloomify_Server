@@ -3,6 +3,8 @@ package handlers
 import (
 	"bloomify/models"
 	"bloomify/utils"
+	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +40,12 @@ func (h *ProviderHandler) SetupTimeslotsHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set up timeslots", "message": err.Error()})
 		return
 	}
+
+	go func() {
+		if err := h.Notification.NotifyScheduleUpdate(context.Background(), providerID, req); err != nil {
+			fmt.Printf("⚠️ push notification failed: %v\n", err)
+		}
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "Timeslot setup successful; provider status updated to active",
@@ -103,7 +111,6 @@ func (h *ProviderHandler) DeleteTimeslotHandler(c *gin.Context) {
 		"provider": dto,
 	})
 }
-
 func (h *ProviderHandler) VerifyBooking(c *gin.Context) {
 	providerIDValue, exists := c.Get("providerID")
 	if !exists {
@@ -115,18 +122,21 @@ func (h *ProviderHandler) VerifyBooking(c *gin.Context) {
 	date := c.Query("date")
 
 	if providerID == "" || date == "" {
-		c.JSON(400, gin.H{"error": "providerId and date are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "providerId and date are required"})
 		return
 	}
 
 	booking, err := h.Service.VerifyBooking(c.Request.Context(), providerID, date, bookingID)
 	if err != nil {
-		c.JSON(404, gin.H{"valid": false, "message": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"valid": false, "message": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{
+	publicInvoice := models.ToPublicInvoice(booking.Invoice)
+
+	c.JSON(http.StatusOK, gin.H{
 		"valid":   true,
-		"booking": booking,
+		"invoice": publicInvoice,
+		"option":  booking.CustomOption,
 	})
 }

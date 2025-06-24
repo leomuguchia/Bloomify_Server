@@ -104,9 +104,10 @@ func (s *DefaultProviderService) ResetPassword(email, providedOTP, newPassword, 
 
 	// 9. Update the provider record with a patch document.
 	updateFields := bson.M{
-		"passwordHash": string(newHash),
-		"updatedt":     time.Now(),
+		"security.passwordHash": string(newHash),
+		"updatedt":              time.Now(),
 	}
+
 	if err := s.Repo.UpdateSetDocument(provider.ID, updateFields); err != nil {
 		utils.GetLogger().Error("ResetPassword: Failed to update provider password", zap.Error(err))
 		return fmt.Errorf("failed to update password")

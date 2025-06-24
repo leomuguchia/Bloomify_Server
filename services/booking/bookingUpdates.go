@@ -125,8 +125,8 @@ func (se *DefaultSchedulingEngine) NotifyUserWithBookingStatus(
 			"actionRequired": fmt.Sprintf("%t", actionRequired),
 		}
 		if locationGeo != nil {
-			data["locationLongitude"] = fmt.Sprintf("%f", locationGeo.Coordinates[0])
-			data["locationLatitude"] = fmt.Sprintf("%f", locationGeo.Coordinates[1])
+			data["longitude"] = fmt.Sprintf("%f", locationGeo.Coordinates[0])
+			data["latitude"] = fmt.Sprintf("%f", locationGeo.Coordinates[1])
 		}
 
 		err := se.Notification.SendUserPushNotification(
@@ -198,6 +198,7 @@ func (se *DefaultSchedulingEngine) UpdateProviderWithBookingNotification(
 				"start":    slot.Start,
 				"end":      slot.End,
 				"capacity": remaining,
+				"unitType": booking.UnitType,
 			},
 			"serviceMode":    booking.Mode,
 			"actionRequired": false,

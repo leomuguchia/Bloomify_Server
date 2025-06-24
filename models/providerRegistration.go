@@ -15,11 +15,11 @@ type ProviderBasicRegistrationData struct {
 }
 
 type KYPVerificationData struct {
-	Type         string `json:"type"` // "individual" or "business"
+	Type         string `json:"type"` // "freelancer" or "business"
 	LegalName    string `json:"legalName"`
 	DocumentURL  string `json:"documentUrl"`
 	DocumentType string `json:"documentType"` // e.g., "passport", "license", "taxID"
-	SelfieURL    string `json:"selfieUrl"`    // required for individuals, optional for business contact person
+	SelfieURL    string `json:"selfieUrl"`    // required for freelancer, optional for business contact person
 	ContactName  string `json:"contactName"`  // optional for businesses
 	ContactEmail string `json:"contactEmail"` // optional for businesses
 }
@@ -60,9 +60,9 @@ type ProviderDTO struct {
 }
 
 type ProviderAuthResponse struct {
-	ID          string    `json:"id"`
-	Token       string    `json:"token"`
-	Profile     Profile   `json:"profile"`
-	CreatedAt   time.Time `json:"createdAt"`
-	ServiceType string    `json:"serviceType,omitempty"`
+	ID               string           `json:"id"`
+	Token            string           `json:"token"`
+	Profile          Profile          `json:"profile"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	ServiceCatalogue ServiceCatalogue `json:"serviceCatalogue"`
 }

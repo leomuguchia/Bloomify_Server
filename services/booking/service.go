@@ -31,8 +31,6 @@ var globalRegions = []string{
 	"South Asia",
 	"North America",
 }
-
-// price range is in default currrency USD
 var servicesMap = map[string]ServiceDetails{
 	"Cleaning": {
 		Metadata: models.ServiceMetadata{
@@ -43,12 +41,12 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome},
 			Category:     "Domestic Services",
 		},
-		PriceRange: &PriceRange{Min: 20, Max: 40},
+		PriceRange: &PriceRange{Min: 20, Max: 50},
 		CustomOptions: []models.CustomOption{
-			{Option: "Deep Cleaning", Multiplier: 2.0},
-			{Option: "Move-In/Move-Out", Multiplier: 1.8},
-			{Option: "Pet Hair Removal", Multiplier: 1.5},
-			{Option: "Eco-Friendly Products", Multiplier: 1.2},
+			{Option: "Deep Cleaning", Multiplier: 1.5},          // +30–50%
+			{Option: "Eco-Friendly Products", Multiplier: 1.15}, // modest uplift
+			{Option: "Pet Hair Removal", Multiplier: 1.1},       // small premium
+			{Option: "Move-In/Move-Out", Multiplier: 1.3},       // adjusted for specialty cleaning
 		},
 		Availability: globalRegions,
 	},
@@ -61,7 +59,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModePickupDelivery, models.ModeInHome},
 			Category:     "Domestic Services",
 		},
-		PriceRange: &PriceRange{Min: 5, Max: 15},
+		PriceRange: &PriceRange{Min: 2, Max: 6},
 		CustomOptions: []models.CustomOption{
 			{Option: "Hypoallergenic Detergent", Multiplier: 1.3},
 			{Option: "Delicates/Hand-Wash", Multiplier: 1.7},
@@ -79,7 +77,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome, models.ModePickupDelivery},
 			Category:     "Lifestyle & Personal Services",
 		},
-		PriceRange: &PriceRange{Min: 15, Max: 50},
+		PriceRange: &PriceRange{Min: 20, Max: 60},
 		CustomOptions: []models.CustomOption{
 			{Option: "Vegan/Vegetarian", Multiplier: 1.3},
 			{Option: "Gluten-Free", Multiplier: 1.2},
@@ -97,7 +95,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome},
 			Category:     "Domestic Services",
 		},
-		PriceRange: &PriceRange{Min: 30, Max: 60},
+		PriceRange: &PriceRange{Min: 30, Max: 80},
 		CustomOptions: []models.CustomOption{
 			{Option: "TV Mounting", Multiplier: 1.5},
 			{Option: "Furniture Assembly", Multiplier: 1.3},
@@ -115,7 +113,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome},
 			Category:     "Domestic Services",
 		},
-		PriceRange: &PriceRange{Min: 20, Max: 50},
+		PriceRange: &PriceRange{Min: 30, Max: 80},
 		CustomOptions: []models.CustomOption{
 			{Option: "Flower Bed Planting", Multiplier: 1.4},
 			{Option: "Tree Trimming", Multiplier: 1.6},
@@ -133,7 +131,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome},
 			Category:     "Lifestyle & Personal Services",
 		},
-		PriceRange: &PriceRange{Min: 15, Max: 40},
+		PriceRange: &PriceRange{Min: 10, Max: 30},
 		CustomOptions: []models.CustomOption{
 			{Option: "Dog Walking", Multiplier: 1.0},
 			{Option: "Pet Grooming", Multiplier: 1.8},
@@ -151,7 +149,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome, models.ModeInStore},
 			Category:     "Lifestyle & Personal Services",
 		},
-		PriceRange: &PriceRange{Min: 12, Max: 30},
+		PriceRange: &PriceRange{Min: 15, Max: 30},
 		CustomOptions: []models.CustomOption{
 			{Option: "Homework Help", Multiplier: 1.4},
 			{Option: "Special Needs Care", Multiplier: 2.0},
@@ -169,7 +167,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome, models.ModeVirtual},
 			Category:     "Lifestyle & Personal Services",
 		},
-		PriceRange: &PriceRange{Min: 20, Max: 60},
+		PriceRange: &PriceRange{Min: 25, Max: 80},
 		CustomOptions: []models.CustomOption{
 			{Option: "STEM Subjects", Multiplier: 1.5},
 			{Option: "Test Prep", Multiplier: 1.6},
@@ -205,7 +203,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome, models.ModePickupDelivery},
 			Category:     "Lifestyle & Personal Services",
 		},
-		PriceRange: &PriceRange{Min: 15, Max: 35},
+		PriceRange: &PriceRange{Min: 15, Max: 25},
 		CustomOptions: []models.CustomOption{
 			{Option: "Return Items", Multiplier: 1.1},
 			{Option: "Gift Shopping", Multiplier: 1.3},
@@ -223,7 +221,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome},
 			Category:     "Lifestyle & Personal Services",
 		},
-		PriceRange: &PriceRange{Min: 30, Max: 60},
+		PriceRange: &PriceRange{Min: 30, Max: 70},
 		CustomOptions: []models.CustomOption{
 			{Option: "Use My Vehicle", Multiplier: 1.0},
 			{Option: "Event-Ready (Formal Attire)", Multiplier: 1.5},
@@ -242,7 +240,7 @@ var servicesMap = map[string]ServiceDetails{
 			Modes:        []string{models.ModeInHome, models.ModeInStore},
 			Category:     "Personal Care",
 		},
-		PriceRange: &PriceRange{Min: 25, Max: 70},
+		PriceRange: &PriceRange{Min: 20, Max: 70},
 		CustomOptions: []models.CustomOption{
 			{Option: "Haircut + Beard Trim", Multiplier: 1.3},
 			{Option: "Hot Towel Shave or Facial", Multiplier: 1.5},

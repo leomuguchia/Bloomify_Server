@@ -93,5 +93,5 @@ func (s *DefaultProviderService) VerifyBooking(
 		}
 	}
 
-	return nil, fmt.Errorf("booking not found or not linked to this provider/date")
+	return nil, fmt.Errorf("booking not found")
 }

@@ -39,6 +39,7 @@ func (s *DefaultProviderService) InitiateProviderAuthentication(email, method, p
 	switch method {
 	case "password":
 		if err := bcrypt.CompareHashAndPassword([]byte(provider.Security.PasswordHash), []byte(password)); err != nil {
+			utils.GetLogger().Error("Password hash mismatch", zap.String("hash", provider.Security.PasswordHash), zap.String("provided", password), zap.Error(err))
 			return nil, "", 0, fmt.Errorf("invalid email or password")
 		}
 	case "apple":
@@ -235,10 +236,10 @@ func (s *DefaultProviderService) completeProviderAuthentication(providerId strin
 	_ = utils.DeleteAuthSession(sessionClient, sessionID)
 
 	return &models.ProviderAuthResponse{
-		ID:          provider.ID,
-		Token:       token,
-		Profile:     provider.Profile,
-		CreatedAt:   provider.CreatedAt,
-		ServiceType: provider.ServiceCatalogue.Service.ID,
+		ID:               provider.ID,
+		Token:            token,
+		Profile:          provider.Profile,
+		CreatedAt:        provider.CreatedAt,
+		ServiceCatalogue: provider.ServiceCatalogue,
 	}, nil
 }

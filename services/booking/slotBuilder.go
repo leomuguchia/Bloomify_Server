@@ -39,12 +39,12 @@ func EnrichTimeslots(rawSlots []models.TimeSlot, catalogue models.ServiceCatalog
 }
 
 func getRemainingUnits(ts models.TimeSlot, provider models.Provider) (int, bool) {
-	if provider.Profile.ProviderType == "individual" || ts.CapacityMode == models.CapacitySingleUse {
+	if provider.Profile.ProviderType == "freelancer" || ts.CapacityMode == models.CapacitySingleUse {
 		if len(ts.BookingIDs) > 0 || ts.Blocked {
 			return 0, true
 		}
 
-		// always enforce to flatrate under individual
+		// always enforce to flatrate under freelancer
 		if ts.SlotModel != "flatrate" {
 			ts.SlotModel = "flatrate"
 		}
